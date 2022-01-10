@@ -1,8 +1,8 @@
 import numpy as np
 import deepdish as dd
 
-import pyTrajectory.instance
-import pyTrajectory.series_operations
+from .instance import Instance
+from .series_operations import interpolate_series
 
 
 is_ipython = False
@@ -10,7 +10,7 @@ try:
     import IPython
     import io
     import matplotlib.pyplot as plt
-    import pyTrajectory.visualization
+    from .visualization import get_trajectory_range, plot_trajectory
     is_ipython = True
 except ModuleNotFoundError:
     pass
@@ -57,7 +57,7 @@ class Trajectory(list):
         selection = np.repeat(True, num_instances)
         if condition is not None:
             selection = condition(data)
-        instances = [pyTrajectory.instance.Instance(*instance_data) for instance_data
+        instances = [Instance(*instance_data) for instance_data
                      in zip(*[np.asarray(data[key])[selection]
                      for key in self.keys()])]
         self.__init__(instances)
@@ -121,7 +121,7 @@ class Trajectory(list):
         if key in self.keys():
             return self.get_values(key)
         item = super().__getitem__(key)
-        if type(item) == pyTrajectory.instance.Instance:
+        if type(item) == Instance:
             return item
         return self.init_new_trajectory(item)
 
@@ -160,9 +160,9 @@ class Trajectory(list):
             if value is None:
                 data_interpolated[key] = [None] * data_interpolated['time_stamp'].size
                 continue
-            data_interpolated[key] = pyTrajectory.series_operations.interpolate_series(
+            data_interpolated[key] = interpolate_series(
                 value, time_stamps, data_interpolated['time_stamp'])
-        instances = [pyTrajectory.instance.Instance(*instance_data)
+        instances = [Instance(*instance_data)
                      for instance_data in zip(*data_interpolated.values())]
         if copy:
             return self.init_new_trajectory(instances)
@@ -181,10 +181,10 @@ if is_ipython:
             ax = fig.add_axes([0, 0, 1, 1])
             ax.axis('off')
             ax.set_aspect('equal')
-            (x_min, x_max), (y_min, y_max) = pyTrajectory.visualization.get_trajectory_range(self)
+            (x_min, x_max), (y_min, y_max) = get_trajectory_range(self)
             ax.set_xlim(x_min, x_max)
             ax.set_ylim(y_min, y_max)
-            pyTrajectory.visualization.plot_trajectory(self, ax)
+            plot_trajectory(self, ax)
             plt.savefig(buffer, format='png', dpi='figure')
             ax.clear()
             fig.clear()

@@ -1,8 +1,8 @@
 import numpy as np
 from decorator import decorator
 
-import pyTrajectory.series_operations
-import pyTrajectory.series_math
+import pyTrajectory.series_operations  # avoid circular import
+import pyTrajectory.series_math  # avoid circular import
 
 
 def raw(func):
@@ -12,9 +12,17 @@ def raw(func):
 
 
 @decorator
-def filter_output(func, lower=0.05, upper=0.95, window_size=61, *args, **kwargs):
+def filter_output(func,
+                  lower=0.05,
+                  upper=0.95,
+                  window_size=61,
+                  *args,
+                  **kwargs):
     series = func(*args, **kwargs)
-    return pyTrajectory.series_operations.filter_series(series, lower, upper, window_size)
+    return pyTrajectory.series_operations.filter_series(series,
+                                                        lower,
+                                                        upper,
+                                                        window_size)
 
 
 @decorator
@@ -50,5 +58,6 @@ def smooth_output(func,
 
 @decorator
 def norm_input(func, *args, **kwargs):
-    args = [pyTrajectory.series_math.calculate_unit_vectors(arg) for arg in args]
+    args = [pyTrajectory.series_math.calculate_unit_vectors(arg)
+            for arg in args]
     return func(*args, **kwargs)

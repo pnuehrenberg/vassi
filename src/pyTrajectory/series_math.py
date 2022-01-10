@@ -1,6 +1,6 @@
 import numpy as np
 
-import pyTrajectory.series_decorators
+from .series_decorators import norm_input, absolute_output
 
 
 def wrap_angles(rad):
@@ -15,12 +15,12 @@ def calculate_unit_vectors(vectors):
     return vectors / calculate_element_wise_magnitude(vectors)[..., np.newaxis]
 
 
-@pyTrajectory.series_decorators.norm_input
+@norm_input
 def calculate_pairwise_signed_angle_between(vectors_1, vectors_2):
     return wrap_angles(np.arctan2(*vectors_1[:, ::-1].T) - np.arctan2(*vectors_2[:, ::-1].T))
 
 
-@pyTrajectory.series_decorators.absolute_output
+@absolute_output
 def calculate_pairwise_unsigned_angle_between(vectors_1, vectors_2):
     return calculate_pairwise_signed_angle_between(vectors_1, vectors_2)
 

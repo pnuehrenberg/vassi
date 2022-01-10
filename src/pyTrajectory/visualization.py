@@ -2,7 +2,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib import collections
 
-import pyTrajectory.trajectory_operations
+from .trajectory_operations import get_pose_segment_lengths
 
 
 def get_trajectory_key(trajectory, keys=None):
@@ -35,9 +35,8 @@ def get_trajectory_alpha_from_density(trajectory):
     bin_width = 20
     if trajectory['pose'] is not None:
         keypoint_indices = np.arange(trajectory['pose'].shape[1])
-        pose_segment_lengths = \
-            pyTrajectory.trajectory_operations.get_pose_segment_lengths(
-                trajectory, keypoint_indices)
+        pose_segment_lengths = get_pose_segment_lengths(trajectory,
+                                                        keypoint_indices)
         mean_pose_length = pose_segment_lengths.sum(axis=1).mean() / 4
     bins = [np.arange(x_min, x_max + bin_width, bin_width),
             np.arange(y_min, y_max + bin_width, bin_width)]
@@ -58,7 +57,8 @@ def get_trajectory_alpha_from_density(trajectory):
 
 
 def plot_trajectory(trajectory, ax):
-    alpha = get_trajectory_alpha_from_density(trajectory)
+    # alpha = get_trajectory_alpha_from_density(trajectory)
+    alpha = np.arange(1, len(trajectory))
     pose_color = 0
     if trajectory['segmentation'] is not None:
         coll_segmentation = collections.PolyCollection(trajectory['segmentation'],
@@ -75,3 +75,6 @@ def plot_trajectory(trajectory, ax):
                                                lw=0.5,
                                                capstyle='round')
         ax.add_collection(coll_pose)
+        return
+    if trajectory['position'] is not None:
+        ax.scatter(*trajectory['position'].T, c='k', s=5, edgecolor=(0, 0, 0, 0))

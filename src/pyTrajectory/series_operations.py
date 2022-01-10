@@ -1,7 +1,7 @@
 import numpy as np
 from scipy.signal import savgol_filter, medfilt
 
-import pyTrajectory.series_math
+from .series_math import calculate_element_wise_magnitude
 
 
 def get_sliding_quantiles(series, quantiles, window_size):
@@ -69,7 +69,7 @@ def interpolate_series(series, time_stamps, time_stamps_target):
 
 def get_sliding_cumulative_distance(series, window_size):
     series_sliding_windows = np.lib.stride_tricks.sliding_window_view(series, window_size, axis=0)
-    sliding_distance = pyTrajectory.series_math.calculate_element_wise_magnitude(np.swapaxes(np.diff(series_sliding_windows, axis=-1), -1, -2)).sum(axis=-1)
+    sliding_distance = calculate_element_wise_magnitude(np.swapaxes(np.diff(series_sliding_windows, axis=-1), -1, -2)).sum(axis=-1)
     sliding_distance = np.concatenate([
         np.tile(sliding_distance[0], window_size // 2).reshape(window_size // 2, *sliding_distance.shape[1:]),
         sliding_distance,
@@ -79,7 +79,7 @@ def get_sliding_cumulative_distance(series, window_size):
 
 def get_sliding_distance(series, window_size):
     series_sliding_windows = np.lib.stride_tricks.sliding_window_view(series, window_size, axis=0)
-    sliding_distance = pyTrajectory.series_math.calculate_element_wise_magnitude(series_sliding_windows[..., 0] - series_sliding_windows[..., -1])
+    sliding_distance = calculate_element_wise_magnitude(series_sliding_windows[..., 0] - series_sliding_windows[..., -1])
     sliding_distance = np.concatenate([
         np.tile(sliding_distance[0], window_size // 2).reshape(window_size // 2, *sliding_distance.shape[1:]),
         sliding_distance,
