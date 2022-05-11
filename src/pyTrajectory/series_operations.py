@@ -42,6 +42,8 @@ def smooth_series(series,
     for idx in np.ndindex(series.shape[1:]):
         s = series[(slice(None), *idx)]
         indices_finite = np.argwhere(np.isfinite(s)).ravel()
+        if indices_finite.size == 0:
+            continue
         length = len(s)
         s = s[indices_finite]
         if use_median_filter and len(s) > median_filter_window_size:
