@@ -16,6 +16,10 @@ except ModuleNotFoundError:
     pass
 
 
+class OutOfTrajectoryRange(Exception):
+    pass
+
+
 class Trajectory(list):
 
     def __init__(self, instances=None, data=None):
@@ -169,6 +173,29 @@ class Trajectory(list):
         self.reset_values()
         self.__init__(instances)
         return self
+
+    def check_completeness(self):
+        if len(self) == 0:
+            return True
+        return len(self) == self[-1].time_stamp - self[0].time_stamp + 1
+
+    def slice_window(self, start, stop):
+        if start < self[0].time_stamp:
+            raise OutOfTrajectoryRange
+        if stop > self[-1].time_stamp:
+            raise OutOfTrajectoryRange
+        selection = slice(np.argwhere(self['time_stamp'] >= start).ravel()[0],
+                          np.argwhere(self['time_stamp'] <= stop).ravel()[-1] + 1)
+        if self[selection.start].time_stamp > start:
+            selection = slice(max(0, selection.start - 1), selection.stop)
+        if self[selection.stop - 1].time_stamp < stop:
+            selection = slice(selection.start, min(len(self) - 1, selection.stop + 1))
+        trajectory_window = self[selection]
+        if not trajectory_window.check_completeness():
+            trajectory_window = trajectory_window.interpolate()
+        if len(trajectory_window) == stop - start + 1:
+            return trajectory_window
+        return trajectory_window.slice_window(start, stop)
 
 
 if is_ipython:
