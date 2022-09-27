@@ -79,7 +79,7 @@ def plot_trajectory(trajectory, ax, visualization_config=None, **visualization_k
         ax.add_collection(coll_pose)
 
     if get_value('plot_position') and trajectory['position'] is not None:
-        ax.scatter(*trajectory['position'][..., ::-1].T,
+        ax.scatter(*trajectory['position'].T,
                    marker=get_value('position_marker'),
                    s=get_value('position_size'),
                    facecolor=get_value('position_face'),
