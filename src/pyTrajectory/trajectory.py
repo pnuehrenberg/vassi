@@ -175,12 +175,12 @@ class Trajectory(list):
         self.__init__(instances)
         return self
 
-    def check_completeness(self):
+    def is_complete(self):
         if len(self) == 0:
             return True
         return len(self) == self[-1].time_stamp - self[0].time_stamp + 1
 
-    def slice_window(self, start, stop):
+    def slice_window(self, start, stop, check_completeness=True):
         if start < self[0].time_stamp:
             raise OutOfTrajectoryRange
         if stop > self[-1].time_stamp:
@@ -192,7 +192,7 @@ class Trajectory(list):
         if self[selection.stop - 1].time_stamp < stop:
             selection = slice(selection.start, min(len(self) - 1, selection.stop + 1))
         trajectory_window = self[selection]
-        if not trajectory_window.check_completeness():
+        if check_completeness and not trajectory_window.is_complete():
             trajectory_window = trajectory_window.interpolate()
         if len(trajectory_window) == stop - start + 1:
             return trajectory_window
