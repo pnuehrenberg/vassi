@@ -16,21 +16,26 @@ def format_arg(arg):
 
 class Instance(object):
 
-    __slots__ = 'time_stamp', 'position', 'pose', 'segmentation', 'score', \
-                'keypoint_indices', 'category'
+    __slots__ = ('time_stamp',
+                 'position',
+                 'pose',
+                 'segmentation',
+                 'bbox',
+                 'score',
+                 'category')
 
     def __init__(self,
                  time_stamp=None,
                  position=None,
                  pose=None,
                  segmentation=None,
+                 bbox=None,
                  score=None,
-                 keypoint_indices=None,
                  category=None):
         self.time_stamp = format_arg(time_stamp)
         self.position = format_arg(position)
         self.pose = format_arg(pose)
         self.segmentation = format_arg(segmentation)
+        self.bbox = format_arg(bbox)
         self.score = format_arg(score)
-        self.keypoint_indices = keypoint_indices
         self.category = format_arg(category)
