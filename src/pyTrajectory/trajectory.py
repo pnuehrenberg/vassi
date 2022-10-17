@@ -69,14 +69,15 @@ class Trajectory(list):
 
     # implement some dictionary functionality
 
-    def keys(self):
-        return ['time_stamp', 'position', 'pose', 'segmentation', 'score']
+    def keys(self, exclude=None):
+        exclude = exclude or []
+        return [key for key in Instance.__slots__ if key not in exclude]
 
-    def values(self):
-        return [self.get_values(key) for key in self.keys()]
+    def values(self, exclude=None):
+        return [self.get_values(key) for key in self.keys(exclude)]
 
-    def items(self):
-        return [(key, value) for key, value in zip(self.keys(), self.values())]
+    def items(self, exclude=None):
+        return [(key, value) for key, value in zip(self.keys(exclude), self.values(exclude))]
 
     # implement some list functionality
 
@@ -137,8 +138,8 @@ class Trajectory(list):
 
     # trajectory functionality
 
-    def sort(self, copy=False):
-        sort_idx = np.argsort(self['time_stamp'])
+    def sort(self, copy=False, key='time_stamp'):
+        sort_idx = np.argsort(self[key])
         instances = np.array(self)[sort_idx]
         if copy:
             return self.init_new_trajectory(instances)
@@ -158,8 +159,8 @@ class Trajectory(list):
         self_sorted = self.sort(copy=True)
         time_stamps = self_sorted['time_stamp']
         data_interpolated = {'time_stamp': np.arange(time_stamps.min(),
-                                                time_stamps.max() + 1)}
-        for key in self.keys()[1:]:
+                                                     time_stamps.max() + 1)}
+        for key in self.keys(exclude=['time_stamp']):
             value = self_sorted[key]
             if value is None:
                 data_interpolated[key] = [None] * data_interpolated['time_stamp'].size
