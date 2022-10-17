@@ -1,3 +1,5 @@
+import numpy as np
+import networkx as nx
 from scipy.optimize import linear_sum_assignment
 
 from .instance import Instance
