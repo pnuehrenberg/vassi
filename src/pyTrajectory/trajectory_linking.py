@@ -1,6 +1,7 @@
 import numpy as np
 import networkx as nx
 
+from sklearn.metrics import pairwise_distances
 from scipy.optimize import linear_sum_assignment
 from tqdm.auto import tqdm
 
