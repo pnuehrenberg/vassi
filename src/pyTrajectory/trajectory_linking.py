@@ -1,6 +1,8 @@
 import numpy as np
 import networkx as nx
+
 from scipy.optimize import linear_sum_assignment
+from tqdm.auto import tqdm
 
 from .instance import Instance
 from .trajectory import Trajectory
