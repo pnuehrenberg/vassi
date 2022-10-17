@@ -192,7 +192,9 @@ class Trajectory(list):
         if self[selection.stop - 1].time_stamp < stop:
             selection = slice(selection.start, min(len(self) - 1, selection.stop + 1))
         trajectory_window = self[selection]
-        if check_completeness and not trajectory_window.is_complete():
+        if not check_completeness:
+            return trajectory_window
+        if not trajectory_window.is_complete():
             trajectory_window = trajectory_window.interpolate()
         if len(trajectory_window) == stop - start + 1:
             return trajectory_window
