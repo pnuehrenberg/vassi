@@ -1,5 +1,6 @@
 import numpy as np
 from scipy.signal import savgol_filter, medfilt
+from copy import deepcopy
 
 from .series_math import calculate_element_wise_magnitude
 
@@ -14,7 +15,9 @@ def get_sliding_quantiles(series, quantiles, window_size):
     return sliding_quantiles
 
 
-def filter_series(series, lower=0.05, upper=0.95, window_size=61):
+def filter_series(series, lower=0.05, upper=0.95, window_size=61, copy=True):
+    if copy:
+        series = deepcopy(series)
     shape = series.shape
     if len(shape) == 1:
         series = series[:, np.newaxis]
@@ -35,7 +38,10 @@ def smooth_series(series,
                   use_savgol_filter=True,
                   savgol_filter_window_size=5,
                   savgol_filter_polyorder=1,
-                  force_positive=False):
+                  force_positive=False,
+                  copy=True):
+    if copy:
+        series = deepcopy(series)
     shape = series.shape
     if len(shape) == 1:
         series = series[:, np.newaxis]
@@ -59,6 +65,7 @@ def smooth_series(series,
 
 
 def interpolate_series(series, time_stamps, time_stamps_target):
+    series = deepcopy(series)
     shape = series.shape
     if len(shape) == 1:
         series = series[:, np.newaxis]
