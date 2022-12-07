@@ -1,6 +1,6 @@
 import numpy as np
 
-from .config import KEYS
+import .config
 
 
 def format_arg(arg):
@@ -18,17 +18,15 @@ def format_arg(arg):
 
 class Instance(object):
 
-    __slots__ = KEYS
-
     def __init__(self, **kwargs):
         for key, arg in kwargs.items():
-            if key not in self.__slots__:
+            if key not in config.KEYS:
                 raise NotImplementedError
             setattr(self, key, format_arg(arg))
-        for key in set(self.__slots__) - set(kwargs.keys()):
+        for key in set(config.KEYS) - set(kwargs.keys()):
             setattr(self, key, None)
 
     def __getitem__(self, key):
-        if key not in self.__slots__:
+        if key not in config.KEYS:
             raise NotImplementedError
         return getattr(self, key)
