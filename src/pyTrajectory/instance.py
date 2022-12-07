@@ -1,6 +1,6 @@
 import numpy as np
 
-import .config as config
+import pyTrajectory.config as config
 
 
 def format_arg(arg):
