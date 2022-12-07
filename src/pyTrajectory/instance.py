@@ -1,6 +1,6 @@
 import numpy as np
 
-import .config
+import .config as config
 
 
 def format_arg(arg):
