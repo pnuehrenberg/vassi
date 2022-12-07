@@ -1,13 +1,6 @@
 import numpy as np
 
-
-KEYS = ('time_stamp',
-        'position',
-        'pose',
-        'segmentation',
-        'bbox',
-        'score',
-        'category')
+from .config import KEYS
 
 
 def format_arg(arg):
