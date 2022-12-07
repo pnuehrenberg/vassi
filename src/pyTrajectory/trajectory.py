@@ -1,6 +1,7 @@
 import numpy as np
 import deepdish as dd
 
+import pyTrajectory.config as config
 from .instance import Instance
 from .series_operations import interpolate_series
 
@@ -61,7 +62,7 @@ class Trajectory(list):
         selection = np.repeat(True, num_instances)
         if condition is not None:
             selection = condition(data)
-        instances = [Instance(*instance_data) for instance_data
+        instances = [Instance(**{k: v for k, v in zip(self.keys(), instance_data)}) for instance_data
                      in zip(*[np.asarray(data[key])[selection]
                      for key in self.keys()])]
         self.__init__(instances)
@@ -71,7 +72,7 @@ class Trajectory(list):
 
     def keys(self, exclude=None):
         exclude = exclude or []
-        return [key for key in Instance.__slots__ if key not in exclude]
+        return [key for key in config.KEYS if key not in exclude]
 
     def values(self, exclude=None):
         return [self.get_values(key) for key in self.keys(exclude)]
@@ -167,7 +168,7 @@ class Trajectory(list):
                 continue
             data_interpolated[key] = interpolate_series(
                 value, time_stamps, data_interpolated['time_stamp'])
-        instances = [Instance(*instance_data)
+        instances = [Instance(**{k: v for k, v in zip(self.keys(), instance_data)})
                      for instance_data in zip(*data_interpolated.values())]
         if copy:
             return self.init_new_trajectory(instances)
