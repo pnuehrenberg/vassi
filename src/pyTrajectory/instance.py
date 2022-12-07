@@ -1,6 +1,15 @@
 import numpy as np
 
 
+KEYS = ('time_stamp',
+        'position',
+        'pose',
+        'segmentation',
+        'bbox',
+        'score',
+        'category')
+
+
 def format_arg(arg):
     if arg is None:
         return None
@@ -16,26 +25,17 @@ def format_arg(arg):
 
 class Instance(object):
 
-    __slots__ = ('time_stamp',
-                 'position',
-                 'pose',
-                 'segmentation',
-                 'bbox',
-                 'score',
-                 'category')
+    __slots__ = KEYS
 
-    def __init__(self,
-                 time_stamp=None,
-                 position=None,
-                 pose=None,
-                 segmentation=None,
-                 bbox=None,
-                 score=None,
-                 category=None):
-        self.time_stamp = format_arg(time_stamp)
-        self.position = format_arg(position)
-        self.pose = format_arg(pose)
-        self.segmentation = format_arg(segmentation)
-        self.bbox = format_arg(bbox)
-        self.score = format_arg(score)
-        self.category = format_arg(category)
+    def __init__(self, **kwargs):
+        for key, arg in kwargs.items():
+            if key not in self.__slots__:
+                raise NotImplementedError
+            setattr(self, key, format_arg(arg))
+        for key in set(self.__slots__) - set(kwargs.keys()):
+            setattr(self, key, None)
+
+    def __getitem__(self, key):
+        if key not in self.__slots__:
+            raise NotImplementedError
+        return getattr(self, key)
