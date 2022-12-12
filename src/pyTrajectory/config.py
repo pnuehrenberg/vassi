@@ -1,7 +1,7 @@
 from copy import deepcopy
 
+import .instance import Instance
 
-import pyTrajectory
 
 class Config(object):
 
