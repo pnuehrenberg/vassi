@@ -1,4 +1,5 @@
 from copy import deepcopy
+from typing import get_type_hints
 
 import pyTrajectory.instance
 
