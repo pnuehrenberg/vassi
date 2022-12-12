@@ -1,6 +1,8 @@
 from copy import deepcopy
 
 
+import pyTrajectory
+
 class Config(object):
 
     def __init__(self, **kwargs):
