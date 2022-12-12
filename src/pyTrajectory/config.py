@@ -1,6 +1,6 @@
 from copy import deepcopy
 
-import .instance import Instance
+from .instance import Instance
 
 
 class Config(object):
