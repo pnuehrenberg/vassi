@@ -62,8 +62,8 @@ class Trajectory(list):
         selection = np.repeat(True, num_instances)
         if condition is not None:
             selection = condition(data)
-        instances = [Instance(**{k: v for k, v in zip(self.keys(), instance_data)}) for instance_data
-                     in zip(*[np.asarray(data[key])[selection]
+        instances = [Instance(**{k: v for k, v in zip(self.keys(), instance_data)})
+                     for instance_data in zip(*[np.asarray(data[key])[selection]
                      for key in self.keys()])]
         self.__init__(instances)
         return self
@@ -122,6 +122,8 @@ class Trajectory(list):
         return values
 
     def __getitem__(self, key):
+        if type(key) == tuple:
+            return [self.__getitem__(key) for key in key]
         if type(key) == str and key not in self.keys():
             raise NotImplementedError('trajectory has no key {}.'.format(key))
         if key in self.keys():

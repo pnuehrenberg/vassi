@@ -5,7 +5,7 @@ from matplotlib.colors import to_rgb
 from copy import deepcopy
 
 from .trajectory_operations import get_pose_segment_lengths
-from .config import VISUALIZATION_CONFIG
+import pyTrajectory.config as config
 
 
 def get_trajectory_key(trajectory, keys=None):
@@ -37,7 +37,7 @@ def plot_trajectory(trajectory, ax, visualization_config=None, **visualization_k
         return tuple([*to_rgb(visualization_config[f'{arg}_color']),
                               visualization_config[f'{arg}_alpha']])
 
-    visualization_config = visualization_config or deepcopy(VISUALIZATION_CONFIG)
+    visualization_config = visualization_config or deepcopy(config.VISUALIZATION_CONFIG)
     for arg, value in visualization_kwargs.items():
         visualization_config[arg] = value
 

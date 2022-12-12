@@ -7,7 +7,7 @@ KEYS = ('time_stamp',
         'category')
 
 VISUALIZATION_CONFIG = dict(
-    plot_segmentation = True,
+    plot_segmentation = False,
     plot_pose = True,
     plot_position = False,
     segmentation_edge_color = 'k',
