@@ -1,6 +1,6 @@
 from copy import deepcopy
 
-from pyTrajectory.instance import Instance
+import pyTrajectory.instance
 
 
 class Config(object):
@@ -89,7 +89,7 @@ cfg.keypoints.s = 3
 cfg.keypoints.edgecolor = 'k'
 cfg.keypoints.lw = 0.5
 
-def get_keypoints_facecolor(instance: Instance):
+def get_keypoints_facecolor(instance: pyTrajectory.instance.Instance):
     global cfg
     return ['r'] + ['w'] * (len(instance[cfg.key_keypoints]) - 1)
 
