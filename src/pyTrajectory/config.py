@@ -1,6 +1,6 @@
 from copy import deepcopy
 
-from .instance import Instance
+from pyTrajectory.instance import Instance
 
 
 class Config(object):
