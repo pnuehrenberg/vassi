@@ -1,20 +1,9 @@
 import numpy as np
 import deepdish as dd
 
-import pyTrajectory.config as config
+from pyTrajectory.config import cfg
 from .instance import Instance
 from .series_operations import interpolate_series
-
-
-is_ipython = False
-try:
-    import IPython
-    import io
-    import matplotlib.pyplot as plt
-    from .visualization import get_trajectory_range, plot_trajectory
-    is_ipython = True
-except ModuleNotFoundError:
-    pass
 
 
 class OutOfTrajectoryRange(Exception):
@@ -72,7 +61,7 @@ class Trajectory(list):
 
     def keys(self, exclude=None):
         exclude = exclude or []
-        return [key for key in config.keys if key not in exclude]
+        return [key for key in cfg.trajectory_keys if key not in exclude]
 
     def values(self, exclude=None):
         return [self.get_values(key) for key in self.keys(exclude)]
