@@ -72,7 +72,7 @@ class Trajectory(list):
 
     def keys(self, exclude=None):
         exclude = exclude or []
-        return [key for key in config.KEYS if key not in exclude]
+        return [key for key in config.keys if key not in exclude]
 
     def values(self, exclude=None):
         return [self.get_values(key) for key in self.keys(exclude)]
@@ -202,27 +202,3 @@ class Trajectory(list):
         if len(trajectory_window) == stop - start + 1:
             return trajectory_window
         return trajectory_window.slice_window(start, stop)
-
-
-if is_ipython:
-
-    class Trajectory(Trajectory):
-
-        def _repr_png_(self):
-            buffer = io.BytesIO()
-            fig = plt.figure(figsize=(2, 2), dpi=300)
-            ax = fig.add_axes([0, 0, 1, 1])
-            ax.axis('off')
-            ax.set_aspect('equal')
-            (x_min, x_max), (y_min, y_max) = get_trajectory_range(self)
-            ax.set_xlim(x_min, x_max)
-            ax.set_ylim(y_min, y_max)
-            plot_trajectory(self, ax)
-            plt.savefig(buffer, format='png', dpi='figure')
-            ax.clear()
-            fig.clear()
-            plt.close()
-            return buffer.getvalue(), {'width': 100, 'height': 100}
-
-        def _ipython_key_completions_(self):
-            return self.keys()

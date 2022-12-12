@@ -20,13 +20,13 @@ class Instance(object):
 
     def __init__(self, **kwargs):
         for key, arg in kwargs.items():
-            if key not in config.KEYS:
-                raise NotImplementedError
+            if key not in config.keys:
+                raise KeyError
             setattr(self, key, format_arg(arg))
-        for key in set(config.KEYS) - set(kwargs.keys()):
+        for key in set(config.keys) - set(kwargs.keys()):
             setattr(self, key, None)
 
     def __getitem__(self, key):
-        if key not in config.KEYS:
-            raise NotImplementedError
+        if key not in config.keys:
+            raise KeyError
         return getattr(self, key)
