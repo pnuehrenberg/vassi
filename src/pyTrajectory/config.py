@@ -89,7 +89,7 @@ cfg.keypoints.s = 3
 cfg.keypoints.edgecolor = 'k'
 cfg.keypoints.lw = 0.5
 
-def get_keypoints_facecolor(instance: pyTrajectory.instance.Instance):
+def get_keypoints_facecolor(instance: Instance):
     global cfg
     return ['r'] + ['w'] * (len(instance[cfg.key_keypoints]) - 1)
 
