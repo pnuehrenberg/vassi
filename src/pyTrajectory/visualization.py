@@ -1,66 +1,78 @@
-import numpy as np
 import matplotlib.pyplot as plt
-from matplotlib import collections
-from matplotlib.colors import to_rgb
-from copy import deepcopy
+import numpy as np
 
-from .trajectory_operations import get_pose_segment_lengths
-import pyTrajectory.config as config
+from matplotlib.axes import Axes
+from matplotlib import collections, patches, lines
+
+import pyTrajectory.config
 
 
-def get_trajectory_key(trajectory, keys=None):
-    keys = ['position', 'pose', 'segmentation'] if keys is None else keys
-    key = None
-    while len(keys) > 0:
-        test_key = keys.pop(0)
-        if trajectory[test_key] is not None:
-            key = test_key
-    return key
+def get_instance_range(instance):
+    cfg = pyTrajectory.config.cfg
+    padding = cfg.figure.padding
+    try:
+        box = instance[cfg.key_box]
+        return (box[0] - padding, box[2] + padding), \
+               (box[1] - padding, box[3] + padding)
+    except KeyError:
+        pass
+    try:
+        keypoints = instance[cfg.key_keypoints][:, :2]
+        x_min, y_min = keypoints.min(axis=0)
+        x_max, y_max = keypoints.max(axis=0)
+        return (x_min - padding, x_max + padding), \
+               (y_min - padding, y_max + padding)
+    except KeyError:
+        raise NotImplementedError
 
 
 def get_trajectory_range(trajectory):
-    key = get_trajectory_key(trajectory)
-    if key is None:
-        return (None, None), (None, None)
-    axes = tuple(range(len(trajectory[key].shape) - 1))
-    x_min, y_min = trajectory[key].min(axis=axes)
-    x_max, y_max = trajectory[key].max(axis=axes)
-    return (x_min, x_max), (y_min, y_max)
+    cfg = pyTrajectory.config.cfg
+    padding = cfg.figure.padding
+    try:
+        boxes = trajectory[cfg.key_box]
+        x_min, y_min = boxes[:, :2].min(axis=0)
+        x_max, y_max = boxes[:, 2:].max(axis=0)
+        return (x_min - padding, x_max + padding), \
+               (y_min - padding, y_max + padding)
+    except KeyError:
+        pass
+    try:
+        keypoints = trajectory[cfg.key_keypoints][..., :2]
+        x_min, y_min = keypoints.min(axis=(0, 1))
+        x_max, y_max = keypoints.max(axis=(0, 1))
+        return (x_min - padding, x_max + padding), \
+               (y_min - padding, y_max + padding)
+    except KeyError:
+        raise NotImplementedError
 
 
-def plot_trajectory(trajectory, ax, visualization_config=None, **visualization_kwargs):
+def prepare_box(box_xyxy, **kwargs):
+    xy = box_xyxy[:2]
+    width, height = box_xyxy[2:] - xy
+    return patches.Rectangle(xy, width, height, **kwargs)
 
-    def get_value(arg):
-        nonlocal visualization_config
-        if arg in visualization_config:
-            return visualization_config[arg]
-        return tuple([*to_rgb(visualization_config[f'{arg}_color']),
-                              visualization_config[f'{arg}_alpha']])
 
-    visualization_config = visualization_config or deepcopy(config.VISUALIZATION_CONFIG)
-    for arg, value in visualization_kwargs.items():
-        visualization_config[arg] = value
+def prepare_line_segments(data, **kwargs):
+    data = np.asarray(list(zip(data[:-1], data[1:])))
+    return collections.LineCollection(data, **kwargs)
 
-    if get_value('plot_segmentation') and trajectory['segmentation'] is not None:
-        coll_segmentation = collections.PolyCollection(trajectory['segmentation'],
-                                                       edgecolor=get_value('segmentation_edge'),
-                                                       facecolor=get_value('segmentation_face'),
-                                                       lw=get_value('segmentation_edge_width'))
-        ax.add_collection(coll_segmentation)
 
-    if get_value('plot_pose') and trajectory['pose'] is not None:
-        coll_pose = collections.PolyCollection(trajectory['pose'],
-                                               closed=False,
-                                               edgecolor=get_value('pose_line'),
-                                               facecolor=(0, 0, 0, 0),
-                                               lw=get_value('pose_line_width'),
-                                               capstyle='round')
-        ax.add_collection(coll_pose)
+def prepare_line(data, **kwargs):
+    if as_segments:
+        data = np.asarray(list(zip(data[:-1], data[1:])))
+    return lines.Line2D(data[:, 0], data[:, 1], **kwargs)
 
-    if get_value('plot_position') and trajectory['position'] is not None:
-        ax.scatter(*trajectory['position'].T,
-                   marker=get_value('position_marker'),
-                   s=get_value('position_size'),
-                   facecolor=get_value('position_face'),
-                   edgecolor=get_value('position_edge'),
-                   linewidth=get_value('position_line_width'))
+
+def prepare_boxes(boxes_xyxy):
+    xy = boxes_xyxy[:, :2]
+    width, height = (boxes_xyxy[:, 2:] - xy).T
+    return [patches.Rectangle(xy, width, height) for xy, width, height in zip(xy, width, height)]
+
+
+def add_collection(ax, collection, trajectory, key, prepare_data_func=None, **kwargs):
+    if prepare_data_func is None:
+        data = trajectory[key][..., :2]
+    else:
+        data = prepare_data_func(trajectory[key])
+    ax.add_collection(collection(data, **kwargs))

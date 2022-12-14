@@ -7,6 +7,15 @@ import pyTrajectory.instance
 from .series_operations import interpolate_series
 
 
+is_ipython = False
+try:
+    import IPython
+    import io
+    is_ipython = True
+except ModuleNotFoundError:
+    pass
+
+
 class OutOfTrajectoryRange(Exception):
     pass
 
@@ -192,3 +201,52 @@ class Trajectory(list):
         if len(trajectory_window) == stop - start + 1:
             return trajectory_window
         return trajectory_window.slice_window(start, stop)
+
+
+if is_ipython:
+
+    class Trajectory(Trajectory):
+
+        def _repr_png_(self):
+            global cfg
+            buffer = io.BytesIO()
+            fig, ax = plt.subplots(1, 1, figsize=cfg.figure.figsize, dpi=cfg.figure.dpi)
+            xlim, ylim = get_trajectory_range(self)
+            ax.set_xlim(xlim)
+            ax.set_ylim(ylim)
+            ax.set_aspect('equal')
+            ax.axis('off')
+            # draw bounding boxes
+            try:
+                add_collection(ax,
+                               collections.PatchCollection,
+                               self,
+                               cfg.key_box,
+                               prepare_boxes,
+                               edgecolor=(0, 0, 0, 0.1),
+                               facecolor=(0, 0, 0, 0),
+                               lw=0.1)
+            except KeyError:
+                pass
+            # draw posture
+            try:
+                add_collection(ax,
+                               collections.LineCollection,
+                               self,
+                               cfg.key_keypoints,
+                               color='r',
+                               lw=0.1,
+                               alpha=0.1,
+                               capstyle='round')
+            except KeyError:
+                pass
+            fig.tight_layout()
+            plt.savefig(buffer, format='png', dpi='figure')
+            ax.clear()
+            fig.clear()
+            plt.close()
+            return buffer.getvalue(), {'width': cfg.figure.width, 'height': cfg.figure.height}
+
+        def _ipython_key_completions_(self):
+            global cfg
+            return cfg.trajectory_keys

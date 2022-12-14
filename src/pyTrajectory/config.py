@@ -66,6 +66,7 @@ class Config(object):
 
 cfg = Config()
 
+# define data keys
 cfg.trajectory_keys = \
     ('time_stamp',
      'pose',
@@ -73,6 +74,7 @@ cfg.trajectory_keys = \
      'score',
      'category')
 
+# these keys are used for visualization and analyses, modify accordingly
 cfg.key_time_stamp = 'time_stamp'
 cfg.key_category = 'category'
 cfg.key_score = 'score'
@@ -80,38 +82,55 @@ cfg.key_box = 'bbox'
 cfg.key_keypoints = 'pose'
 cfg.key_keypoints_line = 'pose'
 
-cfg.box = Config()
-cfg.box.linestyle = '--'
-cfg.box.linewidth = 0.5
-cfg.box.joinstyle = 'round'
-cfg.box.capstyle = 'round'
-cfg.box.edgecolor = 'k'
-cfg.box.facecolor = (0, 0, 0, 0)
-cfg.box.zorder = 0
-
-cfg.keypoints_line = Config()
-cfg.keypoints_line.alpha = 0.6
-cfg.keypoints_line.color = 'k'
-cfg.keypoints_line.capstyle = 'round'
-cfg.keypoints_line.zorder = 0
-
-cfg.keypoints = Config()
-cfg.keypoints.s = 3
-cfg.keypoints.edgecolor = 'k'
-cfg.keypoints.lw = 0.5
-
-def get_keypoints_facecolor(instance: pyTrajectory.instance.Instance):
-    global cfg
-    return ['r'] + ['w'] * (len(instance[cfg.key_keypoints]) - 1)
-
-cfg.keypoints.facecolor = get_keypoints_facecolor
-
-cfg.label = Config()
-cfg.label.size = 5
-
+# config for visualization figures
 cfg.figure = Config()
 cfg.figure.figsize =(1, 1)
 cfg.figure.dpi = 600
 cfg.figure.padding = 1
 cfg.figure.width = 200
 cfg.figure.height = 200
+
+# config for instance visualization
+cfg.instance = Config()
+
+cfg.instance.box = Config()
+cfg.instance.box.linestyle = '--'
+cfg.instance.box.linewidth = 0.5
+cfg.instance.box.joinstyle = 'round'
+cfg.instance.box.capstyle = 'round'
+cfg.instance.box.edgecolor = 'k'
+cfg.instance.box.facecolor = (0, 0, 0, 0)
+cfg.instance.box.zorder = 0
+
+cfg.instance.keypoints_line = Config()
+cfg.instance.keypoints_line.alpha = 0.6
+cfg.instance.keypoints_line.color = 'k'
+cfg.instance.keypoints_line.capstyle = 'round'
+cfg.instance.keypoints_line.zorder = 0
+
+cfg.instance.keypoints = Config()
+cfg.instance.keypoints.s = 3
+cfg.instance.keypoints.edgecolor = 'k'
+cfg.instance.keypoints.lw = 0.5
+
+def get_keypoints_facecolor(instance: pyTrajectory.instance.Instance):
+    global cfg
+    return ['r'] + ['w'] * (len(instance[cfg.key_keypoints]) - 1)
+
+cfg.instance.keypoints.facecolor = get_keypoints_facecolor
+
+cfg.instance.label = Config()
+cfg.instance.label.size = 5
+
+# config for trajectory visualization
+cfg.trajectory = Config()
+
+cfg.trajectory.box = Config()
+cfg.trajectory.box.edgecolor = (0, 0, 0, 0.1)
+cfg.trajectory.box.facecolor = (0, 0, 0, 0)
+cfg.trajectory.box.lw = 0.1
+
+cfg.trajectory.keypoints = Config()
+cfg.trajectory.keypoints.lw = 0.1
+cfg.trajectory.keypoints.alpha = 0.1
+cfg.trajectory.keypoints.capstyle = 'round'
