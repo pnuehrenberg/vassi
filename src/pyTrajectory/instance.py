@@ -47,7 +47,7 @@ if is_ipython:
     class Instance(Instance):
 
         def _repr_png_(self):
-            global cfg
+            cfg = pyTrajectory.config.cfg
             _cfg = cfg.apply(self)
             buffer = io.BytesIO()
             fig, ax = plt.subplots(1, 1, figsize=_cfg.figure.figsize, dpi=_cfg.figure.dpi)

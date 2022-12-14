@@ -210,7 +210,7 @@ if is_ipython:
     class Trajectory(Trajectory):
 
         def _repr_png_(self):
-            global cfg
+            cfg = pyTrajectory.config.cfg
             buffer = io.BytesIO()
             fig, ax = plt.subplots(1, 1, figsize=cfg.figure.figsize, dpi=cfg.figure.dpi)
             xlim, ylim = get_trajectory_range(self)
