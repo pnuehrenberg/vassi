@@ -12,7 +12,7 @@ try:
     import IPython
     import io
     import matplotlib.pyplot as plt
-    from visualization import *
+    from .visualization import *
     is_ipython = True
 except ModuleNotFoundError:
     pass
