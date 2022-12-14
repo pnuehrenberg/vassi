@@ -1,3 +1,5 @@
+import yaml
+
 from copy import deepcopy
 from typing import get_type_hints
 
@@ -20,7 +22,15 @@ class Config(object):
         return self.__dict__.items()
 
     def __call__(self):
-        return self.__dict__
+        cfg = deepcopy(self)
+        for key, value in cfg.items():
+            if not isinstance(value, Config):
+                continue
+            cfg[key] = value()
+        return cfg.__dict__
+
+    def __str__(self):
+        return yaml.dump(self())
 
     def __getitem__(self, key):
         if not key in self.keys():
@@ -45,7 +55,7 @@ class Config(object):
         for key, value in cfg.items():
             if not callable(value):
                 continue
-            if type(value) is Config:
+            if isinstance(value, Config):
                 cfg[key] = value.apply(configurable)
                 continue
             if not cfg.check_type_hint(value, type(configurable)):
