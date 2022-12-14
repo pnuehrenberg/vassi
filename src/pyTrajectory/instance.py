@@ -6,6 +6,8 @@ is_ipython = False
 try:
     import IPython
     import io
+    import matplotlib.pyplot as plt
+    from visualization import *
     is_ipython = True
 except ModuleNotFoundError:
     pass
