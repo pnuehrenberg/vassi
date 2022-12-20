@@ -197,13 +197,13 @@ class Trajectory(list):
             raise OutOfTrajectoryRange
         selection = slice(np.argwhere(self[key_time_stamp] >= start).ravel()[0],
                           np.argwhere(self[key_time_stamp] <= stop).ravel()[-1] + 1)
+        if not check_completeness:
+            return self[selection]
         if self[selection.start][key_time_stamp] > start:
             selection = slice(max(0, selection.start - 1), selection.stop)
         if self[selection.stop - 1][key_time_stamp] < stop:
             selection = slice(selection.start, min(len(self) - 1, selection.stop + 1))
         trajectory_window = self[selection]
-        if not check_completeness:
-            return trajectory_window
         if not trajectory_window.is_complete():
             trajectory_window = trajectory_window.interpolate()
         if len(trajectory_window) == stop - start + 1:
