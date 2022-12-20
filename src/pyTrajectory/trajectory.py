@@ -142,7 +142,9 @@ class Trajectory(list):
 
     # trajectory functionality
 
-    def sort(self, copy=False, key='time_stamp'):
+    def sort(self, copy=False, key=None):
+        if key is None:
+            key = pyTrajectory.config.cfg.key_time_stamp
         sort_idx = np.argsort(self[key])
         instances = np.array(self)[sort_idx]
         if copy:
@@ -160,17 +162,18 @@ class Trajectory(list):
         return self
 
     def interpolate(self, copy=True):
+        key_time_stamp = pyTrajectory.config.cfg.key_time_stamp
         self_sorted = self.sort(copy=True)
-        time_stamps = self_sorted['time_stamp']
-        data_interpolated = {'time_stamp': np.arange(time_stamps.min(),
-                                                     time_stamps.max() + 1)}
-        for key in self.keys(exclude=['time_stamp']):
+        time_stamps = self_sorted[key_time_stamp]
+        data_interpolated = {key_time_stamp: np.arange(time_stamps.min(),
+                                                       time_stamps.max() + 1)}
+        for key in self.keys(exclude=[key_time_stamp]):
             value = self_sorted[key]
             if value is None:
-                data_interpolated[key] = [None] * data_interpolated['time_stamp'].size
+                data_interpolated[key] = [None] * data_interpolated[key_time_stamp].size
                 continue
             data_interpolated[key] = interpolate_series(
-                value, time_stamps, data_interpolated['time_stamp'])
+                value, time_stamps, data_interpolated[key_time_stamp])
         instances = [pyTrajectory.instance.Instance(**{k: v for k, v in zip(self.keys(), instance_data)})
                      for instance_data in zip(*data_interpolated.values())]
         if copy:
@@ -182,18 +185,20 @@ class Trajectory(list):
     def is_complete(self):
         if len(self) == 0:
             return True
-        return len(self) == self[-1].time_stamp - self[0].time_stamp + 1
+        key_time_stamp = pyTrajectory.config.cfg.key_time_stamp
+        return len(self) == self[-1][key_time_stamp] - self[0][key_time_stamp] + 1
 
     def slice_window(self, start, stop, check_completeness=True):
-        if start < self[0].time_stamp:
+        key_time_stamp = pyTrajectory.config.cfg.key_time_stamp
+        if start < self[0][key_time_stamp]:
             raise OutOfTrajectoryRange
-        if stop > self[-1].time_stamp:
+        if stop > self[-1][key_time_stamp]:
             raise OutOfTrajectoryRange
-        selection = slice(np.argwhere(self['time_stamp'] >= start).ravel()[0],
-                          np.argwhere(self['time_stamp'] <= stop).ravel()[-1] + 1)
-        if self[selection.start].time_stamp > start:
+        selection = slice(np.argwhere(self[key_time_stamp] >= start).ravel()[0],
+                          np.argwhere(self[key_time_stamp] <= stop).ravel()[-1] + 1)
+        if self[selection.start][key_time_stamp] > start:
             selection = slice(max(0, selection.start - 1), selection.stop)
-        if self[selection.stop - 1].time_stamp < stop:
+        if self[selection.stop - 1][key_time_stamp] < stop:
             selection = slice(selection.start, min(len(self) - 1, selection.stop + 1))
         trajectory_window = self[selection]
         if not check_completeness:
