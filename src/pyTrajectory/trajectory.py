@@ -174,6 +174,7 @@ class Trajectory(list):
                 continue
             data_interpolated[key] = interpolate_series(
                 value, time_stamps, data_interpolated[key_time_stamp])
+        data_interpolated = {key: data_interpolated[key] for key in self.keys()}
         instances = [pyTrajectory.instance.Instance(**{k: v for k, v in zip(self.keys(), instance_data)})
                      for instance_data in zip(*data_interpolated.values())]
         if copy:
