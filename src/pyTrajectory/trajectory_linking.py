@@ -10,9 +10,9 @@ import pyTrajectory.trajectory
 
 
 def link_trajectories(data,
+                      instance_position_func,
                       max_lag=30,
                       max_distance=150,
-                      instance_position_func,
                       similarity_features=[],
                       feature_distances=[],
                       dissimilarity_weight=1,
