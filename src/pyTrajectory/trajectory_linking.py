@@ -5,8 +5,8 @@ from sklearn.metrics import pairwise_distances
 from scipy.optimize import linear_sum_assignment
 from tqdm.auto import tqdm
 
-from .instance import Instance
-from .trajectory import Trajectory
+import pyTrajectory.config
+import pyTrajectory.trajectory
 
 
 def link_trajectories(data,
@@ -16,6 +16,8 @@ def link_trajectories(data,
                       feature_distances=[],
                       dissimilarity_weight=1,
                       min_trajectory_length=2):
+
+    key_time_stamp = pyTrajectory.config.cfg.key_time_stamp
 
     if type(dissimilarity_weight) in [int, float]:
         if len(similarity_features) > 0:
@@ -30,11 +32,11 @@ def link_trajectories(data,
     active_trajectories = []
     archived_trajectories = []
 
-    for time_stamp in tqdm(np.arange(data['time_stamp'].min(), data['time_stamp'].max() + 1)):
+    for time_stamp in tqdm(np.arange(data[key_time_stamp].min(), data[key_time_stamp].max() + 1)):
 
         # archive active trajectories with too high lag
         for idx, trajectory in enumerate([trajectory for trajectory in active_trajectories]):
-            if time_stamp - trajectory[-1].time_stamp > max_lag:
+            if time_stamp - trajectory[-1][key_time_stamp] > max_lag:
                 active_trajectories.remove(trajectory)
                 if len(trajectory) < min_trajectory_length:
                     # discard if too short
@@ -53,7 +55,7 @@ def link_trajectories(data,
         if len(active_trajectories) == 0:
 
             # either first frame or all other trajectories were archived
-            new_trajectories = [Trajectory([instance]) for instance in instances]
+            new_trajectories = [pyTrajectory.trajectory.Trajectory([instance]) for instance in instances]
             cleared_instances = [instance for instance in instances]
 
         else:
@@ -93,7 +95,7 @@ def link_trajectories(data,
                     # no active trajectories to assign from, create new trajectories
                     for instance in [instance for idx, instance
                                      in enumerate(instances) if idx in to_idx]:
-                        new_trajectories.append(Trajectory([instance]))
+                        new_trajectories.append(pyTrajectory.trajectory.Trajectory([instance]))
                         cleared_instances.append(instance)
                     continue
 
@@ -153,7 +155,7 @@ def link_trajectories(data,
 
         # create new active trajectories from unassigned instances
         for instance in instances:
-            new_trajectories.append(Trajectory([instance]))
+            new_trajectories.append(pyTrajectory.trajectory.Trajectory([instance]))
         instances = []
         active_trajectories = active_trajectories + new_trajectories
 
