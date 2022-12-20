@@ -12,12 +12,14 @@ import pyTrajectory.trajectory
 def link_trajectories(data,
                       max_lag=30,
                       max_distance=150,
+                      instance_position_func,
                       similarity_features=[],
                       feature_distances=[],
                       dissimilarity_weight=1,
                       min_trajectory_length=2):
 
     key_time_stamp = pyTrajectory.config.cfg.key_time_stamp
+    key_category = pyTrajectory.config.cfg.key_category
 
     if type(dissimilarity_weight) in [int, float]:
         if len(similarity_features) > 0:
@@ -62,13 +64,13 @@ def link_trajectories(data,
 
             # otherwise, find optimal assignments from active trajectories to new instances (same category)
             distance_matrix = pairwise_distances(
-                                    np.concatenate([np.array([trajectory[-1].position
+                                    np.concatenate([np.array([instance_position_func(trajectory[-1])
                                                               for trajectory in active_trajectories]),
-                                                    np.array([instance.position for instance in instances])]))
+                                                    np.array([instance_position_func(instance) for instance in instances])]))
             category_matches = pairwise_distances(
-                                    np.concatenate([np.array([trajectory[-1].category
+                                    np.concatenate([np.array([trajectory[-1][key_category]
                                                               for trajectory in active_trajectories]).reshape(-1, 1),
-                                                    np.array([instance.category for instance in instances]).reshape(-1, 1)]))
+                                                    np.array([instance[key_category] for instance in instances]).reshape(-1, 1)]))
             category_matches = category_matches == 0
             distance_matrix[~category_matches] = np.inf
 
