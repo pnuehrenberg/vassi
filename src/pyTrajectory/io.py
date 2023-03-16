@@ -1,6 +1,8 @@
 import _pickle
 import deepdish as dd
 
+import pyTrajectory.trajectory
+
 
 def save_trajectories(trajectories, file_name):
     trajectory_data = [trajectory.data for trajectory in trajectories]
@@ -10,7 +12,7 @@ def save_trajectories(trajectories, file_name):
 
 def load_trajectories(file_name):
     trajectory_data = dd.io.load(file_name)
-    trajectories = [Trajectory().load(file_path=None, data=trajectory_data)
+    trajectories = [pyTrajectory.trajectory.Trajectory().load(file_path=None, data=trajectory_data)
                     for trajectory_data in trajectory_data]
     return trajectories
 
