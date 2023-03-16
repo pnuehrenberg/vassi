@@ -77,6 +77,7 @@ def interpolate_series(series, time_stamps, time_stamps_target):
 
 
 def get_sliding_cumulative_distance(series, window_size):
+    # this only makes sense on coordinate series
     series_sliding_windows = np.lib.stride_tricks.sliding_window_view(series, window_size, axis=0)
     sliding_distance = calculate_element_wise_magnitude(np.swapaxes(np.diff(series_sliding_windows, axis=-1), -1, -2)).sum(axis=-1)
     sliding_distance = np.concatenate([
@@ -87,6 +88,7 @@ def get_sliding_cumulative_distance(series, window_size):
 
 
 def get_sliding_distance(series, window_size):
+    # this only makes sense on coordinate series
     series_sliding_windows = np.lib.stride_tricks.sliding_window_view(series, window_size, axis=0)
     sliding_distance = calculate_element_wise_magnitude(series_sliding_windows[..., 0] - series_sliding_windows[..., -1])
     sliding_distance = np.concatenate([
