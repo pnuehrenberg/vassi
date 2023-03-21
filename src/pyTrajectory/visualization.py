@@ -14,7 +14,7 @@ def get_instance_range(instance):
         box = instance[cfg.key_box]
         return (box[0] - padding, box[2] + padding), \
                (box[1] - padding, box[3] + padding)
-    except KeyError:
+    except (KeyError, TypeError):
         pass
     try:
         keypoints = instance[cfg.key_keypoints][:, :2]
@@ -22,7 +22,7 @@ def get_instance_range(instance):
         x_max, y_max = keypoints.max(axis=0)
         return (x_min - padding, x_max + padding), \
                (y_min - padding, y_max + padding)
-    except KeyError:
+    except (KeyError, TypeError):
         raise NotImplementedError
 
 
@@ -35,7 +35,7 @@ def get_trajectory_range(trajectory):
         x_max, y_max = boxes[:, 2:].max(axis=0)
         return (x_min - padding, x_max + padding), \
                (y_min - padding, y_max + padding)
-    except KeyError:
+    except (KeyError, TypeError):
         pass
     try:
         keypoints = trajectory[cfg.key_keypoints][..., :2]
@@ -43,7 +43,7 @@ def get_trajectory_range(trajectory):
         x_max, y_max = keypoints.max(axis=(0, 1))
         return (x_min - padding, x_max + padding), \
                (y_min - padding, y_max + padding)
-    except KeyError:
+    except (KeyError, TypeError):
         raise NotImplementedError
 
 
