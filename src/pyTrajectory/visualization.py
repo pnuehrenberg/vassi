@@ -71,8 +71,17 @@ def prepare_boxes(boxes_xyxy):
 
 
 def add_collection(ax, collection, trajectory, key, prepare_data_func=None, **kwargs):
+    data = None
     if prepare_data_func is None:
-        data = trajectory[key][..., :2]
+        try:
+            data = trajectory[key][..., :2]
+        except (KeyError, TypeError):
+            pass
     else:
-        data = prepare_data_func(trajectory[key])
+        try:
+            data = prepare_data_func(trajectory[key])
+        except (KeyError, TypeError):
+            pass
+    if not np.any(data):
+        return
     ax.add_collection(collection(data, **kwargs))

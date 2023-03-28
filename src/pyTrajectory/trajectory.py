@@ -191,12 +191,15 @@ class Trajectory(list):
 
     def slice_window(self, start, stop, check_completeness=True):
         key_time_stamp = pyTrajectory.config.cfg.key_time_stamp
-        if start < self[0][key_time_stamp]:
+        if check_completeness and start < self[0][key_time_stamp]:
             raise OutOfTrajectoryRange
-        if stop > self[-1][key_time_stamp]:
+        if check_completeness and stop > self[-1][key_time_stamp]:
             raise OutOfTrajectoryRange
-        selection = slice(np.argwhere(self[key_time_stamp] >= start).ravel()[0],
-                          np.argwhere(self[key_time_stamp] <= stop).ravel()[-1] + 1)
+        try:
+            selection = slice(np.argwhere(self[key_time_stamp] >= start).ravel()[0],
+                              np.argwhere(self[key_time_stamp] <= stop).ravel()[-1] + 1)
+        except:
+            raise OutOfTrajectoryRange
         if not check_completeness:
             return self[selection]
         if self[selection.start][key_time_stamp] > start:
