@@ -136,26 +136,29 @@ class Trajectory(list):
 
     # trajectory functionality
 
-    def sort(self, copy=False, key=None):
-        if key is None:
-            key = pyTrajectory.config.cfg.key_time_stamp
-        sort_idx = np.argsort(self[key])
-        instances = np.array(self)[sort_idx]
+    def __copy_or_init__(self, instances, copy):
         if copy:
             return self.init_new_trajectory(instances)
         self.reset_values()
         self.__init__(instances)
         return self
 
+    def sort(self, copy=False, key=None):
+        if key is None:
+            key = pyTrajectory.config.cfg.key_time_stamp
+        sort_idx = np.argsort(self[key])
+        instances = []
+        if len(self) > 0:
+            instances = np.array(self)[sort_idx]
+        return self.__copy_or_init__(instances, copy)
+
     def select(self, condition, copy=True):
         if callable(condition):
             condition = condition(self)
-        instances = np.array(self)[condition]
-        if copy:
-            return self.init_new_trajectory(instances)
-        self.reset_values()
-        self.__init__(instances)
-        return self
+        instances = []
+        if len(self) > 0:
+            instances = np.array(self)[condition]
+        return self.__copy_or_init__(instances, copy)
 
     def interpolate(self, copy=True):
         key_time_stamp = pyTrajectory.config.cfg.key_time_stamp
@@ -173,11 +176,7 @@ class Trajectory(list):
         data_interpolated = {key: data_interpolated[key] for key in self.keys()}
         instances = [pyTrajectory.instance.Instance(**{k: v for k, v in zip(self.keys(), instance_data)})
                      for instance_data in zip(*data_interpolated.values())]
-        if copy:
-            return self.init_new_trajectory(instances)
-        self.reset_values()
-        self.__init__(instances)
-        return self
+        return self.__copy_or_init__(instances, copy)
 
     def is_complete(self):
         if len(self) == 0:
