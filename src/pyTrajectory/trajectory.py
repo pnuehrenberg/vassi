@@ -42,14 +42,7 @@ class Trajectory(list):
     def data(self):
         return {key: value for (key, value) in self.items()}
 
-    def save(self, file_name):
-        dd.io.save(file_name, self.data)
-
-    def load(self, file_name=None, data=None, condition=None):
-        if file_name is not None:
-            data = dd.io.load(file_name)
-        assert data is not None, \
-            'specify either file_name or data input arguments'
+    def load(self, data, condition=None):
         num_instances = max([len(data[key]) for key in self.keys()
                              if key in data and data[key] is not None])
         for key in self.keys():
@@ -60,11 +53,12 @@ class Trajectory(list):
                     'all data values must have the same length'
                 continue
             data[key] = [None] * num_instances
-        selection = np.repeat(True, num_instances)
         if condition is not None:
-            selection = condition(data)
+            condition = condition(data)
+        else:
+            condition = np.repeat(True, num_instances)
         instances = [pyTrajectory.instance.Instance(**{k: v for k, v in zip(self.keys(), instance_data)})
-                     for instance_data in zip(*[np.asarray(data[key])[selection]
+                     for instance_data in zip(*[np.asarray(data[key])[condition]
                      for key in self.keys()])]
         self.__init__(instances)
         return self
@@ -154,6 +148,8 @@ class Trajectory(list):
         return self
 
     def select(self, condition, copy=True):
+        if callable(condition):
+            condition = condition(self)
         instances = np.array(self)[condition]
         if copy:
             return self.init_new_trajectory(instances)
@@ -190,6 +186,7 @@ class Trajectory(list):
         return len(self) == self[-1][key_time_stamp] - self[0][key_time_stamp] + 1
 
     def slice_window(self, start, stop, check_completeness=True):
+        # TODO rename check_completeness to interpolate
         key_time_stamp = pyTrajectory.config.cfg.key_time_stamp
         if check_completeness and start < self[0][key_time_stamp]:
             raise OutOfTrajectoryRange
