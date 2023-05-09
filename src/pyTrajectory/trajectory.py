@@ -43,8 +43,11 @@ class Trajectory(list):
         return {key: value for (key, value) in self.items()}
 
     def load(self, data, condition=None):
-        num_instances = max([len(data[key]) for key in self.keys()
-                             if key in data and data[key] is not None])
+        num_instances = [len(data[key]) for key in self.keys()
+                         if key in data and data[key] is not None]
+        if len(num_instances) == 0:
+            return self
+        num_instances = max(num_instances)
         for key in self.keys():
             if key not in data:
                 data[key] = None
