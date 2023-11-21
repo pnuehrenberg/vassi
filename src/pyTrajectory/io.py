@@ -33,8 +33,8 @@ def save_data(data_file, data, data_path=None, exclude=None):
             if value is None:
                 continue
             h5_data.create_dataset(key, data=value)
-            
-            
+
+
 def save_trajectories(trajectory_file, trajectories, prefix=None, exclude=None):
     if prefix is None:
         prefix = ''
@@ -44,7 +44,7 @@ def save_trajectories(trajectory_file, trajectories, prefix=None, exclude=None):
                   os.path.join(prefix, str(identity)),
                   exclude=exclude)
 
-                
+
 def load_trajectories(trajectory_file, prefix=None, exclude=None):
     trajectories = {}
     with h5py.File(trajectory_file, 'r') as h5_file:
@@ -60,5 +60,5 @@ def load_trajectories(trajectory_file, prefix=None, exclude=None):
         data = load_data(trajectory_file,
                          os.path.join(prefix, str(identity)),
                          exclude=exclude)
-        trajectories[int(identity)] = Trajectory().load(data=data)
+        trajectories[identity] = Trajectory(data=data)
     return trajectories

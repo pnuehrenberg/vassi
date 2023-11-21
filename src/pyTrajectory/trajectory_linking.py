@@ -46,7 +46,7 @@ def link_trajectories(data,
                 archived_trajectories.append(trajectory)
 
         # get current instances
-        instances = data.slice_window(time_stamp, time_stamp, check_completeness=False)
+        instances = data.slice_window(time_stamp, time_stamp, interpolate=False)
         cleared_instances = []
         new_trajectories = []
 
