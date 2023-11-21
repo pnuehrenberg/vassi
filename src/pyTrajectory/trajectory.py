@@ -204,7 +204,7 @@ class Trajectory(list):
         if self[selection.start][key_time_stamp] > start:
             selection = slice(max(0, selection.start - 1), selection.stop)
         if self[selection.stop - 1][key_time_stamp] < stop:
-            selection = slice(selection.start, min(len(self) - 1, selection.stop + 1))
+            selection = slice(selection.start, min(len(self), selection.stop + 1))
         trajectory_window = self[selection]
         if not trajectory_window.is_complete():
             trajectory_window = trajectory_window.interpolate()
