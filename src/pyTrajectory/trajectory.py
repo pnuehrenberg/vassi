@@ -4,7 +4,8 @@ import deepdish as dd
 import pyTrajectory.config
 import pyTrajectory.instance
 
-from .series_operations import interpolate_series
+import pyTrajectory.series_operations
+# from .series_operations import interpolate_series
 
 
 is_ipython = False
@@ -174,7 +175,7 @@ class Trajectory(list):
             if value is None:
                 data_interpolated[key] = [None] * data_interpolated[key_time_stamp].size
                 continue
-            data_interpolated[key] = interpolate_series(
+            data_interpolated[key] = pyTrajectory.series_operations.interpolate_series(
                 value, time_stamps, data_interpolated[key_time_stamp])
         data_interpolated = {key: data_interpolated[key] for key in self.keys()}
         instances = [pyTrajectory.instance.Instance(**{k: v for k, v in zip(self.keys(), instance_data)})
