@@ -64,14 +64,14 @@ if is_ipython:
             # draw bounding box
             try:
                 ax.add_patch(prepare_box(self[_cfg.key_box], **_cfg.instance.box()))
-            except KeyError:
+            except (TypeError, KeyError):
                 pass
             # draw keypoints and posture
             try:
                 ax.add_collection(prepare_line_segments(self[_cfg.key_keypoints_line][:, :2],
                                                         **_cfg.instance.keypoints_line()))
                 ax.scatter(*self[_cfg.key_keypoints][:, :2].T, **_cfg.instance.keypoints())
-            except KeyError:
+            except (TypeError, KeyError):
                 pass
             # draw category and score
             try:
@@ -79,7 +79,7 @@ if is_ipython:
                         f'{self[_cfg.key_category]}: {self[_cfg.key_score]:.2f}',
                         transform=ax.transAxes,
                         **_cfg.instance.label())
-            except KeyError:
+            except (TypeError, KeyError):
                 pass
             fig.tight_layout()
             plt.savefig(buffer, format='png', dpi='figure')

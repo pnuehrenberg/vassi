@@ -189,7 +189,6 @@ class Trajectory(list):
         return len(self) == self[-1][key_time_stamp] - self[0][key_time_stamp] + 1
 
     def slice_window(self, start, stop, interpolate=True):
-        # TODO rename interpolate to interpolate
         key_time_stamp = pyTrajectory.config.cfg.key_time_stamp
         if interpolate and start < self[0][key_time_stamp]:
             raise OutOfTrajectoryRange(f'{start} (start) not in trajectory range [{self[0][key_time_stamp]} {self[-1][key_time_stamp]}]')
@@ -212,6 +211,38 @@ class Trajectory(list):
         if len(trajectory_window) == stop - start + 1:
             return trajectory_window
         return trajectory_window.slice_window(start, stop)
+        
+    def plot(self, ax=None, set_lim=False):
+        cfg = pyTrajectory.config.cfg
+        if ax is None:
+            set_lim = True
+            fig = plt.figure(figsize=cfg.figure.figsize, dpi=cfg.figure.dpi)
+            ax = fig.add_axes([0, 0, 1, 1])
+        if set_lim:
+            xlim, ylim = get_trajectory_range(self)
+            ax.set_xlim(xlim)
+            ax.set_ylim(ylim)
+            ax.set_aspect('equal')
+        # draw bounding boxes
+        try:
+            add_collection(ax,
+                           collections.PatchCollection,
+                           self,
+                           cfg.key_box,
+                           prepare_boxes,
+                           **cfg.trajectory.box())
+        except KeyError:
+            pass
+        # draw posture
+        try:
+            add_collection(ax,
+                           collections.LineCollection,
+                           self,
+                           cfg.key_keypoints,
+                           **cfg.trajectory.keypoints())
+        except KeyError:
+            pass
+        return ax
 
 
 if is_ipython:
@@ -221,40 +252,11 @@ if is_ipython:
         def _repr_png_(self):
             cfg = pyTrajectory.config.cfg
             buffer = io.BytesIO()
-            fig, ax = plt.subplots(1, 1, figsize=cfg.figure.figsize, dpi=cfg.figure.dpi)
-            xlim, ylim = get_trajectory_range(self)
-            ax.set_xlim(xlim)
-            ax.set_ylim(ylim)
-            ax.set_aspect('equal')
+            ax = self.plot()
             ax.axis('off')
-            # draw bounding boxes
-            try:
-                add_collection(ax,
-                               collections.PatchCollection,
-                               self,
-                               cfg.key_box,
-                               prepare_boxes,
-                               edgecolor=(0, 0, 0, 0.1),
-                               facecolor=(0, 0, 0, 0),
-                               lw=0.1)
-            except KeyError:
-                pass
-            # draw posture
-            try:
-                add_collection(ax,
-                               collections.LineCollection,
-                               self,
-                               cfg.key_keypoints,
-                               color='r',
-                               lw=0.1,
-                               alpha=0.1,
-                               capstyle='round')
-            except KeyError:
-                pass
-            fig.tight_layout()
             plt.savefig(buffer, format='png', dpi='figure')
             ax.clear()
-            fig.clear()
+            plt.gcf().clear()
             plt.close()
             return buffer.getvalue(), {'width': cfg.figure.width, 'height': cfg.figure.height}
 
