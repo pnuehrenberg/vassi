@@ -124,7 +124,7 @@ class Trajectory(list):
         if type(key) == tuple:
             return [self.__getitem__(key) for key in key]
         if type(key) == str and key not in self.keys():
-            raise NotImplementedError('trajectory has no key {}.'.format(key))
+            raise KeyError
         if key in self.keys():
             return self.get_values(key)
         item = super().__getitem__(key)
@@ -225,21 +225,15 @@ class Trajectory(list):
             ax.set_aspect('equal')
         # draw bounding boxes
         try:
-            add_collection(ax,
-                           collections.PatchCollection,
-                           self,
-                           cfg.key_box,
-                           prepare_boxes,
-                           **cfg.trajectory.box())
+            ax.add_collection(prepare_boxes(self[cfg.key_box], **cfg.trajectory.boxes()))
         except KeyError:
             pass
         # draw posture
         try:
-            add_collection(ax,
-                           collections.LineCollection,
-                           self,
-                           cfg.key_keypoints,
-                           **cfg.trajectory.keypoints())
+            if self[cfg.key_keypoints].shape[1] > 1:
+                ax.add_collection(prepare_lines(self[cfg.key_keypoints], **cfg.trajectory.lines()))
+            elif self[cfg.key_keypoints].shape[1] == 1:
+                ax.add_collection(prepare_points(self[cfg.key_keypoints], ax, **cfg.trajectory.points()))
         except KeyError:
             pass
         return ax

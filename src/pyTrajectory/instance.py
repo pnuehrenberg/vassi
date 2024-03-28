@@ -19,14 +19,12 @@ def format_value(value):
     if type(value) in [int, float]:
         return value
     value = np.asarray(value)
-    if len(value.shape) == 0:
+    if value.ndim == 0:
         return value.item()
-    if len(value.shape) > 1 and value.shape[0] == 1:
-        return value[0]
     return value
 
 
-class Instance(object):
+class Instance:
 
     def __init__(self, **kwargs):
         for key, value in kwargs.items():
@@ -68,9 +66,8 @@ if is_ipython:
                 pass
             # draw keypoints and posture
             try:
-                ax.add_collection(prepare_line_segments(self[_cfg.key_keypoints_line][:, :2],
-                                                        **_cfg.instance.keypoints_line()))
-                ax.scatter(*self[_cfg.key_keypoints][:, :2].T, **_cfg.instance.keypoints())
+                ax.add_collection(prepare_line(self[_cfg.key_keypoints_line], **_cfg.instance.line()))
+                ax.add_collection(prepare_points(self[_cfg.key_keypoints], **_cfg.instance.points()))
             except (TypeError, KeyError):
                 pass
             # draw category and score

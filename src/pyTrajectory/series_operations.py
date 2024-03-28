@@ -76,6 +76,15 @@ def interpolate_series(series, time_stamps, time_stamps_target):
         series_interpolated[(slice(None), *idx)] = np.interp(time_stamps_target, time_stamps, s)
     return series_interpolated.reshape((time_stamps_target.size, *shape[1:]))
 
+def sample_series(series, timestamps_series, timestamps):
+    shape = series.shape
+    if series.ndim == 1:
+        series = series[:, np.newaxis]
+    series_interpolated = np.zeros((timestamps.size, *series.shape[1:]), dtype=series.dtype)
+    for idx in np.ndindex(series.shape[1:]):
+        s = series[(slice(None), *idx)]
+        series_interpolated[(slice(None), *idx)] = np.interp(timestamps, timestamps_series, s)
+    return series_interpolated.reshape((timestamps.size, *shape[1:]))
 
 def get_sliding_cumulative_distance(series, window_size):
     # this only makes sense on coordinate series

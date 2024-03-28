@@ -35,15 +35,15 @@ def get_trajectory_range(trajectory):
         x_max, y_max = boxes[:, 2:].max(axis=0)
         return (x_min - padding, x_max + padding), \
                (y_min - padding, y_max + padding)
-    except (KeyError, TypeError):
+    except KeyError:
         pass
     try:
-        keypoints = trajectory[cfg.key_keypoints][..., :2]
-        x_min, y_min = keypoints.min(axis=(0, 1))
-        x_max, y_max = keypoints.max(axis=(0, 1))
+        keypoints = trajectory[cfg.key_keypoints][..., :2].reshape(-1, 2)
+        x_min, y_min = keypoints.min(axis=0)
+        x_max, y_max = keypoints.max(axis=0)
         return (x_min - padding, x_max + padding), \
                (y_min - padding, y_max + padding)
-    except (KeyError, TypeError):
+    except KeyError:
         raise NotImplementedError
 
 
@@ -53,35 +53,31 @@ def prepare_box(box_xyxy, **kwargs):
     return patches.Rectangle(xy, width, height, **kwargs)
 
 
-def prepare_line_segments(data, **kwargs):
+def prepare_line(data, **kwargs):
+    data = np.asarray(list(zip(data[:-1], data[1:])))
+    return lines.Line2D(data[:, 0], data[:, 1], **kwargs)
+
+
+def prepare_boxes(boxes_xyxy, **kwargs):
+    return collections.PatchCollection([patches.Rectangle(box_xyxy) for box_xyxy in boxes_xyxy], **kwargs)
+
+
+def prepare_lines(data, **kwargs):
     data = np.asarray(list(zip(data[:-1], data[1:])))
     return collections.LineCollection(data, **kwargs)
 
 
-def prepare_line(data, **kwargs):
-    if as_segments:
-        data = np.asarray(list(zip(data[:-1], data[1:])))
-    return lines.Line2D(data[:, 0], data[:, 1], **kwargs)
-
-
-def prepare_boxes(boxes_xyxy):
-    xy = boxes_xyxy[:, :2]
-    width, height = (boxes_xyxy[:, 2:] - xy).T
-    return [patches.Rectangle(xy, width, height) for xy, width, height in zip(xy, width, height)]
-
-
-def add_collection(ax, collection, trajectory, key, prepare_data_func=None, **kwargs):
-    data = None
-    if prepare_data_func is None:
-        try:
-            data = trajectory[key][..., :2]
-        except (KeyError, TypeError):
-            pass
-    else:
-        try:
-            data = prepare_data_func(trajectory[key])
-        except (KeyError, TypeError):
-            pass
-    if not np.any(data):
-        return
-    ax.add_collection(collection(data, **kwargs))
+def prepare_points(data, ax, **kwargs):
+    sizes = kwargs.pop('sizes')
+    if type(sizes) in [int, float]:
+        sizes = np.repeat(sizes, len(data))
+    if data.ndim > 2:
+        num_points = np.prod(data.shape[1:-1])
+        if len(sizes) == len(data):
+            sizes = np.repeat(sizes, num_points)
+        data = data.reshape(-1, data.shape[-1])
+    return collections.EllipseCollection(sizes, sizes,
+                                         np.zeros_like(sizes),
+                                         offsets=data[:, :2], units='x',
+                                         transOffset=ax.transData,
+                                         **kwargs)

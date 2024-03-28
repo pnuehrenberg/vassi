@@ -1,8 +1,7 @@
 import os
 import h5py
 
-from pyTrajectory.trajectory import Trajectory
-from pyTrajectory.trajectory_linking import link_trajectories
+from pyTrajectory.array_trajectory import Trajectory
 
 
 def load_data(data_file, data_path=None, exclude=None):

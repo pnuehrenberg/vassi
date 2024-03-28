@@ -76,6 +76,7 @@ cfg.trajectory_keys = \
 
 # these keys are used for visualization and analyses, modify accordingly
 cfg.key_time_stamp = 'time_stamp'
+cfg.key_timestamp = 'time_stamp'
 cfg.key_category = 'category'
 cfg.key_score = 'score'
 cfg.key_box = 'bbox'
@@ -94,7 +95,7 @@ cfg.figure.height = 200
 cfg.instance = Config()
 
 cfg.instance.box = Config()
-cfg.instance.box.linestyle = '--'
+cfg.instance.box.linestyle = '-'
 cfg.instance.box.linewidth = 0.5
 cfg.instance.box.joinstyle = 'round'
 cfg.instance.box.capstyle = 'round'
@@ -102,22 +103,21 @@ cfg.instance.box.edgecolor = 'k'
 cfg.instance.box.facecolor = (0, 0, 0, 0)
 cfg.instance.box.zorder = 0
 
-cfg.instance.keypoints_line = Config()
-cfg.instance.keypoints_line.alpha = 0.6
-cfg.instance.keypoints_line.color = 'k'
-cfg.instance.keypoints_line.capstyle = 'round'
-cfg.instance.keypoints_line.zorder = 0
-
-cfg.instance.keypoints = Config()
-cfg.instance.keypoints.s = 3
-cfg.instance.keypoints.edgecolor = 'k'
-cfg.instance.keypoints.lw = 0.5
+cfg.instance.line = Config()
+cfg.instance.line.alpha = 0.6
+cfg.instance.line.color = 'k'
+cfg.instance.line.capstyle = 'round'
+cfg.instance.line.zorder = 0
 
 def get_keypoints_facecolor(instance: pyTrajectory.instance.Instance):
     global cfg
     return ['r'] + ['w'] * (len(instance[cfg.key_keypoints]) - 1)
 
-cfg.instance.keypoints.facecolor = get_keypoints_facecolor
+cfg.instance.points = Config()
+cfg.instance.points.s = 3
+cfg.instance.points.edgecolor = 'k'
+cfg.instance.points.lw = 0.5
+cfg.instance.points.facecolor = get_keypoints_facecolor
 
 cfg.instance.label = Config()
 cfg.instance.label.size = 5
@@ -125,12 +125,18 @@ cfg.instance.label.size = 5
 # config for trajectory visualization
 cfg.trajectory = Config()
 
-cfg.trajectory.box = Config()
-cfg.trajectory.box.edgecolor = (0, 0, 0, 0.1)
-cfg.trajectory.box.facecolor = (0, 0, 0, 0)
-cfg.trajectory.box.lw = 0.1
+cfg.trajectory.boxes = Config()
+cfg.trajectory.boxes.edgecolor = (0, 0, 0, 0.1)
+cfg.trajectory.boxes.facecolor = (0, 0, 0, 0)
+cfg.trajectory.boxes.lw = 0.1
 
-cfg.trajectory.keypoints = Config()
-cfg.trajectory.keypoints.lw = 0.1
-cfg.trajectory.keypoints.alpha = 0.1
-cfg.trajectory.keypoints.capstyle = 'round'
+cfg.trajectory.lines = Config()
+cfg.trajectory.lines.color = (0, 0, 0, 0.1)
+cfg.trajectory.lines.capstyle = 'round'
+cfg.trajectory.lines.lw = 0.1
+
+cfg.trajectory.points = Config()
+cfg.trajectory.points.sizes = 0.5
+cfg.trajectory.points.edgecolor = (0, 0, 0, 0.1)
+cfg.trajectory.points.facecolor = (0, 0, 0, 1)
+cfg.trajectory.points.lw = 0
