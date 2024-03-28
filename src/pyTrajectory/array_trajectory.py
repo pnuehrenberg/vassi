@@ -74,6 +74,9 @@ class Trajectory:
 			return len(value)
 		return length
 
+	def __len__(self) -> int:
+		return self.length
+
 	def verify_data(self, data: Data) -> None:
 		if data is None:
 			return
