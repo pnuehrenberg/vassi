@@ -281,7 +281,7 @@ class Trajectory:
 			return self
 		return type(self)(data=data)
 
-	def interpolate(self, step: IntType | float | None = None, copy: bool = True) -> TrajectoryType:
+	def interpolate(self, step: IntType | float | None = 1, copy: bool = True) -> TrajectoryType:
 		timestamps = self[self.cfg.key_timestamp]
 		first = timestamps.min()
 		last = timestamps.max()
@@ -295,7 +295,12 @@ class Trajectory:
 			timestamps = np.round(timestamps).astype(int) 
 		return self.sample(timestamps, copy=copy)
 
-	def slice_window(self, start: IntType | float, stop: IntType | float, interpolate: bool = True) -> TrajectoryType:
+	def slice_window(
+			self,
+			start: IntType | float,
+			stop: IntType | float,
+			interpolate: bool = True,
+			interpolation_step: IntType | float | None = 1) -> TrajectoryType:
 		key_timestamp = self.cfg.key_timestamp
 		timestamps = self[self.cfg.key_timestamp]
 		first = timestamps.min()
@@ -317,10 +322,12 @@ class Trajectory:
 			slice_key = slice(slice_key.start, min(len(self), slice_key.stop + 1))
 		trajectory_window = type(self)(data=self[slice_key].data)
 		if not trajectory_window.is_complete:
-			trajectory_window = trajectory_window.interpolate()
+			trajectory_window = trajectory_window.interpolate(step=interpolation_step)
 		if isclose(trajectory_window[0][key_timestamp], start) and isclose(trajectory_window[-1][key_timestamp], stop):
 			return trajectory_window
-		return trajectory_window.slice_window(start, stop)
-
+		try:
+			return trajectory_window.slice_window(start, stop, interpolation_step=interpolation_step)
+		except RecursionError:
+			raise RecursionError('with slice: [{start} {stop}] in trajectory range [{first} {last}]')
 
 
