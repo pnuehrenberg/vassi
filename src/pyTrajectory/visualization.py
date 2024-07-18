@@ -47,37 +47,37 @@ def get_trajectory_range(trajectory):
         raise NotImplementedError
 
 
-def prepare_box(box_xyxy, **kwargs):
-    xy = box_xyxy[:2]
-    width, height = box_xyxy[2:] - xy
-    return patches.Rectangle(xy, width, height, **kwargs)
+# def prepare_box(box_xyxy, **kwargs):
+#     xy = box_xyxy[:2]
+#     width, height = box_xyxy[2:] - xy
+#     return patches.Rectangle(xy, width, height, **kwargs)
 
 
-def prepare_line(data, **kwargs):
-    data = np.asarray(list(zip(data[:-1], data[1:])))
-    return lines.Line2D(data[:, 0], data[:, 1], **kwargs)
+# def prepare_line(data, **kwargs):
+#     data = np.asarray(list(zip(data[:-1], data[1:])))
+#     return lines.Line2D(data[:, 0], data[:, 1], **kwargs)
 
 
-def prepare_boxes(boxes_xyxy, **kwargs):
-    return collections.PatchCollection([patches.Rectangle(box_xyxy) for box_xyxy in boxes_xyxy], **kwargs)
+# def prepare_boxes(boxes_xyxy, **kwargs):
+#     return collections.PatchCollection([patches.Rectangle(box_xyxy) for box_xyxy in boxes_xyxy], **kwargs)
 
 
-def prepare_lines(data, **kwargs):
-    data = np.asarray(list(zip(data[:-1], data[1:])))
-    return collections.LineCollection(data, **kwargs)
+# def prepare_lines(data, **kwargs):
+#     data = np.asarray(list(zip(data[:-1], data[1:])))
+#     return collections.LineCollection(data, **kwargs)
 
 
-def prepare_points(data, ax, **kwargs):
-    sizes = kwargs.pop('sizes')
-    if type(sizes) in [int, float]:
-        sizes = np.repeat(sizes, len(data))
-    if data.ndim > 2:
-        num_points = np.prod(data.shape[1:-1])
-        if len(sizes) == len(data):
-            sizes = np.repeat(sizes, num_points)
-        data = data.reshape(-1, data.shape[-1])
-    return collections.EllipseCollection(sizes, sizes,
-                                         np.zeros_like(sizes),
-                                         offsets=data[:, :2], units='x',
-                                         transOffset=ax.transData,
-                                         **kwargs)
+# def prepare_points(data, ax, **kwargs):
+#     sizes = kwargs.pop('sizes')
+#     if type(sizes) in [int, float]:
+#         sizes = np.repeat(sizes, len(data))
+#     if data.ndim > 2:
+#         num_points = np.prod(data.shape[1:-1])
+#         if len(sizes) == len(data):
+#             sizes = np.repeat(sizes, num_points)
+#         data = data.reshape(-1, data.shape[-1])
+#     return collections.EllipseCollection(sizes, sizes,
+#                                          np.zeros_like(sizes),
+#                                          offsets=data[:, :2], units='x',
+#                                          transOffset=ax.transData,
+#                                          **kwargs)
