@@ -1,83 +1,42 @@
-import matplotlib.pyplot as plt
-import numpy as np
-
-from matplotlib.axes import Axes
-from matplotlib import collections, patches, lines
-
-import pyTrajectory.config
-
-
-def get_instance_range(instance):
-    cfg = pyTrajectory.config.cfg
-    padding = cfg.figure.padding
-    try:
+def get_instance_range(instance, padding=0):
+    cfg = instance.cfg
+    if cfg.key_box is not None:
         box = instance[cfg.key_box]
-        return (box[0] - padding, box[2] + padding), \
-               (box[1] - padding, box[3] + padding)
-    except (KeyError, TypeError):
-        pass
-    try:
+        return (
+            (box[0] - padding, box[2] + padding),
+            (box[1] - padding, box[3] + padding),
+        )
+    if cfg.key_keypoints is not None:
         keypoints = instance[cfg.key_keypoints][:, :2]
         x_min, y_min = keypoints.min(axis=0)
         x_max, y_max = keypoints.max(axis=0)
-        return (x_min - padding, x_max + padding), \
-               (y_min - padding, y_max + padding)
-    except (KeyError, TypeError):
-        raise NotImplementedError
+        return (
+            (x_min - padding, x_max + padding),
+            (y_min - padding, y_max + padding),
+        )
+    raise NotImplementedError(
+        "instance range not implemented for instances without boxes or keypoints"
+    )
 
 
-def get_trajectory_range(trajectory):
-    cfg = pyTrajectory.config.cfg
-    padding = cfg.figure.padding
-    try:
+def get_trajectory_range(trajectory, padding=0):
+    cfg = trajectory.cfg
+    if cfg.key_box is not None:
         boxes = trajectory[cfg.key_box]
         x_min, y_min = boxes[:, :2].min(axis=0)
         x_max, y_max = boxes[:, 2:].max(axis=0)
-        return (x_min - padding, x_max + padding), \
-               (y_min - padding, y_max + padding)
-    except KeyError:
-        pass
-    try:
+        return (
+            (x_min - padding, x_max + padding),
+            (y_min - padding, y_max + padding),
+        )
+    if cfg.key_keypoints is not None:
         keypoints = trajectory[cfg.key_keypoints][..., :2].reshape(-1, 2)
         x_min, y_min = keypoints.min(axis=0)
         x_max, y_max = keypoints.max(axis=0)
-        return (x_min - padding, x_max + padding), \
-               (y_min - padding, y_max + padding)
-    except KeyError:
-        raise NotImplementedError
-
-
-# def prepare_box(box_xyxy, **kwargs):
-#     xy = box_xyxy[:2]
-#     width, height = box_xyxy[2:] - xy
-#     return patches.Rectangle(xy, width, height, **kwargs)
-
-
-# def prepare_line(data, **kwargs):
-#     data = np.asarray(list(zip(data[:-1], data[1:])))
-#     return lines.Line2D(data[:, 0], data[:, 1], **kwargs)
-
-
-# def prepare_boxes(boxes_xyxy, **kwargs):
-#     return collections.PatchCollection([patches.Rectangle(box_xyxy) for box_xyxy in boxes_xyxy], **kwargs)
-
-
-# def prepare_lines(data, **kwargs):
-#     data = np.asarray(list(zip(data[:-1], data[1:])))
-#     return collections.LineCollection(data, **kwargs)
-
-
-# def prepare_points(data, ax, **kwargs):
-#     sizes = kwargs.pop('sizes')
-#     if type(sizes) in [int, float]:
-#         sizes = np.repeat(sizes, len(data))
-#     if data.ndim > 2:
-#         num_points = np.prod(data.shape[1:-1])
-#         if len(sizes) == len(data):
-#             sizes = np.repeat(sizes, num_points)
-#         data = data.reshape(-1, data.shape[-1])
-#     return collections.EllipseCollection(sizes, sizes,
-#                                          np.zeros_like(sizes),
-#                                          offsets=data[:, :2], units='x',
-#                                          transOffset=ax.transData,
-#                                          **kwargs)
+        return (
+            (x_min - padding, x_max + padding),
+            (y_min - padding, y_max + padding),
+        )
+    raise NotImplementedError(
+        "trajectories range not implemented for trajectories without boxes or keypoints"
+    )

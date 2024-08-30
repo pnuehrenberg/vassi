@@ -1,9 +1,0 @@
-[lint]
-select = ["D"]
-
-[lint.pydocstyle]
-convention = "numpy"  # Accepts: "google", "numpy", or "pep257".
-
-[format]
-docstring-code-format = true
-

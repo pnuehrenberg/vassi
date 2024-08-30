@@ -1,11 +1,10 @@
+from copy import deepcopy
+from typing import Optional
+
 import yaml
 
-from copy import deepcopy
 
-import pyTrajectory.instance
-
-
-class Config:
+class BaseConfig:
     """A configuration object for storing key-value pairs.
 
     This class allows for the creation and manipulation of configuration objects.
@@ -75,13 +74,17 @@ class Config:
         """Return the items (key-value pairs) of the configuration object."""
         return self.__dict__.items()
 
-    def __call__(self):
-        """Return a deep copy of the configuration object."""
+    def __call__(self, *, as_frozenset: bool = False):
+        """Return a dictionary (or frozenset) representation of a deep copy of the configuration object."""
         cfg = deepcopy(self)
         for key, value in cfg.items():
-            if not isinstance(value, Config):
+            if isinstance(value, BaseConfig):
+                cfg[key] = value(as_frozenset=as_frozenset)
                 continue
-            cfg[key] = value()
+            elif as_frozenset and isinstance(value, dict):
+                cfg[key] = frozenset(value)
+        if as_frozenset:
+            return frozenset(cfg.__dict__.items())
         return cfg.__dict__
 
     def __str__(self):
@@ -100,78 +103,46 @@ class Config:
             raise KeyError
         self.__dict__[key] = value
 
+    def __eq__(self, other):
+        if not isinstance(other, BaseConfig):
+            return False
+        return hash(self) == hash(other)
+
+    def __hash__(self) -> int:
+        return hash(self(as_frozenset=True))
+
     def copy(self):
         """Return a deep copy of the configuration object."""
         return deepcopy(self)
 
 
+class Config(BaseConfig):
+    def __init__(
+        self,
+        *,
+        trajectory_keys: tuple[str, ...] = tuple(),
+        key_identity: Optional[str] = None,  # depreated!
+        key_timestamp: Optional[str] = None,
+        key_category: Optional[str] = None,
+        key_score: Optional[str] = None,
+        key_box: Optional[str] = None,
+        key_keypoints: Optional[str] = None,
+        timestep: Optional[int | float] = None,
+        **kwargs,
+    ):
+        self.trajectory_keys = trajectory_keys
+        self.key_identity = key_identity
+        self.key_timestamp = key_timestamp
+        self.key_category = key_category
+        self.key_score = key_score
+        self.key_box = key_box
+        self.key_keypoints = key_keypoints
+        self.timestep = timestep
+        super().__init__(**kwargs)
+
+
 cfg = Config()
 
-cfg.trajectory_keys = ((),)  # define data keys
-# the following are predifined keys and used for visualization and analyses
-# import and assign accordingly
-cfg.key_time_stamp = (None,)  # depreated!
-cfg.key_timestamp = (None,)
-cfg.key_category = (None,)
-cfg.key_score = (None,)
-cfg.key_box = (None,)
-cfg.key_keypoints = (None,)
-
-cfg.timestep = None
-
-cfg.vis = Config()
-cfg.vis.padding = 0
-
-# config for visualization figures
-cfg.vis.figure = Config()
-cfg.vis.figure.figsize = (1, 1)
-cfg.vis.figure.dpi = 600
-
-# config for instance visualization
-cfg.vis.instance = Config()
-
-cfg.vis.instance.box = Config()
-cfg.vis.instance.box.linestyle = "-"
-cfg.vis.instance.box.linewidth = 0.5
-cfg.vis.instance.box.joinstyle = "round"
-cfg.vis.instance.box.capstyle = "round"
-cfg.vis.instance.box.edgecolor = "k"
-cfg.vis.instance.box.facecolor = (0, 0, 0, 0)
-cfg.vis.instance.box.zorder = 0
-
-cfg.vis.instance.line = Config()
-cfg.vis.instance.line.alpha = 0.6
-cfg.vis.instance.line.color = "k"
-cfg.vis.instance.line.capstyle = "round"
-cfg.vis.instance.line.zorder = 0
-
-cfg.vis.instance.points = Config()
-cfg.vis.instance.points.s = 3
-cfg.vis.instance.points.edgecolor = "k"
-cfg.vis.instance.points.lw = 0.5
-cfg.vis.instance.points.facecolor = (0, 0, 0, 0)
-
-cfg.vis.instance.label = Config()
-cfg.vis.instance.label.size = 5
-
-# config for trajectory visualization
-cfg.vis.trajectory = Config()
-
-cfg.vis.trajectory.boxes = Config()
-cfg.vis.trajectory.boxes.edgecolor = (0, 0, 0, 0.1)
-cfg.vis.trajectory.boxes.facecolor = (0, 0, 0, 0)
-cfg.vis.trajectory.boxes.lw = 0.1
-
-cfg.vis.trajectory.lines = Config()
-cfg.vis.trajectory.lines.color = (0, 0, 0, 0.1)
-cfg.vis.trajectory.lines.capstyle = "round"
-cfg.vis.trajectory.lines.lw = 0.1
-
-cfg.vis.trajectory.points = Config()
-cfg.vis.trajectory.points.sizes = 0.5
-cfg.vis.trajectory.points.edgecolor = (0, 0, 0, 0.1)
-cfg.vis.trajectory.points.facecolor = (0, 0, 0, 1)
-cfg.vis.trajectory.points.lw = 0
 
 if __name__ == "__main__":
     import doctest

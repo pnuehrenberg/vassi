@@ -1,6 +1,17 @@
 [build-system]
-requires = [
-    "setuptools>=42",
-    "wheel"
-]
+requires = ["setuptools>=42", "wheel"]
 build-backend = "setuptools.build_meta"
+
+[tool.pyright]
+venvPath = "../miniconda3/envs"
+venv = "pyt"
+
+[tool.ruff.lint]
+# select = ["D"]
+ignore = ["D100", "D101", "D102", "D104", "D103", "D105"]
+
+[tool.ruff.lint.pydocstyle]
+convention = "numpy" # Accepts: "google", "numpy", or "pep257".
+
+[tool.ruff.format]
+docstring-code-format = true
