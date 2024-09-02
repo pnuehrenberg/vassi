@@ -1,6 +1,5 @@
 import numpy as np
 
-
 from . import utils
 from .base import ConfiguredData
 
@@ -29,9 +28,9 @@ class Instance(ConfiguredData):
             self._data[key] = value
 
     def __getitem__(self, key) -> utils.Value:
-        return self.get_value(key)
+        return self._get_value(key)
 
     def __setitem__(self, key: str, value: utils.Value) -> None:
-        _value = self.get_value(key)
+        _value = self._get_value(key)
         with utils.writeable(_value):
             _value[:] = value

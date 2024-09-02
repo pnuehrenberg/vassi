@@ -45,9 +45,7 @@ def names(
         return [
             f"{func_name}-{pair(keypoint_pair)}" for keypoint_pair in keypoint_pairs
         ]
-    raise NotImplementedError(
-        "Invalid input, specify either keypoints or keypoint_pairs."
-    )
+    return [func_name]
 
 
 def relational_names(
@@ -155,7 +153,9 @@ def feature_names(
 
 
 def get_feature_names(func, **kwargs) -> list[str]:
-    relational = "keypoints" not in kwargs and "keypoint_pairs" not in kwargs
+    relational = any([("keypoints_" in kwarg) for kwarg in kwargs]) or any(
+        [("keypoint_pairs_" in kwarg) for kwarg in kwargs]
+    )
     suffixes = None
     if "suffixes" in kwargs:
         suffixes = kwargs.pop("suffixes")

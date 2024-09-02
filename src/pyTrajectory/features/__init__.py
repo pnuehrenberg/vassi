@@ -1,7 +1,9 @@
+from .decorators import as_absolute, as_dataframe, as_sign_change_latency
 from .feature_extractor import DataFrameFeatureExtractor, FeatureExtractor
 from .features import (
     keypoint_distances,
     keypoints,
+    position,
     posture_alignment,
     posture_angles,
     posture_segments,
@@ -18,7 +20,6 @@ from .temporal_features import (
     translation,
     velocity,
 )
-from .decorators import as_absolute, as_dataframe, as_sign_change_latency
 
 __all__ = [
     # from decorators
@@ -27,6 +28,7 @@ __all__ = [
     "as_dataframe",
     # from features
     "keypoints",
+    "position",
     "posture_segments",
     "posture_vectors",
     "posture_angles",

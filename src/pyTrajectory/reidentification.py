@@ -3,32 +3,39 @@ from typing import Callable, Optional
 
 import networkx as nx
 import numpy as np
-from numpy.typing import NDArray
 from numpy.dtypes import StringDType  # type: ignore
+from numpy.typing import NDArray
 from scipy.optimize import linear_sum_assignment
+from tqdm.auto import tqdm
 
-from .. import config
-from .. import math
-from ..features.utils import Feature
-
-from ..utils import perform_operation
-
-from .timestamped_collection import TimestampedInstanceCollection
-
+from . import config, math
+from .data_structures import TimestampedInstanceCollection
+from .features.utils import Feature
+from .utils import perform_operation
 
 FeatureDistance = Callable[[NDArray, NDArray], NDArray]
 
 
 def assign_identities(
     instances: TimestampedInstanceCollection,
+    *,
     position_func: Feature,
     max_lag: int,
     max_distance: int | float,
-    *,
     similarity_features: Optional[Iterable[tuple[Feature, FeatureDistance]]] = None,
     dissimilarity_weights: float | Iterable[float] = 1,
     cfg: Optional[config.Config] = None,
+    show_progress: bool = True,
 ):
+    def next_identity() -> str | int:
+        if len(used_decimal_identities) == 0:
+            identity = 0
+        else:
+            identity = max(used_decimal_identities) + 1
+        used_decimal_identities.add(identity)
+        active.add(identity)
+        return identity
+
     cfg = instances.cfg
     if (key_identity := cfg.key_identity) is None:
         raise ValueError("undefined identity key")
@@ -41,7 +48,8 @@ def assign_identities(
         raise ValueError(
             f"value for {key_identity} should be a numpy array of type int or numpy.dtypes.StringDType"
         )
-    instances[key_identity] = unassigned
+    with instances.validate(False):
+        instances[key_identity] = unassigned
     if similarity_features is None:
         similarity_features = []
     else:
@@ -57,6 +65,7 @@ def assign_identities(
             f"provided {num_features} similarity features, but {num_weights} dissimilarity weights."
         )
     max_dissimilarity = [1] * num_features
+    used_decimal_identities: set[int] = set()
     active: set[int | str] = set()
     archived: set[int | str] = set()
     if not instances.is_sorted:
@@ -65,56 +74,56 @@ def assign_identities(
         instances.timestamps[0],
         instances.timestamps[-1] + 1,
     )
+    start = timestamps[0]
+    if show_progress:
+        timestamps = tqdm(timestamps)
     for timestamp in timestamps:
+        instances_window = instances.slice_window(
+            max(start, timestamp - max_lag - 1), timestamp
+        )
         # archive active trajectories with too high lag
-        for identity in active:
-            last_timestamp = instances.select(identity=identity)[
+        for identity in list(active):  # may change size
+            last_timestamp = instances_window.select(identity=identity)[
                 instances.key_timestamp
             ][-1]
             if timestamp - last_timestamp <= max_lag:
                 continue
             active.discard(identity)
             archived.add(identity)
-        current_instances = instances.slice_window(timestamp, timestamp)
+        current_instances = instances_window.slice_window(timestamp, timestamp)
         if (num_current := len(current_instances)) == 0:
             # nothing to do
             continue
-        used_decimal_identities = [
-            int(identity)
-            for identity in archived.union(active)
-            if isinstance(identity, int | float | np.integer | np.floating)
-            or identity.isdecimal()
-        ]
         if (num_active := len(active)) == 0 and len(archived) == 0:
             # first
-            current_instances[key_identity] = np.arange(num_current, dtype=int).astype(
-                dtype
-            )
+            with current_instances.validate(False):
+                current_instances[key_identity] = np.asarray(
+                    [next_identity() for _ in range(num_current)], dtype=dtype
+                )
             continue
         elif num_active == 0:
             # only archived, assign new identities to all
-            current_instances[key_identity] = np.arange(
-                max(used_decimal_identities),
-                max(used_decimal_identities) + num_current,
-                dtype=int,
-            ).astype(dtype)
+            with current_instances.validate(False):
+                current_instances[key_identity] = np.asarray(
+                    [next_identity() for _ in range(num_current)], dtype=dtype
+                )
             continue
         # find optimal assignments from active to current
         active_instances = TimestampedInstanceCollection.concatenate(
-            *[instances.select(identity=identity)[-1:] for identity in active]
+            *[instances_window.select(identity=identity)[-1:] for identity in active],
+            validate=False,
         )
         instances_to_match = TimestampedInstanceCollection.concatenate(
-            active_instances, current_instances
+            active_instances, current_instances, validate=False
         )
         positions_to_match = position_func(instances_to_match)
         distance_matrix = perform_operation(
             math.euclidean_distance,
-            positions_to_match[:, np.newaxis],
-            positions_to_match[np.newaxis, ...],
+            positions_to_match.reshape(1, num_active + num_current, -1),
+            positions_to_match.reshape(1, num_active + num_current, -1),
             element_wise=False,
             flat=False,
-            expand_dims_for_broadcasting=False,
-        )
+        )[0]
         matched_category = np.ones(
             (len(instances_to_match), len(instances_to_match)), dtype=bool
         )
@@ -142,11 +151,10 @@ def assign_identities(
             if from_idx.size == 0:
                 # no active to assign from, create new
                 for idx in to_idx:
-                    identity = max(used_decimal_identities) + 1
-                    used_decimal_identities.append(identity)
-                    current_instances[idx, key_identity] = np.asarray(
-                        identity, dtype=dtype
-                    )
+                    with current_instances.validate(False):
+                        current_instances[idx, key_identity] = np.asarray(
+                            next_identity(), dtype=dtype
+                        )
                 continue
             # n-to-n assignment
             from_features = [
@@ -162,11 +170,11 @@ def assign_identities(
             for feature_idx, (_, distance_func) in enumerate(similarity_features):
                 dissimilarity_matrix = perform_operation(
                     distance_func,
-                    from_features[feature_idx],
-                    to_features[feature_idx],
+                    from_features[feature_idx].reshape(1, len(from_idx), -1),
+                    to_features[feature_idx].reshape(1, len(to_idx), -1),
                     element_wise=False,
                     flat=False,
-                )
+                )[0]
                 assert dissimilarity_matrix.shape == (len(from_idx), len(to_idx))
                 if (max_diss := dissimilarity_matrix.max()) > max_dissimilarity[
                     feature_idx
@@ -181,7 +189,7 @@ def assign_identities(
                 )
             else:
                 # fall back to distance matrix
-                cost_matrix = distance_matrix[from_idx][:, to_idx]
+                cost_matrix = distance_matrix[from_idx][:, to_idx + num_active]
             row_idx, col_idx = linear_sum_assignment(cost_matrix)
             assigned_row = []
             assigned_col = []
@@ -192,18 +200,18 @@ def assign_identities(
                 ), f"double assignment {row_idx} {col_idx}"
                 assigned_row.append(row)
                 assigned_col.append(col)
-                current_instances[to_idx[col], key_identity] = active_instances[
-                    from_idx[row], key_identity
-                ]
+                with current_instances.validate(False):
+                    current_instances[to_idx[col], key_identity] = active_instances[
+                        from_idx[row], key_identity
+                    ]
         # create new from unassigned
         unassigned_idx = np.argwhere(
             current_instances[key_identity] == unassigned
         ).ravel()
         for idx in unassigned_idx:
-            identity = max(used_decimal_identities) + 1
-            used_decimal_identities.append(identity)
-            current_instances[idx, key_identity] = np.asarray(identity, dtype=dtype)
+            with current_instances.validate(False):
+                current_instances[idx, key_identity] = np.asarray(
+                    next_identity, dtype=dtype
+                )
         assert (current_instances[key_identity] != unassigned).all()
-        current: set[int | str] = set(current_instances[key_identity])
-        active = active.union(current)
     return instances

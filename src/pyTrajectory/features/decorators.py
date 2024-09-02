@@ -1,19 +1,18 @@
-from typing import Optional, overload
-from collections.abc import Iterable
-
-from functools import wraps
-
 import warnings
-from numpy.typing import NDArray
+from collections.abc import Iterable
+from functools import wraps
+from typing import Optional, overload
+
 import numpy as np
 import pandas as pd
+from numpy.typing import NDArray
 
 from .. import series_operations
+from ..data_structures import InstanceCollection, Trajectory
 from ..utils import warning_only
-from ..data_structures import Trajectory, InstanceCollection
 from .utils import (
-    Feature,
     DataFrameFeature,
+    Feature,
     get_feature_names,
     prune_feature_names,
 )

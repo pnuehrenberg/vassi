@@ -14,19 +14,30 @@ from ..utils import (
 
 
 def keypoints(
-    trajectory: InstanceCollection,
+    collection: InstanceCollection,
     *,
     keypoints: Keypoints,
     flat: bool = False,
     suffixes: tuple[str, ...] = ("x", "y"),
 ) -> NDArray:
     """2D coordinates of trajectory keypoints."""
-    if trajectory.cfg.key_keypoints is None:
+    if collection.cfg.key_keypoints is None:
         raise ValueError("key_keypoints is not defined.")
-    points = trajectory[trajectory.cfg.key_keypoints][:, tuple(keypoints), :2]
+    points = collection[collection.cfg.key_keypoints][:, tuple(keypoints), :2]
     if flat:
         return flatten(points)
     return points
+
+
+def position(
+    collection: InstanceCollection,
+    *,
+    suffixes: tuple[str, ...] = ("x", "y"),
+) -> NDArray:
+    if collection.cfg.key_keypoints is None:
+        raise ValueError("key_keypoints is not defined.")
+    num_keypoints = collection[collection.cfg.key_keypoints].shape[1]
+    return keypoints(collection, keypoints=tuple(range(num_keypoints))).mean(axis=1)
 
 
 def posture_segments(

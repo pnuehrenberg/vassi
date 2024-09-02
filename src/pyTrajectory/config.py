@@ -76,16 +76,18 @@ class BaseConfig:
 
     def __call__(self, *, as_frozenset: bool = False):
         """Return a dictionary (or frozenset) representation of a deep copy of the configuration object."""
-        cfg = deepcopy(self)
+        cfg = {}
         for key, value in cfg.items():
             if isinstance(value, BaseConfig):
                 cfg[key] = value(as_frozenset=as_frozenset)
                 continue
             elif as_frozenset and isinstance(value, dict):
                 cfg[key] = frozenset(value)
+            else:
+                cfg[key] = value
         if as_frozenset:
-            return frozenset(cfg.__dict__.items())
-        return cfg.__dict__
+            return frozenset(cfg.items())
+        return cfg
 
     def __str__(self):
         """Return a string representation of the configuration object."""
@@ -106,10 +108,7 @@ class BaseConfig:
     def __eq__(self, other):
         if not isinstance(other, BaseConfig):
             return False
-        return hash(self) == hash(other)
-
-    def __hash__(self) -> int:
-        return hash(self(as_frozenset=True))
+        return self(as_frozenset=True) == other(as_frozenset=True)
 
     def copy(self):
         """Return a deep copy of the configuration object."""

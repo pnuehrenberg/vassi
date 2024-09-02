@@ -1,11 +1,9 @@
-from typing import Optional
 from collections.abc import Iterable
+from typing import Optional
+
 from numpy.typing import NDArray
 
-
 from .. import config
-
-from . import utils
 
 
 class ConfiguredData:
@@ -32,13 +30,12 @@ class ConfiguredData:
             exclude = []
         return tuple(set(self.cfg.trajectory_keys).difference(exclude))
 
-    def get_value(
+    def _get_value(
         self,
         key: str,
         *,
         copy: bool = False,
     ) -> NDArray:
-        utils.validate_keys([key], self.keys(), allow_missing=True)
         if self._data is None:
             raise ValueError("not initialized")
         value = self._data[key]
@@ -56,7 +53,7 @@ class ConfiguredData:
         copy: bool = True,
     ) -> tuple[NDArray, ...]:
         return tuple(
-            self.get_value(key, copy=copy) for key in self.keys(exclude=exclude)
+            self._get_value(key, copy=copy) for key in self.keys(exclude=exclude)
         )
 
     def items(

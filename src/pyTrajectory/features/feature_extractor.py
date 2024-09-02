@@ -8,7 +8,7 @@ from numpy.typing import NDArray
 from pyTrajectory.utils import warning_only
 
 from ..data_structures import Trajectory
-from . import features, temporal_features, utils, decorators
+from . import decorators, features, temporal_features, utils
 
 FeatureCategory = Literal["individual"] | Literal["dyadic"]
 

@@ -1,4 +1,4 @@
-from typing import Self, Optional, Mapping
+from typing import Mapping, Optional, Self
 
 import numpy as np
 from numpy.typing import NDArray
@@ -14,8 +14,9 @@ class TimestampedInstanceCollection(InstanceCollection):
         *,
         data: Optional[Mapping[str, NDArray]] = None,
         cfg: Optional[config.Config] = None,
+        validate_on_init: bool = True,
     ) -> None:
-        super().__init__(data=data, cfg=cfg)
+        super().__init__(data=data, cfg=cfg, validate_on_init=validate_on_init)
         try:
             _ = self.key_timestamp
         except AssertionError:
@@ -57,7 +58,7 @@ class TimestampedInstanceCollection(InstanceCollection):
         if not copy:
             self.data = data
             return self
-        return self._init_copy(data=data)
+        return self._init_other(data=data)
 
     def _window_to_slice(
         self,

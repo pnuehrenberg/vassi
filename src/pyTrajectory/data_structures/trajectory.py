@@ -18,12 +18,17 @@ class Trajectory(TimestampedInstanceCollection):
         data: Optional[Mapping[str, NDArray]] = None,
         cfg: Optional[config.Config] = None,
         timestep: Optional[int | float] = None,
+        validate_on_init: bool = True,
     ) -> None:
-        super().__init__(data=data, cfg=cfg)
+        super().__init__(data=data, cfg=cfg, validate_on_init=validate_on_init)
         self._timestep = timestep
 
-    def _init_copy(
-        self, *, data: Optional[dict[str, NDArray]], copy_config: bool = True
+    def _init_other(
+        self,
+        *,
+        data: Optional[dict[str, NDArray]],
+        copy_config: bool = False,
+        validate_on_init: bool = False,
     ) -> Self:
         cfg = self.cfg
         if copy_config:
@@ -32,6 +37,7 @@ class Trajectory(TimestampedInstanceCollection):
             data=data,
             cfg=cfg,
             timestep=self._timestep,
+            validate_on_init=validate_on_init,
         )
 
     @property
@@ -124,7 +130,7 @@ class Trajectory(TimestampedInstanceCollection):
         if not copy:
             self.data = data
             return self
-        return self._init_copy(data=data)
+        return self._init_other(data=data)
 
     def interpolate(
         self,
