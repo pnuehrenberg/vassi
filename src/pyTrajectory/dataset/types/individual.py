@@ -1,19 +1,20 @@
-from typing import Optional
-
 import pandas as pd
 
 from ...data_structures import Trajectory
-from .sampleable import AnnotatedSampleable, Sampleable
+from ._sampleable import AnnotatedSampleable, Sampleable
 
 
 class Individual(Sampleable):
+    trajectory_other: None
+
     def __init__(self, trajectory: Trajectory) -> None:
         super().__init__(trajectory)
 
         def annotate(
             self,
             annotations: pd.DataFrame,
-            categories: Optional[tuple[str, ...]] = None,
+            *,
+            categories: tuple[str, ...],
         ) -> "AnnotatedIndividual":
             return AnnotatedIndividual(
                 self.trajectory,
@@ -23,10 +24,13 @@ class Individual(Sampleable):
 
 
 class AnnotatedIndividual(AnnotatedSampleable):
+    trajectory_other: None
+
     def __init__(
         self,
         trajectory: Trajectory,
         annotations: pd.DataFrame,
-        categories: Optional[tuple[str, ...]] = None,
+        *,
+        categories: tuple[str, ...],
     ) -> None:
         super().__init__(trajectory, annotations=annotations, categories=categories)

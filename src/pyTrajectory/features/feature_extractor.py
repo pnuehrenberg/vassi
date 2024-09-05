@@ -10,7 +10,7 @@ from pyTrajectory.utils import warning_only
 from ..data_structures import Trajectory
 from . import decorators, features, temporal_features, utils
 
-FeatureCategory = Literal["individual"] | Literal["dyadic"]
+FeatureCategory = Literal["individual", "dyadic"]
 
 
 def _get_func(func_name: str) -> utils.Feature:
@@ -27,10 +27,6 @@ def _get_func(func_name: str) -> utils.Feature:
 
 
 class BaseExtractor:
-    _feature_funcs_individual: list[tuple[Callable, dict[str, Any]]] = []
-    _feature_funcs_dyadic: list[tuple[Callable, dict[str, Any]]] = []
-    _feature_names_individual: list[str] = []
-    _feature_names_dyadic: list[str] = []
     allowed_additional_kwargs: tuple[str, ...] = (
         "as_absolute",
         "as_sign_change_latency",
@@ -42,6 +38,11 @@ class BaseExtractor:
         features: list[tuple[utils.Feature, dict[str, Any]]] | None = None,
         dyadic_features: list[tuple[utils.Feature, dict[str, Any]]] | None = None,
     ):
+        self._feature_funcs_individual: list[tuple[Callable, dict[str, Any]]] = []
+        self._feature_funcs_dyadic: list[tuple[Callable, dict[str, Any]]] = []
+        self._feature_names_individual: list[str] = []
+        self._feature_names_dyadic: list[str] = []
+
         if features is not None:
             self._init_features(features, category="individual")
         if dyadic_features is not None:
@@ -52,10 +53,10 @@ class BaseExtractor:
 
     def _adjust_func(
         self,
-        func: Callable,
+        func: utils.Feature,
         as_absolute: bool = False,
         as_sign_change_latency: bool = False,
-    ) -> Callable:
+    ) -> utils.Feature:
         if as_absolute and as_sign_change_latency:
             raise ValueError(
                 "Only specify one of as_absolute and as_sign_change_latency."
@@ -140,7 +141,8 @@ class BaseExtractor:
             )
         return self
 
-    def _concatenate(self, *args: Any) -> Any:
+    @classmethod
+    def concatenate(cls, *args: Any, axis: int = 1) -> Any:
         raise NotImplementedError
 
     def extract_features(
@@ -163,7 +165,7 @@ class BaseExtractor:
         feature_funcs = self._get_feature_funcs(category)
         if len(feature_funcs) == 0:
             raise ValueError("No features specified.")
-        return self._concatenate(
+        return type(self).concatenate(
             *[
                 func(trajectory, **prepare_kwargs(kwargs))
                 for func, kwargs in feature_funcs
@@ -188,7 +190,7 @@ class BaseExtractor:
             return self.extract_features(
                 trajectory, trajectory_other, category="dyadic"
             )
-        return self._concatenate(
+        return type(self).concatenate(
             *[
                 self.extract_features(trajectory, category="individual"),
                 self.extract_features(trajectory, trajectory_other, category="dyadic"),
@@ -197,11 +199,9 @@ class BaseExtractor:
 
 
 class FeatureExtractor(BaseExtractor):
-    _feature_funcs_individual: list[tuple[utils.Feature, dict[str, Any]]] = []
-    _feature_funcs_dyadic: list[tuple[utils.Feature, dict[str, Any]]] = []
-
-    def _concatenate(self, *args: NDArray) -> NDArray:
-        return np.concatenate(args, axis=1)
+    @classmethod
+    def concatenate(cls, *args: NDArray, axis: int = 1) -> NDArray:
+        return np.concatenate(args, axis=axis)
 
     if TYPE_CHECKING:
 
@@ -219,8 +219,6 @@ class FeatureExtractor(BaseExtractor):
 
 
 class DataFrameFeatureExtractor(BaseExtractor):
-    _feature_funcs_individual: list[tuple[utils.DataFrameFeature, dict[str, Any]]] = []
-    _feature_funcs_dyadic: list[tuple[utils.DataFrameFeature, dict[str, Any]]] = []
     allowed_additional_kwargs: tuple[str, ...] = (
         "as_absolute",
         "as_sign_change_latency",
@@ -228,22 +226,25 @@ class DataFrameFeatureExtractor(BaseExtractor):
         "discard",
     )
 
-    def _adjust_func(
+    def _adjust_func(  # type: ignore
         self,
-        func: Callable,
+        func: utils.Feature,
         as_absolute: bool = False,
         as_sign_change_latency: bool = False,
         keep: list[str] | str | None = None,
         discard: list[str] | str | None = None,
-    ) -> Callable:
+    ) -> utils.DataFrameFeature:
         return decorators.as_dataframe(
             super()._adjust_func(func, as_absolute, as_sign_change_latency),
             keep=keep,
             discard=discard,
         )
 
-    def _concatenate(self, *args: pd.DataFrame) -> pd.DataFrame:
-        return pd.concat(args, axis=1)
+    @classmethod
+    def concatenate(cls, *args: pd.DataFrame, axis: int = 1) -> pd.DataFrame:
+        dataframe = pd.concat(args, axis=axis)
+        assert isinstance(dataframe, pd.DataFrame)
+        return dataframe
 
     if TYPE_CHECKING:
 

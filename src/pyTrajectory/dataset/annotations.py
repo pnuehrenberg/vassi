@@ -47,6 +47,10 @@ def infill_annotations(
     annotations: pd.DataFrame,
     observation_stop: Optional[int] = None,
 ) -> pd.DataFrame:
+    if len(annotations) == 0:
+        return pd.DataFrame(
+            [pd.Series({"category": "none", "start": 0, "stop": observation_stop})]
+        )
     insert_idx = (
         np.asarray(annotations["start"][1:]) - np.asarray(annotations["stop"][:-1]) > 1
     )
@@ -67,7 +71,7 @@ def infill_annotations(
             "stop": np.asarray(annotations[1:].loc[insert_idx, "start"] - 1),
         }
     )
-    return (
+    annotations = (
         pd.concat(
             [
                 pd.DataFrame(padding),
@@ -78,6 +82,9 @@ def infill_annotations(
         .sort_values("start")
         .reset_index(drop=True)
     )
+    annotations.loc[annotations["stop"] > observation_stop, "stop"] = observation_stop
+    annotations = annotations.loc[annotations["start"] <= observation_stop]
+    return annotations
 
 
 @with_duration

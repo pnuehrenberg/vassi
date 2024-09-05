@@ -107,8 +107,3 @@ def smooth(
         series,
         filter_funcs=filter_funcs,
     )
-    # from scipy.signal import savgol_filter, medfilt
-    # s = medfilt(s, median_filter_window_size)
-    # s = savgol_filter(s, savgol_filter_window_size, savgol_filter_polyorder)
-    # if force_positive:
-    #     series[series < 0] = 0

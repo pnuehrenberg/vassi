@@ -25,20 +25,18 @@ def apply_to_sliding_windows(
         (*sliding_windows.shape[:-1], num_selections), dtype=float
     )
     if window_slices is None:
-        sliding_metric = metric_func(sliding_windows)
-        sliding_metrics[..., : sliding_metric.shape[-1]] = sliding_metric
-        sliding_metrics = sliding_metrics.squeeze(axis=-1)
+        window_slices = [slice(None)]
     elif isinstance(window_slices, slice):
-        sliding_metric = metric_func(sliding_windows[..., window_slices])
-        sliding_metrics[..., : sliding_metric.shape[-1]] = sliding_metric
-    elif isinstance(window_slices, list):
-        for idx, window_slice in enumerate(window_slices):
-            sliding_metric = metric_func(sliding_windows[..., window_slice])
-            sliding_metrics[..., idx : (idx + sliding_metric.shape[-1])] = (
-                sliding_metric
-            )
-    else:
+        window_slices = [window_slices]
+    if not isinstance(window_slices, list):
         raise ValueError(f"Invalid window_slices argument {window_slices}.")
+    sliding_metrics = np.stack(
+        [
+            metric_func(sliding_windows[..., window_slice])
+            for window_slice in window_slices
+        ],
+        axis=-2,
+    )
     padding = window_size // 2
     sliding_metrics = np.concatenate(
         [
@@ -68,6 +66,7 @@ def apply_multiple_to_sliding_windows(
     if sliding_windows.shape[-1] == 1:
         sliding_windows = sliding_windows.squeeze(axis=-1)
     num_selections = len(window_slices) if isinstance(window_slices, list) else 1
+    # TODO follow implementation as above
     sliding_metrics = np.zeros(
         (*sliding_windows.shape[:-1], num_selections, len(metric_funcs)), dtype=float
     )
@@ -77,7 +76,6 @@ def apply_multiple_to_sliding_windows(
             sliding_metrics[..., : sliding_metric.shape[-1], metric_idx] = (
                 sliding_metric
             )
-        sliding_metrics = sliding_metrics.squeeze(axis=-2)
     elif isinstance(window_slices, slice):
         for metric_idx, metric_func in enumerate(metric_funcs):
             sliding_metric = metric_func(sliding_windows[..., window_slices])
