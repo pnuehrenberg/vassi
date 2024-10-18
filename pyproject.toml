@@ -6,8 +6,10 @@ build-backend = "setuptools.build_meta"
 venvPath = "../miniconda3/envs"
 venv = "pyt"
 
+[tool.ruff]
+extend-exclude = ["*.ipynb"]
+
 [tool.ruff.lint]
-# select = ["D"]
 ignore = ["D100", "D101", "D102", "D104", "D103", "D105"]
 
 [tool.ruff.lint.pydocstyle]

@@ -238,8 +238,8 @@ class Sampleable(BaseSampleable):
             trajectory_other = cls.prepare_trajectory(trajectory_other)
         else:
             return trajectory, None
-        first = max(trajectory.timestamps[0], trajectory.timestamps[0])
-        last = max(trajectory.timestamps[-1], trajectory.timestamps[-1])
+        first = max(trajectory.timestamps[0], trajectory_other.timestamps[0])
+        last = min(trajectory.timestamps[-1], trajectory_other.timestamps[-1])
         trajectory = trajectory.slice_window(first, last, copy=False, interpolate=False)
         trajectory_other = trajectory_other.slice_window(first, last, interpolate=False)
         return trajectory, trajectory_other

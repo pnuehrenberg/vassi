@@ -5,7 +5,7 @@ from typing import Mapping
 import h5py
 from numpy.typing import NDArray
 
-import pyTrajectory.trajectory
+from .data_structures.trajectory import Trajectory
 
 
 def load_data(
@@ -49,7 +49,7 @@ def save_data(
 
 def save_trajectories(
     trajectory_file: str,
-    trajectories: dict[str, pyTrajectory.trajectory.Trajectory],
+    trajectories: dict[str, Trajectory],
     prefix: str | None = None,
     exclude: list[str] | None = None,
 ):
@@ -66,7 +66,7 @@ def save_trajectories(
 
 def load_trajectories(
     trajectory_file: str, data_path: str | None = None, exclude: list[str] | None = None
-) -> dict[str, pyTrajectory.trajectory.Trajectory]:
+) -> dict[str, Trajectory]:
     with h5py.File(trajectory_file, "r") as h5_file:
         if data_path is not None:
             h5_data = h5_file[data_path]
@@ -79,7 +79,7 @@ def load_trajectories(
             data_path = ""
         identities: list[str] = list(h5_data.keys())
     return {
-        identity: pyTrajectory.trajectory.Trajectory(
+        identity: Trajectory(
             data=load_data(
                 trajectory_file, os.path.join(data_path, str(identity)), exclude=exclude
             )
