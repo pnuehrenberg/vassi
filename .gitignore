@@ -1,7 +1,5 @@
 __pycache__
-*/__pycache__
-*.pyc
-src/pyTrajectory.egg-info
 build
 .ipynb_checkpoints
-*.h5
+.ruff_cache
+*.egg-info

@@ -1,10 +1,27 @@
 [build-system]
-requires = ["setuptools>=42", "wheel"]
+requires = ["setuptools"]
 build-backend = "setuptools.build_meta"
 
+[project]
+name = "pyTrajectory"
+version = "0.0.1"
+dependencies = [
+    "numpy>=2.0",
+    "numba",
+    "h5py",
+    "pandas",
+    "matplotlib",
+    "scikit-learn",
+    "imblearn",
+    "xgboost",
+]
+
+[tool.setuptools.packages.find]
+include = ["pyTrajectory"]
+
 [tool.pyright]
-venvPath = "../miniconda3/envs"
-venv = "pyt"
+venvPath = "/home/paul/miniforge3/envs"
+venv = "vuetify"
 
 [tool.ruff]
 extend-exclude = ["*.ipynb"]
