@@ -16,9 +16,6 @@ dependencies = [
     "xgboost",
 ]
 
-[tool.setuptools.packages.find]
-include = ["pyTrajectory"]
-
 [tool.pyright]
 venvPath = "/home/paul/miniforge3/envs"
 venv = "vuetify"
