@@ -8,22 +8,17 @@ import numpy as np
 from numpy.typing import NDArray
 
 from pyTrajectory.dataset import Dyad, Group, Individual
-from pyTrajectory.dataset.annotations.utils import (
-    to_annotations,
-)
 from pyTrajectory.dataset.types._sampleable import AnnotatedSampleable
 from pyTrajectory.dataset.types.dataset import Dataset
 from pyTrajectory.dataset.types.utils import Identity
 from pyTrajectory.features import DataFrameFeatureExtractor, FeatureExtractor
-from pyTrajectory.series_operations import smooth
-from pyTrajectory.utils import NDArray_to_NDArray
 
 from .results import (
     ClassificationResult,
     DatasetClassificationResult,
     GroupClassificationResult,
 )
-from .utils import validate_predictions
+from .utils import to_predictions, validate_predictions
 
 
 def classify(
@@ -34,7 +29,6 @@ def classify(
     *,
     pipeline=None,
     fit_pipeline=True,
-    label_smoothing_filter_funcs: Optional[list[NDArray_to_NDArray]] = None,
     categories=None,
 ) -> ClassificationResult:
     if not hasattr(classifier, "predict") or not hasattr(classifier, "predict_proba"):
@@ -43,13 +37,8 @@ def classify(
     y_pred_numeric: NDArray = classifier.predict(X)
     y_proba: NDArray = classifier.predict_proba(X).astype(float)
     y_true_numeric: Optional[NDArray] = None
-    y_proba_smoothed: Optional[NDArray] = None
-    y_pred_numeric_smoothed: Optional[NDArray] = None
     if y is not None:
         y_true_numeric = encode_func(y)
-    if label_smoothing_filter_funcs is not None:
-        y_proba_smoothed = smooth(y_proba, filter_funcs=label_smoothing_filter_funcs)
-        y_pred_numeric_smoothed = np.argmax(y_proba_smoothed, axis=1)
     timestamps = sampleable.trajectory.timestamps
     annotations = None
     if isinstance(sampleable, AnnotatedSampleable):
@@ -57,35 +46,20 @@ def classify(
         categories = sampleable.categories
     if categories is None:
         raise ValueError("specify categories when classifying unannotated sampleables.")
-    labels = (
-        y_pred_numeric_smoothed
-        if y_pred_numeric_smoothed is not None
-        else y_pred_numeric
+    predictions = to_predictions(
+        y_pred_numeric, y_proba, category_names=categories, timestamps=timestamps
     )
-    probabilities = y_proba_smoothed if y_proba_smoothed is not None else y_proba
-    predictions = to_annotations(labels, categories, timestamps=timestamps)
-    probabilities = [
-        probabilities[
-            (timestamps >= prediction["start"]) & (timestamps <= prediction["stop"])
-        ]
-        for _, prediction in predictions.iterrows()
-    ]
-    predictions["mean_probability"] = [
-        proba[:, proba.argmax(axis=1)].mean() for proba in probabilities
-    ]
-    predictions["max_probability"] = [
-        proba[:, proba.argmax(axis=1)].max() for proba in probabilities
-    ]
     if annotations is not None:
         predictions = validate_predictions(predictions, annotations, on="predictions")
         annotations = validate_predictions(predictions, annotations, on="annotations")
     return ClassificationResult(
         categories=categories,
         predictions=predictions,
+        timestamps=timestamps,  # type:ignore
         y_proba=y_proba,
         y_pred_numeric=y_pred_numeric,
-        _y_proba_smoothed=y_proba_smoothed,
-        _y_pred_numeric_smoothed=y_pred_numeric_smoothed,
+        _y_proba_smoothed=None,
+        _y_pred_numeric_smoothed=None,
         _annotations=annotations,
         _y_true_numeric=y_true_numeric,
     )
@@ -99,7 +73,6 @@ def classify_group(
     pipeline=None,
     fit_pipeline=True,
     encode_func: Callable[[NDArray], NDArray[np.integer]],
-    label_smoothing_filter_funcs: Optional[list[NDArray_to_NDArray]] = None,
     exclude: Optional[
         list[Identity]
         | list[tuple[Identity, Identity]]
@@ -119,7 +92,6 @@ def classify_group(
             encode_func,
             pipeline=pipeline,
             fit_pipeline=fit_pipeline,
-            label_smoothing_filter_funcs=label_smoothing_filter_funcs,
         )
     return GroupClassificationResult(
         classification_results=results,
@@ -135,7 +107,6 @@ def classify_dataset(
     pipeline=None,
     fit_pipeline=True,
     encode_func: Optional[Callable[[NDArray], NDArray[np.integer]]] = None,
-    label_smoothing_filter_funcs: Optional[list[NDArray_to_NDArray]] = None,
     exclude: Optional[
         list[Identity]
         | list[tuple[Identity, Identity]]
@@ -160,7 +131,6 @@ def classify_dataset(
             pipeline=pipeline,
             fit_pipeline=fit_pipeline,
             encode_func=encode_func,
-            label_smoothing_filter_funcs=label_smoothing_filter_funcs,
             exclude=exclude,
         )
     return DatasetClassificationResult(
