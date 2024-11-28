@@ -1,5 +1,5 @@
 from itertools import permutations
-from typing import Literal, Optional, overload
+from typing import Iterable, Literal, Optional, overload
 
 import numpy as np
 import pandas as pd
@@ -9,7 +9,7 @@ from sklearn.preprocessing import OneHotEncoder
 
 from ...data_structures import Trajectory
 from ...features import DataFrameFeatureExtractor, FeatureExtractor
-from ..annotations import check_annotations
+from ..annotations.utils import check_annotations
 from ._dataset_base import BaseDataset
 from ._sampleable import AnnotatedSampleable, Sampleable
 from .dyad import Dyad
@@ -23,22 +23,27 @@ class Group(BaseDataset):
         trajectories: dict[Identity, Trajectory],
         *,
         target: Literal["individuals", "dyads"],
+        exclude: Optional[Iterable[Identity | tuple[Identity, Identity]]] = None,
     ) -> None:
         super().__init__()
+        self.exclude = [] if exclude is None else list(exclude)
         if len(trajectories) == 0:
             raise ValueError("provide at least one trajectory.")
-        self._trajectories = trajectories
+        self.trajectories = trajectories
         self._sampling_target = target
         self._sampleables: dict[Identity | tuple[Identity, Identity], Sampleable] = {}
         if target == "individuals":
             for identity in self.identities:
-                trajectory = Sampleable.prepare_trajectory(self._trajectories[identity])
-                self._sampleables[identity] = Individual(trajectory)
+                if identity in self.exclude:
+                    continue
+                self._sampleables[identity] = Individual(self.trajectories[identity])
         elif target == "dyads":
             for actor, recipient in list(permutations(self.identities, 2)):
+                if (actor, recipient) in self.exclude:
+                    continue
                 trajectory, trajectory_other = Sampleable.prepare_trajectories(
-                    self._trajectories[actor],
-                    self._trajectories[recipient],
+                    self.trajectories[actor],
+                    self.trajectories[recipient],
                 )
                 self._sampleables[(actor, recipient)] = Dyad(
                     trajectory=trajectory,
@@ -58,16 +63,17 @@ class Group(BaseDataset):
 
     @property
     def identities(self) -> tuple[Identity, ...]:
-        return tuple(sorted(self._trajectories.keys()))
+        return tuple(sorted(self.trajectories.keys()))
 
     def annotate(
         self, annotations: pd.DataFrame, *, categories: tuple[str, ...]
     ) -> "AnnotatedGroup":
         return AnnotatedGroup(
-            self._trajectories,
+            self.trajectories,
             target=self.target,
             annotations=annotations,
             categories=categories,
+            exclude=self.exclude,
         )
 
     @overload
@@ -138,6 +144,7 @@ class Group(BaseDataset):
             feature_extractor,
             pipeline=pipeline,
             fit_pipeline=fit_pipeline,
+            size=size,
             random_state=random_state,
             stratify_by_groups=stratify_by_groups,
             store_indices=store_indices,
@@ -145,13 +152,18 @@ class Group(BaseDataset):
             reset_stored_indices=reset_stored_indices,
             categories=categories,
             try_even_subsampling=try_even_subsampling,
-            sampling_type="sample",
+            sampling_type="subsample",
             exclude=exclude,
         )
 
     @property
     def sampling_targets(self) -> list[Sampleable]:
         return list(self._sampleables.values())
+
+    @property
+    def keys(self) -> list[Identity | tuple[Identity, Identity]]:
+        # use for select
+        return list(self._sampleables.keys())
 
     def select(self, key: Identity | tuple[Identity, Identity]) -> Sampleable:
         return self._sampleables[key]
@@ -167,10 +179,14 @@ class AnnotatedGroup(Group):
         trajectories: dict[Identity, Trajectory],
         *,
         target: Literal["individuals", "dyads"],
+        exclude: Optional[Iterable[Identity | tuple[Identity, Identity]]] = None,
         annotations: pd.DataFrame,
         categories: tuple[str, ...],
     ) -> None:
-        super().__init__(trajectories, target=target)
+        self._sampleables: dict[  # type: ignore
+            Identity | tuple[Identity, Identity], AnnotatedSampleable
+        ] = {}
+        super().__init__(trajectories, target=target, exclude=exclude)
         required_columns = [*AnnotatedSampleable.required_columns, "actor"]
         if self.target == "dyads":
             required_columns.append("recipient")

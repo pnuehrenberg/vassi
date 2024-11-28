@@ -3,6 +3,7 @@ from typing import TYPE_CHECKING, Any, Callable, Literal, Optional, Self
 
 import numpy as np
 import pandas as pd
+import yaml
 from numpy.typing import NDArray
 
 from pyTrajectory.utils import warning_only
@@ -11,6 +12,25 @@ from ..data_structures import Trajectory
 from . import decorators, features, temporal_features, utils
 
 FeatureCategory = Literal["individual", "dyadic"]
+
+
+class NoAliasDumper(yaml.SafeDumper):
+    def ignore_aliases(self, data):
+        return True
+
+
+def construct_yaml_tuple(self, node):
+    seq = self.construct_sequence(node)
+    if seq and isinstance(seq, list):
+        return tuple(seq)
+    return seq
+
+
+class TupleLoader(yaml.SafeLoader):
+    pass
+
+
+TupleLoader.add_constructor("tag:yaml.org,2002:seq", construct_yaml_tuple)
 
 
 def _get_func(func_name: str) -> utils.Feature:
@@ -122,6 +142,31 @@ class BaseExtractor:
             )
             _feature_names.extend(pruned_names)
             _feature_funcs.append((func, kwargs))
+
+    @property
+    def config(self):
+        config = {}
+        feature_categories: list[FeatureCategory] = ["individual", "dyadic"]
+        for feature_category in feature_categories:
+            features = self._get_feature_funcs(feature_category)
+            if len(features) == 0:
+                continue
+            config[feature_category] = []
+            for func, kwargs in features:
+                config[feature_category].append((func.__name__, kwargs))
+        return config
+
+    def save_yaml(self, features_config_file: str) -> None:
+        with open(features_config_file, "w") as yaml_file:
+            yaml_file.write(
+                yaml.dump(self.config, Dumper=NoAliasDumper, sort_keys=False)
+            )
+
+    def read_yaml(self, features_config_file: str) -> Self:
+        with open(features_config_file, "r") as yaml_file:
+            features_config = yaml.load(yaml_file.read(), Loader=TupleLoader)
+        self.load(features_config)
+        return self
 
     def load(
         self,

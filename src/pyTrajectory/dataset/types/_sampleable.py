@@ -12,8 +12,8 @@ from ...config import Config
 from ...data_structures import Trajectory
 from ...features import DataFrameFeatureExtractor, FeatureExtractor
 from ...utils import warning_only
-from ..annotations import check_annotations, infill_annotations
-from ..sampling import split
+from ..annotations.utils import check_annotations, infill_annotations
+from ..sampling import split, test_stratify
 from ._dataset_base import BaseDataset
 
 if TYPE_CHECKING:
@@ -121,19 +121,6 @@ class BaseSampleable(BaseDataset):
                 reset_stored_indices=reset_stored_indices,
                 categories=categories,
             )
-
-        def test_stratify(stratify: NDArray, y: Optional[NDArray]) -> NDArray | None:
-            if y is None:
-                counts = np.unique(stratify, return_counts=True)[1]
-            else:
-                counts = np.unique(list(zip(y, stratify)), axis=0, return_counts=True)[
-                    1
-                ]
-            if counts.min() < 2:
-                # The minimum number of groups for any class cannot be less than 2.
-                return None
-            return stratify
-
         if reset_stored_indices:
             self.subsample_idx = []
         X, y = self.sample(
@@ -150,8 +137,8 @@ class BaseSampleable(BaseDataset):
         if categories is not None:
             if y is None:
                 raise ValueError("can only subsample annotated sampleable")
-            assert isinstance(categories, list)
-            mask = np.isin(y, np.asarray(categories, dtype=y.dtype))
+            assert isinstance(categories, Iterable)
+            mask = np.isin(y, np.asarray(list(categories), dtype=y.dtype))
         if exclude_stored_indices:
             mask = mask & ~exclude_idx
         if isinstance(X, pd.DataFrame):
@@ -168,7 +155,7 @@ class BaseSampleable(BaseDataset):
             groups = self._sample_groups()
             if groups is not None:
                 groups = groups[mask]
-                groups = test_stratify(groups, y)
+                groups = test_stratify(len(X), size, groups, y)
         if stratify_by_groups and groups is not None:
             X, y, idx = split(
                 X, y=y, idx=idx, size=size, random_state=random_state, stratify=groups
@@ -178,7 +165,7 @@ class BaseSampleable(BaseDataset):
             return X, y
         stratify = y
         if stratify is not None:
-            stratify = test_stratify(stratify, y)
+            stratify = test_stratify(len(X), size, stratify, y)
         X, y, idx = split(
             X, y=y, idx=idx, size=size, random_state=random_state, stratify=stratify
         )
@@ -191,6 +178,7 @@ class Sampleable(BaseSampleable):
     def __init__(
         self, trajectory: Trajectory, trajectory_other: Optional[Trajectory] = None
     ) -> None:
+        super().__init__()
         if not trajectory.is_sorted:
             raise ValueError("trajectory is not sorted.")
         if not trajectory.is_complete:
@@ -201,21 +189,13 @@ class Sampleable(BaseSampleable):
                 raise ValueError("trajectory_other is not sorted.")
             if not trajectory_other.is_complete:
                 raise ValueError("trajectory_other is not complete.")
-            if not len(trajectory_other) == len(trajectory):
-                raise ValueError("trajectories have mismatched lengths.")
+            if trajectory.timestep != trajectory_other.timestep:
+                raise ValueError("trajectories have unequal timesteps.")
             if trajectory.timestamps[0] != trajectory_other.timestamps[0]:
                 raise ValueError("trajectories have mismatched timestamps.")
             if trajectory.timestamps[-1] != trajectory_other.timestamps[-1]:
                 raise ValueError("trajectories have mismatched timestamps.")
         self.trajectory_other = trajectory_other
-
-    @classmethod
-    def prepare_trajectory(cls, trajectory: Trajectory):
-        if not trajectory.is_sorted:
-            trajectory = trajectory.sort()
-        if not trajectory.is_complete:
-            trajectory = trajectory.interpolate()
-        return trajectory
 
     @classmethod
     @overload
@@ -233,10 +213,7 @@ class Sampleable(BaseSampleable):
     def prepare_trajectories(
         cls, trajectory: Trajectory, trajectory_other: Optional[Trajectory] = None
     ) -> tuple[Trajectory, Trajectory | None]:
-        trajectory = cls.prepare_trajectory(trajectory)
-        if trajectory_other is not None:
-            trajectory_other = cls.prepare_trajectory(trajectory_other)
-        else:
+        if trajectory_other is None:
             return trajectory, None
         first = max(trajectory.timestamps[0], trajectory_other.timestamps[0])
         last = min(trajectory.timestamps[-1], trajectory_other.timestamps[-1])
@@ -339,14 +316,14 @@ class AnnotatedSampleable(Sampleable):
                 for _, interval in intervals.iterrows()
             ]
         )
-        idx -= self.trajectory[0][self.trajectory.cfg.key_timestamp]
-        return idx[(idx >= 0) & (idx < len(self.trajectory))]
+        idx -= self.trajectory.timestamps[0]
+        return idx[(idx >= 0) & (idx < self.trajectory.get_interpolated_length())]
 
     def interval_idx(self, row: int) -> NDArray:
         interval = self.annotations.iloc[row]
         idx = np.arange(interval["start"], interval["stop"] + 1)
-        idx -= self.trajectory[0][self.trajectory.cfg.key_timestamp]
-        return idx[(idx >= 0) & (idx < len(self.trajectory))]
+        idx -= self.trajectory.timestamps[0]
+        return idx[(idx >= 0) & (idx < self.trajectory.get_interpolated_length())]
 
     def _sample_y(self) -> NDArray:
         category_idx = [self.category_idx(category) for category in self.categories]

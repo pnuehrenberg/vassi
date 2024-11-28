@@ -82,12 +82,14 @@ class BaseDataset:
     def label_encoder(self) -> OneHotEncoder:
         raise NotImplementedError
 
-    def encode(self, y: NDArray) -> NDArray:
+    def encode(self, y: NDArray, *, one_hot: bool = False) -> NDArray:
         if y.ndim == 1:
             y = y.reshape(-1, 1)
         y_encoded = self.label_encoder.transform(y)
         assert isinstance(y_encoded, np.ndarray)
-        return y_encoded
+        if one_hot:
+            return y_encoded
+        return np.argmax(y_encoded, axis=1)
 
     @property
     def categories(self) -> tuple[str, ...]:

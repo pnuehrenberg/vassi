@@ -5,7 +5,7 @@ import numpy as np
 import pandas as pd
 from numpy.typing import NDArray
 
-from .utils import interval_overlap
+from ..utils import interval_overlap
 
 P = ParamSpec("P")
 
@@ -26,14 +26,18 @@ def with_duration(
 @with_duration
 def to_annotations(
     y: NDArray,
-    category_names: list[str],
-    drop: Optional[list[str]] = None,
+    category_names: Iterable[str],
+    drop: Optional[Iterable[str]] = None,
+    timestamps: Optional[NDArray[np.int64 | np.float64]] = None,
 ) -> pd.DataFrame:
     if not y.ndim == 1:
         raise ValueError("y should be a 1D array of category labels (int).")
     change_idx = np.argwhere((np.diff(y) != 0)).ravel()
     stop = np.asarray(change_idx.tolist() + [y.size - 1])
     start = np.asarray([0] + (change_idx + 1).tolist())
+    if timestamps is not None:
+        start = timestamps[start]
+        stop = timestamps[stop]
     categories = np.asarray(category_names)[y[start]]
     # assert not (y[start[:-1]] == y[stop[:-1] + 1]).any() and not (y[start[1:] - 1] == y[stop[1:]]).any()
     annotations = pd.DataFrame({"start": start, "stop": stop, "category": categories})

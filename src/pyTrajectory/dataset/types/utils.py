@@ -24,6 +24,7 @@ def get_concatenated_dataset(
     pipeline: Optional[Pipeline] = None,
     fit_pipeline: bool = True,
     # subsample kwargs
+    size: Optional[int | float] = None,
     random_state: Optional[np.random.Generator | int] = None,
     stratify_by_groups: bool = True,
     store_indices: bool = False,
@@ -35,6 +36,9 @@ def get_concatenated_dataset(
     sampling_type: Literal["sample", "subsample"],
     exclude: Optional[list[Identity] | list[tuple[Identity, Identity]]],
 ) -> tuple[NDArray | pd.DataFrame, NDArray | None]:
+    from .dyad import AnnotatedDyad, Dyad
+    from .individual import AnnotatedIndividual, Individual
+
     X = []
     y = []
     if isinstance(sampleables, dict):
@@ -43,18 +47,23 @@ def get_concatenated_dataset(
         sampleables = [
             sampleable for key, sampleable in sampleables.items() if key not in exclude
         ]
-        exclude = None
     for sampleable in sampleables:
+        exclude_ = exclude
+        if isinstance(
+            sampleable, (Dyad, AnnotatedDyad, Individual, AnnotatedIndividual)
+        ):
+            exclude_ = None
         if sampling_type == "sample":
             _X, _y = sampleable.sample(
                 feature_extractor,
                 pipeline=pipeline,
                 fit_pipeline=fit_pipeline,
-                exclude=exclude,
+                exclude=exclude_,
             )
         elif sampling_type == "subsample":
             _X, _y = sampleable.subsample(
                 feature_extractor,
+                size,
                 pipeline=pipeline,
                 fit_pipeline=fit_pipeline,
                 random_state=random_state,
@@ -64,7 +73,7 @@ def get_concatenated_dataset(
                 reset_stored_indices=reset_stored_indices,
                 categories=categories,
                 try_even_subsampling=try_even_subsampling,
-                exclude=exclude,
+                exclude=exclude_,
             )
         X.append(_X)
         if _y is not None:

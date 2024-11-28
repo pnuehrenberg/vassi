@@ -132,26 +132,27 @@ class Trajectory(TimestampedInstanceCollection):
             return self
         return self._init_other(data=data)
 
+    def get_interpolated_length(self, timestep: int | float | None = None) -> int:
+        if timestep is None:
+            timestep = self.timestep
+        interpolated_length = 1 + (self.timestamps[-1] - self.timestamps[0]) / timestep
+        if not isclose(interpolated_length, np.round(interpolated_length)):
+            raise ValueError(
+                f"timestep should result in an integer trajectory length and not: {interpolated_length}"
+            )
+        return int(np.round(interpolated_length))
+
     def interpolate(
         self,
         timestep: int | float | None = None,
         *,
         copy: bool = True,
     ) -> Self:
-        timestamps = self.timestamps
-        first = timestamps.min()
-        last = timestamps.max()
-        if timestep is None:
-            timestep = self.timestep
-        length = 1 + (last - first) / timestep
-        if not isclose(length, np.round(length)):
-            raise ValueError(
-                f"timestep should result in an integer trajectory length and not: {length}"
-            )
+        interpolated_length = self.get_interpolated_length(timestep)
         timestamps = np.linspace(
-            first,
-            last,
-            int(np.round(length)),
+            self.timestamps[0],
+            self.timestamps[-1],
+            interpolated_length,
         )
         trajectory = self.sample(timestamps, copy=copy)
         trajectory.timestep = timestep
@@ -174,7 +175,7 @@ class Trajectory(TimestampedInstanceCollection):
         if not copy:
             raise ValueError("cannot slice window as view with interpolate=True")
         slice_key = super()._window_to_slice(start, stop)
-        if self[slice_key.start][self.key_timestamp] > start:
+        if self[self.key_timestamp][slice_key.start] > start:
             slice_key = slice(
                 max(0, slice_key.start - 1),
                 slice_key.stop,
@@ -184,7 +185,7 @@ class Trajectory(TimestampedInstanceCollection):
                 slice_key.start,
                 self.length,
             )
-        elif self[slice_key.stop - 1][self.key_timestamp] < stop:
+        elif self[self.key_timestamp][slice_key.stop - 1] < stop:
             slice_key = slice(
                 slice_key.start,
                 min(self.length, slice_key.stop + 1),

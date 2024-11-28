@@ -135,7 +135,7 @@ def feature_names(
     if dyadic:
         func_name = f"dyadic_{func_name}"
     if (step := get_param("step")) is not None:
-        func_name = f"{func_name}_t[{step}]"
+        func_name = f"{func_name}_t({step})"
     if relational:
         params = {
             param: get_param(param)
