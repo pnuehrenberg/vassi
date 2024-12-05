@@ -13,6 +13,7 @@ dependencies = [
     "scikit-learn",
     "imblearn",
     "xgboost",
+    "networkx",
 ]
 
 [tool.pyright]

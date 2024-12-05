@@ -53,7 +53,8 @@ def perp_dot_product(vectors_1: NDArray, vectors_2: NDArray) -> NDArray:
 # @jit(nopython=True, cache=True)
 def scalar_projection(vectors_1: NDArray, vectors_2: NDArray) -> NDArray:
     """Scalar projection of vectors_1 onto vectors_2."""
-    return dot_product(vectors_1, vectors_2) / magnitude(vectors_2)
+    with np.errstate(divide="ignore", invalid="ignore"):
+        return dot_product(vectors_1, vectors_2) / magnitude(vectors_2)
 
 
 # @jit(nopython=True, cache=True)
@@ -67,7 +68,8 @@ def projection(vectors_1: NDArray, vectors_2: NDArray) -> NDArray:
 # @jit(nopython=True, cache=True)
 def scalar_rejection(vectors_1: NDArray, vectors_2: NDArray) -> NDArray:
     """Scalar rejection of vectors_1 from vectors_2."""
-    return perp_dot_product(vectors_1, vectors_2) / magnitude(vectors_2)
+    with np.errstate(divide="ignore", invalid="ignore"):
+        return perp_dot_product(vectors_1, vectors_2) / magnitude(vectors_2)
 
 
 # @jit(nopython=True, cache=True)

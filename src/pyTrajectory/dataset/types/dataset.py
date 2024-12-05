@@ -9,10 +9,50 @@ from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import OneHotEncoder
 
 from ...features import DataFrameFeatureExtractor, FeatureExtractor
+from ...utils import ensure_generator, to_int_seed
 from ._dataset_base import BaseDataset
 from ._sampleable import Sampleable
 from .group import AnnotatedGroup, Group
-from .utils import Identity, get_concatenated_dataset
+from .utils import (
+    DyadIdentity,
+    Identity,
+    get_concatenated_dataset,
+    recursive_sampleables,
+)
+
+# same as DyadIdentity, but for different purposes
+ActorIdentifier = tuple[Identity, Identity]
+
+
+def get_actor(key: Identity | DyadIdentity) -> Identity:
+    if isinstance(key, tuple):
+        return key[0]
+    return key
+
+
+def get_subgroup(
+    group: Group,
+    selected_actors: list[Identity],
+    exclude: Iterable[Identity | DyadIdentity],
+):
+    remaining = [
+        key
+        for key in group.keys
+        if (key in exclude) or (get_actor(key) not in selected_actors)
+    ]
+    if isinstance(group, AnnotatedGroup):
+        return AnnotatedGroup(
+            group.trajectories,
+            target=group.target,
+            annotations=group._annotations,
+            categories=group._categories,
+            exclude=remaining,
+        )
+    return Group(
+        group.trajectories,
+        target=group.target,
+        exclude=remaining,
+    )
 
 
 class Dataset(BaseDataset):
@@ -63,17 +103,14 @@ class Dataset(BaseDataset):
         *,
         pipeline: Optional[Pipeline] = None,
         fit_pipeline: bool = True,
-        exclude: Optional[list[Identity] | list[tuple[Identity, Identity]]] = None,
+        exclude: Optional[Iterable[Identity | DyadIdentity]] = None,
     ) -> tuple[NDArray | pd.DataFrame, NDArray | None]:
-        if exclude is None:
-            exclude = []
         return get_concatenated_dataset(
-            self._groups_list,
+            recursive_sampleables(self, exclude=exclude),
             feature_extractor,
             pipeline=pipeline,
             fit_pipeline=fit_pipeline,
             sampling_type="sample",
-            exclude=exclude,
         )
 
     @overload
@@ -100,12 +137,12 @@ class Dataset(BaseDataset):
         exclude_stored_indices: bool = False,
         reset_stored_indices: bool = False,
         try_even_subsampling: bool = True,
-        exclude: Optional[list[Identity] | list[tuple[Identity, Identity]]] = None,
+        exclude: Optional[Iterable[Identity | DyadIdentity]] = None,
     ) -> tuple[NDArray | pd.DataFrame, NDArray | None]:
         if exclude is None:
             exclude = []
         return get_concatenated_dataset(
-            self._groups_list,
+            recursive_sampleables(self, exclude=exclude),
             feature_extractor,
             pipeline=pipeline,
             fit_pipeline=fit_pipeline,
@@ -118,7 +155,6 @@ class Dataset(BaseDataset):
             categories=categories,
             try_even_subsampling=try_even_subsampling,
             sampling_type="subsample",
-            exclude=exclude,
         )
 
     @property
@@ -129,6 +165,24 @@ class Dataset(BaseDataset):
             if isinstance(self.groups, dict)
             else list(range(len(self.groups)))
         )
+
+    def get_actors(
+        self, *, exclude: Optional[Iterable[Identity | DyadIdentity]] = None
+    ) -> list[ActorIdentifier]:
+        exclude = list(exclude) if exclude is not None else []
+        actors: list[ActorIdentifier] = []
+        for group_key in self.group_keys:
+            if group_key in exclude:
+                continue
+            group = self.select(group_key)
+            for key in group.keys:
+                if key in exclude:
+                    continue
+                identifier = group_key, get_actor(key)
+                if identifier in actors:
+                    continue
+                actors.append(identifier)
+        return actors
 
     @property
     def sampling_targets(self) -> list[Sampleable]:
@@ -154,7 +208,7 @@ class Dataset(BaseDataset):
     def get_annotations(
         self,
         *,
-        exclude: Optional[list[Identity] | list[tuple[Identity, Identity]]] = None,
+        exclude: Optional[Iterable[Identity | DyadIdentity]] = None,
     ) -> pd.DataFrame:
         if isinstance(self.groups, list) and not all(
             [isinstance(group, AnnotatedGroup) for group in self.groups]
@@ -170,68 +224,82 @@ class Dataset(BaseDataset):
 
         return concatenate_annotations(self.groups, exclude=exclude)  # type: ignore (see type checking above)
 
+    def _split(
+        self,
+        selected_actors: Iterable[ActorIdentifier],
+        remaining_actors: Iterable[ActorIdentifier],
+        *,
+        exclude: Optional[Iterable[Identity | DyadIdentity]] = None,
+    ):
+        exclude = list(exclude) if exclude is not None else []
+        selected_actors_by_groups: dict[Identity, list[Identity]] = {}
+        remaining_actors_by_groups: dict[Identity, list[Identity]] = {}
+        for group_key, identity in selected_actors:
+            if group_key not in selected_actors_by_groups:
+                selected_actors_by_groups[group_key] = []
+            selected_actors_by_groups[group_key].append(identity)
+        for group_key, identity in remaining_actors:
+            if group_key not in remaining_actors_by_groups:
+                remaining_actors_by_groups[group_key] = []
+            remaining_actors_by_groups[group_key].append(identity)
+        selected_groups = {
+            group_key: get_subgroup(self.select(group_key), selected_actors, exclude)
+            for group_key, selected_actors in selected_actors_by_groups.items()
+        }
+        remaining_groups = {
+            group_key: get_subgroup(self.select(group_key), remaining_actors, exclude)
+            for group_key, remaining_actors in remaining_actors_by_groups.items()
+        }
+        return Dataset(selected_groups), Dataset(remaining_groups)
+
+    def split(
+        self,
+        size: float,
+        *,
+        exclude: Optional[Iterable[Identity | DyadIdentity]] = None,
+        random_state: Optional[np.random.Generator | int] = None,
+    ) -> tuple["Dataset", "Dataset"]:
+        random.seed(to_int_seed(ensure_generator(random_state)))
+        if size < 0 or size > 1:
+            raise ValueError("size should be between 0 and 1")
+        exclude = list(exclude) if exclude is not None else []
+        actors = self.get_actors(exclude=exclude)
+        num_selected = int(len(actors) * size)
+        num_remaining = len(actors) - num_selected
+        if num_selected < 1:
+            raise ValueError(
+                "specified size too small. each split should contain at least one actor"
+            )
+        if num_remaining < 1:
+            raise ValueError(
+                "specified size too large. each split should contain at least one actor"
+            )
+        actors_selected = random.sample(actors, num_selected)
+        actors_remaining = [actor for actor in actors if actor not in actors_selected]
+        return self._split(actors_selected, actors_remaining, exclude=exclude)
+
     def k_fold(
         self,
         k: int,
-        exclude: Optional[Iterable[Identity | tuple[Identity, Identity]]] = None,
+        *,
+        exclude: Optional[Iterable[Identity | DyadIdentity]] = None,
+        random_state: Optional[np.random.Generator | int] = None,
     ) -> Generator[tuple["Dataset", "Dataset"], Any, None]:
-        def get_subgroup(group_key, selected_keys):
-            group = self.select(group_key)
-            exclude = [key for key in group.keys if key not in selected_keys]
-            if isinstance(group, AnnotatedGroup):
-                return AnnotatedGroup(
-                    group.trajectories,
-                    target=group.target,
-                    annotations=group._annotations,
-                    categories=group._categories,
-                    exclude=exclude,
-                )
-            return Group(
-                group.trajectories,
-                target=group.target,
-                exclude=exclude,
-            )
-
-        sampling_target_keys = []
-        for group_key in self.group_keys:
-            if exclude is not None and group_key in exclude:
-                continue
-            group = self.select(group_key)
-            for key in group.keys:
-                if exclude is not None and key in exclude:
-                    continue
-                sampling_target_keys.append((group_key, key))
-        num_sampling_targetes = len(sampling_target_keys)
-        num_holdout_per_fold = num_sampling_targetes // k
+        random.seed(to_int_seed(ensure_generator(random_state)))
+        actors = self.get_actors(exclude=exclude)
+        num_holdout_per_fold = len(actors) // k
         if num_holdout_per_fold < 1:
             raise ValueError(
-                "specified k is too large. each fold should contain at least one sampling target"
+                "specified k is too large. each fold should contain at least one actor"
             )
-        folds = []
-        sampling_target_keys_remaining = sampling_target_keys
+        folds: list[tuple[list[ActorIdentifier], list[ActorIdentifier]]] = []
+        actors_remaining = actors
         for _ in range(k):
-            holdout = random.sample(
-                sampling_target_keys_remaining,
-                num_holdout_per_fold,
-            )
-            train = [key for key in sampling_target_keys if key not in holdout]
+            holdout = random.sample(actors_remaining, num_holdout_per_fold)
+            train = [actor for actor in actors if actor not in holdout]
             folds.append((train, holdout))
-            sampling_target_keys_remaining = [
-                key for key in sampling_target_keys_remaining if key not in holdout
+            actors_remaining = [
+                actor for actor in actors_remaining if actor not in holdout
             ]
         for train, holdout in folds:
-            groups_train = {}
-            groups_holdout = {}
-            for group_key, key in train:
-                if group_key not in groups_train:
-                    groups_train[group_key] = []
-                groups_train[group_key].append(key)
-            for group_key, key in holdout:
-                if group_key not in groups_holdout:
-                    groups_holdout[group_key] = []
-                groups_holdout[group_key].append(key)
-            for group_key, selected_keys in groups_train.items():
-                groups_train[group_key] = get_subgroup(group_key, selected_keys)
-            for group_key, selected_keys in groups_holdout.items():
-                groups_holdout[group_key] = get_subgroup(group_key, selected_keys)
-            yield Dataset(groups_train), Dataset(groups_holdout)
+            yield self._split(train, holdout, exclude=exclude)

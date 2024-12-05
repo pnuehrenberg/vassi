@@ -23,7 +23,17 @@ if TYPE_CHECKING:
 class BaseSampleable(BaseDataset):
     def __init__(self) -> None:
         super().__init__()
-        self.subsample_idx: list[NDArray] = []
+        self._sampled_idx: list[NDArray] = []
+
+    def get_sampled_idx(self, reset: bool) -> NDArray:
+        if reset:
+            self._sampled_idx = []
+        if len(self._sampled_idx) == 0:
+            return np.array([])
+        return np.concatenate(self._sampled_idx)
+
+    def store_sampled_idx(self, idx: NDArray):
+        self._sampled_idx.append(idx)
 
     @overload
     def extract_features(self, feature_extractor: FeatureExtractor) -> NDArray: ...
@@ -60,9 +70,7 @@ class BaseSampleable(BaseDataset):
         *,
         pipeline: Optional[Pipeline] = None,
         fit_pipeline: bool = True,
-        exclude: Optional[
-            list["Identity"] | list[tuple["Identity", "Identity"]]
-        ] = None,
+        exclude: Optional[Iterable["Identity | tuple[Identity, Identity]"]] = None,
     ) -> tuple[NDArray | pd.DataFrame, NDArray | None]:
         if exclude is not None:
             with warning_only():
@@ -87,6 +95,28 @@ class BaseSampleable(BaseDataset):
         self, feature_extractor: DataFrameFeatureExtractor, *args, **kwargs
     ) -> tuple[pd.DataFrame, NDArray | None]: ...
 
+    def _stratified_subsample(
+        self,
+        X: pd.DataFrame | NDArray,
+        y: Optional[NDArray],
+        idx: Optional[NDArray],
+        size: int | float,
+        stratify: Optional[NDArray],
+        random_state: Optional[np.random.Generator | int],
+        store_indices: bool,
+    ):
+        X, y, idx = split(
+            X,
+            y=y,
+            idx=idx,
+            size=size,
+            stratify=stratify,
+            random_state=random_state,
+        )
+        if store_indices and idx is not None:
+            self._sampled_idx.append(idx)
+        return X, y
+
     def subsample(
         self,
         feature_extractor: FeatureExtractor | DataFrameFeatureExtractor,
@@ -101,9 +131,7 @@ class BaseSampleable(BaseDataset):
         reset_stored_indices: bool = False,
         categories: Optional[list[str]] = None,
         try_even_subsampling: bool = True,
-        exclude: Optional[
-            list["Identity"] | list[tuple["Identity", "Identity"]]
-        ] = None,
+        exclude: Optional[Iterable["Identity | tuple[Identity, Identity]"]] = None,
     ) -> tuple[NDArray | pd.DataFrame, NDArray | None]:
         if exclude is not None:
             with warning_only():
@@ -121,8 +149,6 @@ class BaseSampleable(BaseDataset):
                 reset_stored_indices=reset_stored_indices,
                 categories=categories,
             )
-        if reset_stored_indices:
-            self.subsample_idx = []
         X, y = self.sample(
             feature_extractor,
             pipeline=pipeline,
@@ -130,14 +156,10 @@ class BaseSampleable(BaseDataset):
         )
         mask = np.ones(len(X), dtype=bool)
         idx = np.arange(len(X), dtype=int)
-        subsample_idx = []
-        if len(self.subsample_idx) > 0:
-            subsample_idx = np.concatenate(self.subsample_idx)
-        exclude_idx = np.isin(idx, subsample_idx)
+        exclude_idx = np.isin(idx, self.get_sampled_idx(reset_stored_indices))
         if categories is not None:
             if y is None:
                 raise ValueError("can only subsample annotated sampleable")
-            assert isinstance(categories, Iterable)
             mask = np.isin(y, np.asarray(list(categories), dtype=y.dtype))
         if exclude_stored_indices:
             mask = mask & ~exclude_idx
@@ -157,21 +179,15 @@ class BaseSampleable(BaseDataset):
                 groups = groups[mask]
                 groups = test_stratify(len(X), size, groups, y)
         if stratify_by_groups and groups is not None:
-            X, y, idx = split(
-                X, y=y, idx=idx, size=size, random_state=random_state, stratify=groups
+            return self._stratified_subsample(
+                X, y, idx, size, groups, random_state, store_indices
             )
-            if store_indices and idx is not None:
-                self.subsample_idx.append(idx)
-            return X, y
         stratify = y
         if stratify is not None:
             stratify = test_stratify(len(X), size, stratify, y)
-        X, y, idx = split(
-            X, y=y, idx=idx, size=size, random_state=random_state, stratify=stratify
+        return self._stratified_subsample(
+            X, y, idx, size, stratify, random_state, store_indices
         )
-        if store_indices and idx is not None:
-            self.subsample_idx.append(idx)
-        return X, y
 
 
 class Sampleable(BaseSampleable):
@@ -218,7 +234,9 @@ class Sampleable(BaseSampleable):
         first = max(trajectory.timestamps[0], trajectory_other.timestamps[0])
         last = min(trajectory.timestamps[-1], trajectory_other.timestamps[-1])
         trajectory = trajectory.slice_window(first, last, copy=False, interpolate=False)
-        trajectory_other = trajectory_other.slice_window(first, last, interpolate=False)
+        trajectory_other = trajectory_other.slice_window(
+            first, last, copy=False, interpolate=False
+        )
         return trajectory, trajectory_other
 
     @property
@@ -370,7 +388,7 @@ class AnnotatedSampleable(Sampleable):
         categories: Optional[list[str]] = None,
     ) -> tuple[NDArray | pd.DataFrame, NDArray]:
         if reset_stored_indices:
-            self.subsample_idx = []
+            self._sampled_idx = []
         if categories is None:
             categories = list(self.categories)
         if isinstance(size, float) and size > 1.0:
@@ -379,6 +397,13 @@ class AnnotatedSampleable(Sampleable):
         num_available_categories = len(
             [count for count in category_counts if count > 0]
         )
+        if num_available_categories == 0:
+            if isinstance(feature_extractor, DataFrameFeatureExtractor):
+                X = pd.DataFrame()
+            else:
+                X = np.array([]).reshape(0, len(feature_extractor.feature_names))
+            y = np.array([])
+            return X, y
         if isinstance(size, float):
             size_per_category = int(
                 size * sum(category_counts) / num_available_categories

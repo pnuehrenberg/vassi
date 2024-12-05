@@ -1,3 +1,4 @@
+import functools
 from inspect import signature
 from typing import Any, Callable, Iterable, Optional, Protocol, overload
 
@@ -28,6 +29,14 @@ class DataFrameFeature(Protocol):
 
     @overload
     def __call__(self, trajectory: Trajectory, *args, **kwargs) -> pd.DataFrame: ...
+
+
+def recursive_name(func: Feature | DataFrameFeature | functools.partial) -> str:
+    if not isinstance(func, functools.partial):
+        return func.__name__
+    decorator_name = func.func.__name__
+    func_name = recursive_name(func.keywords["func"])
+    return decorator_name + func_name
 
 
 def pair(keypoint_pair: KeypointPair) -> str:
@@ -129,9 +138,7 @@ def feature_names(
             return list(names)
         return [f"{name}-{suffix}" for name in names for suffix in suffixes]
 
-    if not hasattr(func, "__name__"):
-        raise ValueError(f"{func} is not a valid named feature.")
-    func_name = str(func.__name__)
+    func_name = recursive_name(func)
     if dyadic:
         func_name = f"dyadic_{func_name}"
     if (step := get_param("step")) is not None:

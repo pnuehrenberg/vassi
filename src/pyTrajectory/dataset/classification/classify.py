@@ -1,18 +1,18 @@
 from typing import (
     TYPE_CHECKING,
     Callable,
+    Iterable,
     Optional,
 )
 
 import numpy as np
 from numpy.typing import NDArray
 
-from pyTrajectory.dataset import Dyad, Group, Individual
-from pyTrajectory.dataset.types._sampleable import AnnotatedSampleable
-from pyTrajectory.dataset.types.dataset import Dataset
-from pyTrajectory.dataset.types.utils import Identity
-from pyTrajectory.features import DataFrameFeatureExtractor, FeatureExtractor
-
+from ...features import DataFrameFeatureExtractor, FeatureExtractor
+from .. import Dyad, Group, Individual
+from ..types._sampleable import AnnotatedSampleable
+from ..types.dataset import Dataset
+from ..types.utils import DyadIdentity, Identity
 from .results import (
     ClassificationResult,
     DatasetClassificationResult,
@@ -73,13 +73,9 @@ def classify_group(
     pipeline=None,
     fit_pipeline=True,
     encode_func: Callable[[NDArray], NDArray[np.integer]],
-    exclude: Optional[
-        list[Identity]
-        | list[tuple[Identity, Identity]]
-        | list[Identity | tuple[Identity, Identity]]
-    ] = None,
+    exclude: Optional[Iterable[Identity | DyadIdentity]] = None,
 ) -> GroupClassificationResult:
-    results: dict[Identity | tuple[Identity, Identity], ClassificationResult] = {}
+    results: dict[Identity | DyadIdentity, ClassificationResult] = {}
     for sampleable_key, sampleable in group._sampleables.items():
         if exclude is not None and sampleable_key in exclude:
             continue
@@ -107,11 +103,7 @@ def classify_dataset(
     pipeline=None,
     fit_pipeline=True,
     encode_func: Optional[Callable[[NDArray], NDArray[np.integer]]] = None,
-    exclude: Optional[
-        list[Identity]
-        | list[tuple[Identity, Identity]]
-        | list[Identity | tuple[Identity, Identity]]
-    ] = None,
+    exclude: Optional[Iterable[Identity | DyadIdentity]] = None,
 ) -> DatasetClassificationResult:
     if encode_func is None:
         try:

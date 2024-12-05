@@ -2,4 +2,6 @@ __pycache__
 build
 .ipynb_checkpoints
 .ruff_cache
+.ropeproject
+.virtual_documents
 *.egg-info

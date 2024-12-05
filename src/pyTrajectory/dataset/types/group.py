@@ -14,7 +14,12 @@ from ._dataset_base import BaseDataset
 from ._sampleable import AnnotatedSampleable, Sampleable
 from .dyad import Dyad
 from .individual import Individual
-from .utils import Identity, get_concatenated_dataset
+from .utils import (
+    DyadIdentity,
+    Identity,
+    get_concatenated_dataset,
+    recursive_sampleables,
+)
 
 
 class Group(BaseDataset):
@@ -23,7 +28,7 @@ class Group(BaseDataset):
         trajectories: dict[Identity, Trajectory],
         *,
         target: Literal["individuals", "dyads"],
-        exclude: Optional[Iterable[Identity | tuple[Identity, Identity]]] = None,
+        exclude: Optional[Iterable[Identity | DyadIdentity]] = None,
     ) -> None:
         super().__init__()
         self.exclude = [] if exclude is None else list(exclude)
@@ -31,7 +36,7 @@ class Group(BaseDataset):
             raise ValueError("provide at least one trajectory.")
         self.trajectories = trajectories
         self._sampling_target = target
-        self._sampleables: dict[Identity | tuple[Identity, Identity], Sampleable] = {}
+        self._sampleables: dict[Identity | DyadIdentity, Sampleable] = {}
         if target == "individuals":
             for identity in self.identities:
                 if identity in self.exclude:
@@ -98,17 +103,14 @@ class Group(BaseDataset):
         *,
         pipeline: Optional[Pipeline] = None,
         fit_pipeline: bool = True,
-        exclude: Optional[list[Identity] | list[tuple[Identity, Identity]]] = None,
+        exclude: Optional[Iterable[Identity | DyadIdentity]] = None,
     ) -> tuple[NDArray | pd.DataFrame, NDArray | None]:
-        if exclude is None:
-            exclude = []
         return get_concatenated_dataset(
-            self._sampleables,
+            recursive_sampleables(self, exclude=exclude),
             feature_extractor,
             pipeline=pipeline,
             fit_pipeline=fit_pipeline,
             sampling_type="sample",
-            exclude=exclude,
         )
 
     @overload
@@ -135,12 +137,12 @@ class Group(BaseDataset):
         reset_stored_indices: bool = False,
         categories: Optional[list[str]] = None,
         try_even_subsampling: bool = True,
-        exclude: Optional[list[Identity] | list[tuple[Identity, Identity]]] = None,
+        exclude: Optional[Iterable[Identity | DyadIdentity]] = None,
     ) -> tuple[NDArray | pd.DataFrame, NDArray | None]:
         if exclude is None:
             exclude = []
         return get_concatenated_dataset(
-            self._sampleables,
+            recursive_sampleables(self, exclude=exclude),
             feature_extractor,
             pipeline=pipeline,
             fit_pipeline=fit_pipeline,
@@ -153,7 +155,6 @@ class Group(BaseDataset):
             categories=categories,
             try_even_subsampling=try_even_subsampling,
             sampling_type="subsample",
-            exclude=exclude,
         )
 
     @property
@@ -161,11 +162,11 @@ class Group(BaseDataset):
         return list(self._sampleables.values())
 
     @property
-    def keys(self) -> list[Identity | tuple[Identity, Identity]]:
+    def keys(self) -> list[Identity | DyadIdentity]:
         # use for select
         return list(self._sampleables.keys())
 
-    def select(self, key: Identity | tuple[Identity, Identity]) -> Sampleable:
+    def select(self, key: Identity | DyadIdentity) -> Sampleable:
         return self._sampleables[key]
 
     @property
@@ -179,12 +180,12 @@ class AnnotatedGroup(Group):
         trajectories: dict[Identity, Trajectory],
         *,
         target: Literal["individuals", "dyads"],
-        exclude: Optional[Iterable[Identity | tuple[Identity, Identity]]] = None,
+        exclude: Optional[Iterable[Identity | DyadIdentity]] = None,
         annotations: pd.DataFrame,
         categories: tuple[str, ...],
     ) -> None:
         self._sampleables: dict[  # type: ignore
-            Identity | tuple[Identity, Identity], AnnotatedSampleable
+            Identity | DyadIdentity, AnnotatedSampleable
         ] = {}
         super().__init__(trajectories, target=target, exclude=exclude)
         required_columns = [*AnnotatedSampleable.required_columns, "actor"]

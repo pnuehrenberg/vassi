@@ -1,14 +1,13 @@
+import functools
 import warnings
 from collections.abc import Iterable
-from functools import wraps
-from typing import Optional, overload
+from typing import Optional
 
 import numpy as np
 import pandas as pd
 from numpy.typing import NDArray
 
 from .. import series_operations
-from ..data_structures import InstanceCollection, Trajectory
 from ..utils import warning_only
 from .utils import (
     DataFrameFeature,
@@ -17,35 +16,71 @@ from .utils import (
     prune_feature_names,
 )
 
+PREFIXES = {
+    "_as_absolute": "abs_",
+    "_as_sign_change_latency": "scl_",
+    "_as_dataframe": "",
+}
+
+
+def _inner(func: Feature | functools.partial) -> Feature:
+    if not isinstance(func, functools.partial):
+        return func
+    return _inner(func.keywords["func"])
+
+
+def _get_prefix(func: Feature | functools.partial) -> str:
+    if not isinstance(func, functools.partial):
+        return ""
+    prefix = ""
+    if not hasattr(func.func, "__name__"):
+        raise ValueError(f"{func} is not a valid named feature.")
+    if func.func.__name__ in PREFIXES:  # type: ignore
+        prefix = PREFIXES[func.func.__name__]  # type: ignore
+    else:
+        print("decorator", func.func.__name__, "has no prefix")  # type: ignore
+    return f"{prefix}{_get_prefix(func.keywords["func"])}"
+
+
+def _as_absolute(*args, func: Feature, **kwargs) -> NDArray:
+    return np.abs(func(*args, **kwargs))
+
 
 def as_absolute(func: Feature) -> Feature:
-    @overload
-    def decorated(trajectory: Trajectory, *args, **kwargs) -> NDArray: ...
-
-    @overload
-    def decorated(collection: InstanceCollection, *args, **kwargs) -> NDArray: ...
-
-    @wraps(func)
-    def decorated(arg1: Trajectory | InstanceCollection, *args, **kwargs) -> NDArray:
-        return np.abs(func(arg1, *args, **kwargs))
-
-    decorated.__name__ = f"abs_{func.__name__}"
+    result_func = functools.partial(_as_absolute, func=func)
+    decorated = functools.wraps(func)(result_func)
     return decorated
+
+
+def _as_sign_change_latency(*args, func: Feature, **kwargs) -> NDArray:
+    return series_operations.sign_change_latency(func(*args, **kwargs))
 
 
 def as_sign_change_latency(func: Feature) -> Feature:
-    @overload
-    def decorated(trajectory: Trajectory, *args, **kwargs) -> NDArray: ...
-
-    @overload
-    def decorated(collection: InstanceCollection, *args, **kwargs) -> NDArray: ...
-
-    @wraps(func)
-    def decorated(arg1: Trajectory | InstanceCollection, *args, **kwargs) -> NDArray:
-        return series_operations.sign_change_latency(func(arg1, *args, **kwargs))
-
-    decorated.__name__ = f"scl_{func.__name__}"
+    result_func = functools.partial(_as_sign_change_latency, func=func)
+    decorated = functools.wraps(func)(result_func)
     return decorated
+
+
+def _as_dataframe(
+    *args,
+    func: Feature,
+    keep: Optional[Iterable[str] | str],
+    discard: Optional[Iterable[str] | str],
+    **kwargs,
+) -> pd.DataFrame:
+    if "flat" in kwargs and not kwargs.pop("flat"):
+        with warning_only():
+            warnings.warn("Ignoring argument flat=False.")
+    feature = _inner(func)
+    prefix = _get_prefix(func)
+    names = [f"{prefix}{name}" for name in get_feature_names(feature, **kwargs)]
+    pruned_names = prune_feature_names(names, keep=keep, discard=discard)
+    drop = [name for name in names if name not in pruned_names]
+    return pd.DataFrame(
+        func(*args, flat=True, **kwargs),
+        columns=pd.Index(names),
+    ).drop(labels=drop, axis="columns")
 
 
 def as_dataframe(
@@ -53,26 +88,8 @@ def as_dataframe(
     keep: Optional[Iterable[str] | str] = None,
     discard: Optional[Iterable[str] | str] = None,
 ) -> DataFrameFeature:
-    @overload
-    def decorated(trajectory: Trajectory, *args, **kwargs) -> pd.DataFrame: ...
-
-    @overload
-    def decorated(collection: InstanceCollection, *args, **kwargs) -> pd.DataFrame: ...
-
-    @wraps(func)
-    def decorated(
-        arg1: Trajectory | InstanceCollection, *args, **kwargs
-    ) -> pd.DataFrame:
-        if "flat" in kwargs and not kwargs.pop("flat"):
-            with warning_only():
-                warnings.warn("Ignoring argument flat=False.")
-        names = get_feature_names(func, **kwargs)
-        pruned_names = prune_feature_names(names, keep=keep, discard=discard)
-        drop = [name for name in names if name not in pruned_names]
-        return pd.DataFrame(
-            func(arg1, *args, flat=True, **kwargs),
-            columns=pd.Index(names),
-        ).drop(labels=drop, axis="columns")
-
-    decorated.__name__ = func.__name__
+    result_func = functools.partial(
+        _as_dataframe, func=func, keep=keep, discard=discard
+    )
+    decorated = functools.wraps(func)(result_func)
     return decorated

@@ -211,10 +211,29 @@ def load_dataset(
         if annotations is not None:
             if categories is None:
                 raise ValueError("specify categories")
+            trajectories = load_trajectories(trajectory_file, str(group_key))
+            str_identities = any(
+                [isinstance(identity, str) for identity in trajectories.keys()]
+            )
+            annotations_group = annotations.loc[group_key].copy()
+            if str_identities:
+                annotations_group["actor"] = np.asarray(
+                    annotations_group["actor"]
+                ).astype(StringDType)
+                annotations_group["actor"] = annotations_group["actor"].astype(
+                    pd.CategoricalDtype()
+                )
+            if str_identities and "recipient" in annotations_group.columns:
+                annotations_group["recipient"] = np.asarray(
+                    annotations_group["recipient"]
+                ).astype(StringDType)
+                annotations_group["recipient"] = annotations_group["recipient"].astype(
+                    pd.CategoricalDtype()
+                )
             group = AnnotatedGroup(
-                load_trajectories(trajectory_file, str(group_key)),
+                trajectories,
                 target=target,
-                annotations=annotations.loc[group_key].copy(),
+                annotations=annotations_group,
                 categories=categories,
             )
         else:

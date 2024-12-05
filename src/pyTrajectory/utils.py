@@ -1,3 +1,5 @@
+import hashlib
+import json
 import warnings
 from contextlib import contextmanager
 from typing import Iterable, Optional, Protocol
@@ -9,6 +11,12 @@ Keypoint = int
 KeypointPair = tuple[Keypoint, Keypoint]
 Keypoints = Iterable[Keypoint]
 KeypointPairs = Iterable[KeypointPair]
+
+
+def hash_dict(dictionary: dict) -> str:
+    return hashlib.sha1(
+        json.dumps(dictionary, sort_keys=True).encode("utf-8")
+    ).hexdigest()
 
 
 class To_NDArray(Protocol):
@@ -89,9 +97,9 @@ def ensure_generator(
     return random_state
 
 
-def sklearn_seed(random_state: np.random.Generator) -> int:
+def to_int_seed(random_state: np.random.Generator) -> int:
     # max int for sklearn random_state as int
-    return random_state.integers(4294967295)
+    return int(random_state.integers(4294967295))
 
 
 def closest_odd_divisible(number: float, divisor: int) -> int:

@@ -1,4 +1,4 @@
-from typing import Optional, Sequence
+from typing import Iterable, Optional, Sequence
 
 import pandas as pd
 
@@ -6,18 +6,18 @@ from ..types._sampleable import AnnotatedSampleable
 from ..types.dyad import AnnotatedDyad
 from ..types.group import AnnotatedGroup
 from ..types.individual import AnnotatedIndividual
-from ..types.utils import Identity
+from ..types.utils import DyadIdentity, Identity
 
 
 def concatenate_annotations(
     sampleables: (
         dict[Identity, AnnotatedGroup]
         | Sequence[AnnotatedGroup]
-        | dict[Identity | tuple[Identity, Identity], AnnotatedSampleable]
+        | dict[Identity | DyadIdentity, AnnotatedSampleable]
         | Sequence[AnnotatedSampleable]
     ),
     *,
-    exclude: Optional[list[Identity] | list[tuple[Identity, Identity]]] = None,
+    exclude: Optional[Iterable[Identity | DyadIdentity]] = None,
 ):
     concatenated_annotations = []
     if isinstance(sampleables, dict):

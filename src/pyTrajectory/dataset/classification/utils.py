@@ -8,14 +8,13 @@ import numpy as np
 import pandas as pd
 from numpy.typing import NDArray
 
-from pyTrajectory.dataset import AnnotatedGroup
-from pyTrajectory.dataset.annotations.utils import (
+from .. import AnnotatedGroup, Dataset
+from ..annotations.utils import (
     check_annotations,
     infill_annotations,
     to_annotations,
 )
-from pyTrajectory.dataset.types.dataset import Dataset
-from pyTrajectory.dataset.utils import interval_overlap
+from ..utils import interval_overlap
 
 if TYPE_CHECKING:
     from .results import DatasetClassificationResult
@@ -134,3 +133,18 @@ def validate_predictions(
         raise ValueError(
             f"invalid 'on' argument {on}. specify either 'predictions' or 'annotations'"
         )
+
+
+def score_category_counts(
+    annotations: pd.DataFrame, predictions: pd.DataFrame, categories: Iterable[str]
+) -> NDArray:
+    categories = tuple(categories)
+    counts_annotated = np.asarray(
+        [(annotations["category"] == category).sum() for category in categories]
+    )
+    counts_predicted = np.asarray(
+        [(predictions["category"] == category).sum() for category in categories]
+    )
+    return np.minimum(counts_annotated, counts_predicted) / np.maximum(
+        counts_annotated, counts_predicted
+    )

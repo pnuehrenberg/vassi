@@ -1,5 +1,5 @@
 from copy import deepcopy
-from typing import Optional
+from typing import Literal, Optional, overload
 
 import yaml
 
@@ -74,10 +74,19 @@ class BaseConfig:
         """Return the items (key-value pairs) of the configuration object."""
         return self.__dict__.items()
 
-    def __call__(self, *, as_frozenset: bool = False):
+    @overload
+    def __call__(self, *, as_frozenset: Literal[False] = False) -> dict: ...
+
+    @overload
+    def __call__(self, *, as_frozenset: Literal[True]) -> frozenset: ...
+
+    @overload
+    def __call__(self, *, as_frozenset: bool = False) -> dict | frozenset: ...
+
+    def __call__(self, *, as_frozenset: bool = False) -> dict | frozenset:
         """Return a dictionary (or frozenset) representation of a deep copy of the configuration object."""
         cfg = {}
-        for key, value in cfg.items():
+        for key, value in self.items():
             if isinstance(value, BaseConfig):
                 cfg[key] = value(as_frozenset=as_frozenset)
                 continue

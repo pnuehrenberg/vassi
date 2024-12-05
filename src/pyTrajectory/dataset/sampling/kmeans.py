@@ -7,7 +7,7 @@ from sklearn.cluster import KMeans
 from sklearn.decomposition import PCA, IncrementalPCA
 from sklearn.pipeline import Pipeline
 
-from ...utils import ensure_generator, sklearn_seed
+from ...utils import ensure_generator, to_int_seed
 
 
 class SampleKMeansKwargs(TypedDict, total=False):
@@ -59,7 +59,7 @@ def reduce_dims_pca(
     if pca is None:
         pca = PCA(
             n_components=num_components,
-            random_state=sklearn_seed(random_state),
+            random_state=to_int_seed(random_state),
         )
         if isinstance(X, pd.DataFrame):
             pca.set_output(transform="pandas")
@@ -141,7 +141,7 @@ def sample_k_means(
             random_state=random_state,
         )
     k_means = KMeans(
-        n_clusters=num_clusters, random_state=sklearn_seed(random_state)
+        n_clusters=num_clusters, random_state=to_int_seed(random_state)
     ).fit(X_reduced)
     distances = k_means.transform(X_reduced)
     labels = k_means.predict(X_reduced)

@@ -1,17 +1,72 @@
+import os
+import pickle
 import warnings
 from typing import TYPE_CHECKING, Any, Callable, Literal, Optional, Self
 
 import numpy as np
 import pandas as pd
+
+# import portalocker
 import yaml
 from numpy.typing import NDArray
 
 from pyTrajectory.utils import warning_only
 
 from ..data_structures import Trajectory
+from ..utils import hash_dict
 from . import decorators, features, temporal_features, utils
 
 FeatureCategory = Literal["individual", "dyadic"]
+
+
+def _to_cache(obj: Any, cache_file: str) -> None:
+    # TODO writing should catch keyboardinterrupt to avoid corrupted files
+    # with portalocker.Lock(cache_file, "wb") as cached:
+    with open(cache_file, "wb") as cached:
+        pickle.dump(obj, cached)
+
+
+def _from_cache(cache_file: str):
+    if not os.path.isfile(cache_file):
+        raise FileNotFoundError
+    # reading should not require locking, so maybe unneccesary
+    # with portalocker.Lock(cache_file, "rb") as cached:
+    # TODO or explicitly fail here and so that value gets recomputed
+    with open(cache_file, "rb") as cached:
+        return pickle.load(cached)
+
+
+def _hash_args(extractor: "BaseExtractor", *args, **kwargs) -> str:
+    def to_hash_string(arg):
+        if arg is None:
+            return "none"
+        if isinstance(arg, str):
+            return arg
+        if isinstance(arg, Trajectory):
+            return arg.sha1
+        raise NotImplementedError("invalid argument type")
+
+    d = {"extractor": extractor.sha1}
+    for idx, arg in enumerate(args):
+        d[f"arg_{idx}"] = to_hash_string(arg)
+    for key, value in kwargs.items():
+        d[key] = to_hash_string(value)
+    return hash_dict(d)
+
+
+def cache(func: Callable) -> Callable:
+    def _cache(extractor: "BaseExtractor", *args, **kwargs):
+        hash_value = _hash_args(extractor, *args, **kwargs)
+        cache_file = os.path.join(extractor.cache_directory, hash_value)
+        try:
+            return _from_cache(cache_file)
+        except FileNotFoundError:
+            pass
+        value = func(extractor, *args, **kwargs)
+        _to_cache(value, cache_file)
+        return value
+
+    return _cache
 
 
 class NoAliasDumper(yaml.SafeDumper):
@@ -57,16 +112,33 @@ class BaseExtractor:
         *,
         features: list[tuple[utils.Feature, dict[str, Any]]] | None = None,
         dyadic_features: list[tuple[utils.Feature, dict[str, Any]]] | None = None,
+        cache_directory: str,
     ):
         self._feature_funcs_individual: list[tuple[Callable, dict[str, Any]]] = []
         self._feature_funcs_dyadic: list[tuple[Callable, dict[str, Any]]] = []
         self._feature_names_individual: list[str] = []
         self._feature_names_dyadic: list[str] = []
-
         if features is not None:
             self._init_features(features, category="individual")
         if dyadic_features is not None:
             self._init_features(dyadic_features, category="dyadic")
+        self.cache_directory = cache_directory
+        if not os.path.exists(self.cache_directory):
+            os.makedirs(self.cache_directory, exist_ok=True)
+
+    @property
+    def sha1(self):
+        d = self.config
+        d["type"] = str(type(self))
+        return hash_dict(d)
+
+    def __hash__(self) -> int:
+        return hash(self.sha1)
+
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, type(self)):
+            return False
+        return hash(self) == hash(other)
 
     def _get_func(self, func_name: str) -> utils.Feature:
         return _get_func(func_name)
@@ -134,7 +206,12 @@ class BaseExtractor:
                     if kwarg in kwargs
                 },
             )
-            names = utils.get_feature_names(func, **kwargs)
+            feature = decorators._inner(func)
+            prefix = decorators._get_prefix(func)
+            # names = utils.get_feature_names(func, **kwargs)
+            names = [
+                f"{prefix}{name}" for name in utils.get_feature_names(feature, **kwargs)
+            ]
             pruned_names = utils.prune_feature_names(
                 names,
                 keep=kwargs["keep"] if "keep" in kwargs else None,
@@ -153,7 +230,9 @@ class BaseExtractor:
                 continue
             config[feature_category] = []
             for func, kwargs in features:
-                config[feature_category].append((func.__name__, kwargs))
+                config[feature_category].append(
+                    (decorators._inner(func).__name__, kwargs)
+                )
         return config
 
     def save_yaml(self, features_config_file: str) -> None:
@@ -190,6 +269,7 @@ class BaseExtractor:
     def concatenate(cls, *args: Any, axis: int = 1) -> Any:
         raise NotImplementedError
 
+    # @cache
     def extract_features(
         self,
         trajectory: Trajectory,
@@ -217,6 +297,7 @@ class BaseExtractor:
             ],
         )
 
+    @cache
     def extract(
         self,
         trajectory: Trajectory,

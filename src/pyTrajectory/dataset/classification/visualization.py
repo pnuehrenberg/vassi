@@ -34,6 +34,11 @@ def plot_confusion_matrix(
     category_labels: Optional[Sequence[str]] = None,
     show_colorbar: bool = True,
 ):
+    def format_count(count):
+        if count > 10000:
+            return f"{count / 1000:.1f}k"
+        return count
+
     cm = confusion_matrix(
         y_true, y_pred, labels=range(max(max(y_true), max(y_pred)) + 1)
     )
@@ -51,7 +56,7 @@ def plot_confusion_matrix(
         ax.text(
             col_idx,
             row_idx,
-            f"{cm_prob[row_idx, col_idx]:.2f}\n({cm[row_idx, col_idx]})",
+            f"{cm_prob[row_idx, col_idx]:.2f}\n({format_count(cm[row_idx, col_idx])})",
             ha="center",
             va="center",
             c="k" if cm_prob[row_idx, col_idx] > 0.5 else "w",
@@ -88,47 +93,49 @@ def plot_classification_timeline(
     x_tick_conversion: Optional[Callable[[Sequence[float]], Sequence]] = None,
     x_label: Optional[str] = None,
 ):
+    def _plot_timeline(
+        ax: Axes,
+        annotations: pd.DataFrame,
+        categories: list[str],
+        y_range: tuple[float, float],
+        color,
+    ):
+        try:
+            intervals = (
+                predictions.set_index("category")
+                .loc[[categories[idx]], ["start", "duration"]]
+                .to_numpy()
+            )
+        except KeyError:
+            return
+        ax.broken_barh(
+            intervals,
+            yrange=y_range,
+            lw=0,
+            color=color,
+        )
+
     interval = (
         max(interval[0], predictions["start"].min()),
         min(interval[1], predictions["stop"].max()),
     )  # type: ignore
     categories = list(categories)
-    if category_labels is None:
-        category_labels = categories
-    else:
-        category_labels = list(category_labels)
+    category_labels = categories if category_labels is None else list(category_labels)
     if axes is None:
         fig = plt.figure(figsize=figsize, dpi=dpi)
         axes = fig.subplots(len(categories), 1, sharey=True)
-        if TYPE_CHECKING:
-            assert axes is not None
+    if TYPE_CHECKING:
+        assert axes is not None
+    predictions_y_range = (
+        0.5 if annotations is not None else 0,
+        0.5 if annotations is not None else 1,
+    )
     for idx in range(len(categories)):
-        try:
-            axes[idx].broken_barh(
-                predictions.set_index("category")
-                .loc[[categories[idx]], ["start", "duration"]]
-                .to_numpy(),
-                yrange=(
-                    0.5 if annotations is not None else 0,
-                    0.5 if annotations is not None else 1,
-                ),
-                lw=0,
-                color="#ef8a62",
-            )
-        except KeyError:
-            pass
+        _plot_timeline(
+            axes[idx], predictions, categories, predictions_y_range, "#ef8a62"
+        )
         if annotations is not None:
-            try:
-                axes[idx].broken_barh(
-                    annotations.set_index("category")
-                    .loc[[categories[idx]], ["start", "duration"]]
-                    .to_numpy(),
-                    yrange=(0, 0.5),
-                    lw=0,
-                    color="#67a9cf",
-                )
-            except KeyError:
-                pass
+            _plot_timeline(axes[idx], annotations, categories, (0, 0.5), "#67a9cf")
         if y_proba is not None:
             axes[idx].plot(
                 y_proba[:, idx],

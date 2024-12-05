@@ -5,7 +5,7 @@ import pandas as pd
 from numpy.typing import NDArray
 from sklearn.model_selection import train_test_split
 
-from ...utils import ensure_generator, sklearn_seed
+from ...utils import ensure_generator, to_int_seed
 
 
 def test_stratify(
@@ -67,6 +67,16 @@ def split(
         assert isinstance(size, float)
     if size == 1.0:
         return X, y, idx
+    elif size * len(X) < 1:
+        if isinstance(X, pd.DataFrame):
+            X = X.iloc[:0]
+        else:
+            X = X[:0]
+        if y is not None:
+            y = y[:0]
+        if idx is not None:
+            idx = idx[:0]
+        return X, y, idx
     random_state = ensure_generator(random_state)
     inputs = [X]
     if has_y := (y is not None):
@@ -76,7 +86,7 @@ def split(
     outputs = train_test_split(
         *inputs,
         train_size=size,
-        random_state=sklearn_seed(random_state),
+        random_state=to_int_seed(random_state),
         stratify=stratify,
     )
     X, _ = outputs[:2]  # type: ignore

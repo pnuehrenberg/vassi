@@ -25,7 +25,7 @@ def with_duration(
 
 @with_duration
 def to_annotations(
-    y: NDArray,
+    y: NDArray[np.int64],
     category_names: Iterable[str],
     drop: Optional[Iterable[str]] = None,
     timestamps: Optional[NDArray[np.int64 | np.float64]] = None,
@@ -35,10 +35,10 @@ def to_annotations(
     change_idx = np.argwhere((np.diff(y) != 0)).ravel()
     stop = np.asarray(change_idx.tolist() + [y.size - 1])
     start = np.asarray([0] + (change_idx + 1).tolist())
+    categories = np.asarray(category_names)[y[start]]
     if timestamps is not None:
         start = timestamps[start]
         stop = timestamps[stop]
-    categories = np.asarray(category_names)[y[start]]
     # assert not (y[start[:-1]] == y[stop[:-1] + 1]).any() and not (y[start[1:] - 1] == y[stop[1:]]).any()
     annotations = pd.DataFrame({"start": start, "stop": stop, "category": categories})
     if drop is None:

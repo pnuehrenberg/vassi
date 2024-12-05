@@ -1,4 +1,4 @@
-from typing import TYPE_CHECKING, Optional, overload
+from typing import TYPE_CHECKING, Iterable, Optional, overload
 
 import numpy as np
 import pandas as pd
@@ -7,7 +7,7 @@ from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import OneHotEncoder
 
 from ...features import DataFrameFeatureExtractor, FeatureExtractor
-from .utils import Identity
+from .utils import DyadIdentity, Identity
 
 if TYPE_CHECKING:
     from ._sampleable import Sampleable
@@ -41,7 +41,7 @@ class BaseDataset:
         *,
         pipeline: Optional[Pipeline] = None,
         fit_pipeline: bool = True,
-        exclude: Optional[list[Identity] | list[tuple[Identity, Identity]]] = None,
+        exclude: Optional[Iterable[Identity | DyadIdentity]] = None,
     ) -> tuple[NDArray | pd.DataFrame, NDArray | None]:
         raise NotImplementedError
 
@@ -62,7 +62,7 @@ class BaseDataset:
         *,
         pipeline: Optional[Pipeline] = None,
         fit_pipeline: bool = True,
-        exclude: Optional[list[Identity] | list[tuple[Identity, Identity]]] = None,
+        exclude: Optional[list[Identity | DyadIdentity]] = None,
         # subsample specific
         random_state: Optional[np.random.Generator | int] = None,
         stratify_by_groups: bool = True,
