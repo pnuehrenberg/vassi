@@ -1,10 +1,26 @@
 import numpy as np
+from numpy.typing import NDArray
 
 from . import utils
 from .base import ConfiguredData
 
 
 class Instance(ConfiguredData):
+    """
+    Data structure for single instances.
+
+    Parameters
+    ----------
+    cfg: Config, optional
+        Configuration of the instance.
+
+    from_scalars: bool, optional
+        Whether to convert scalars to numpy arrays.
+
+    **kwargs: NDArray | int | float
+        Data of the instance specified as keyword arguments.
+    """
+
     def __init__(self, cfg=None, from_scalars: bool = False, **kwargs):
         self._cfg = cfg
         self._data = {}
@@ -27,10 +43,34 @@ class Instance(ConfiguredData):
                 value = value.copy()
             self._data[key] = value
 
-    def __getitem__(self, key) -> utils.Value:
+    def __getitem__(self, key: str) -> NDArray:
+        """
+        Get value for a specified key.
+
+        Parameters
+        ----------
+        key: str
+            Key to get the value for.
+
+        Returns
+        -------
+        NDArray
+            Value for the specified key.
+        """
         return self._get_value(key)
 
     def __setitem__(self, key: str, value: utils.Value) -> None:
+        """
+        Set the value for a specified key.
+
+        Parameters
+        ----------
+        key: str
+            Key to set the value for.
+
+        value: NDArray | int | float
+            Value to set the value for.
+        """
         _value = self._get_value(key)
         with utils.writeable(_value):
             _value[:] = value

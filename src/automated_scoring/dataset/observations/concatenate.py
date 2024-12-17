@@ -9,7 +9,7 @@ from ..types.individual import AnnotatedIndividual
 from ..types.utils import DyadIdentity, Identity
 
 
-def concatenate_annotations(
+def concatenate_observations(
     sampleables: (
         dict[Identity, AnnotatedGroup]
         | Sequence[AnnotatedGroup]
@@ -19,7 +19,7 @@ def concatenate_annotations(
     *,
     exclude: Optional[Iterable[Identity | DyadIdentity]] = None,
 ):
-    concatenated_annotations = []
+    concatenated_observations = []
     if isinstance(sampleables, dict):
         if exclude is None:
             exclude = []
@@ -34,36 +34,40 @@ def concatenate_annotations(
         }
     for key, sampleable in sampleables_dict.items():
         if isinstance(sampleable, AnnotatedIndividual):
-            annotations = sampleable.annotations
+            observations = sampleable.observations
             if not isinstance(key, (int, str)):
                 raise ValueError(f"invalid identity {key} for annotated individual")
-            annotations["actor"] = key
-            annotations = annotations[["actor", *annotations.columns[:-1]]]
-            concatenated_annotations.append(annotations)
+            observations["actor"] = key
+            observations = observations[["actor", *observations.columns[:-1]]]
+            concatenated_observations.append(observations)
             continue
         elif isinstance(sampleable, AnnotatedDyad):
-            annotations = sampleable.annotations
+            observations = sampleable.observations
             if not isinstance(key, tuple):
                 raise ValueError(f"invalid identity {key} for annotated dyad")
             actor, recipient = key
-            annotations["actor"] = actor
-            annotations["recipient"] = recipient
-            annotations = annotations[["actor", "recipient", *annotations.columns[:-2]]]
-            concatenated_annotations.append(annotations)
+            observations["actor"] = actor
+            observations["recipient"] = recipient
+            observations = observations[
+                ["actor", "recipient", *observations.columns[:-2]]
+            ]
+            concatenated_observations.append(observations)
             continue
         if not isinstance(sampleable, AnnotatedGroup):
             raise ValueError(
                 f"Pass either annotated groups, dyads or individuals, but not {type(sampleable)}"
             )
-        annotations = concatenate_annotations(sampleable._sampleables, exclude=exclude)
-        annotations["group"] = key
-        annotations = annotations[["group", *annotations.columns[:-1]]]
-        concatenated_annotations.append(annotations)
-    annotations = pd.concat(concatenated_annotations).reset_index(drop=True)
+        observations = concatenate_observations(
+            sampleable._sampleables, exclude=exclude
+        )
+        observations["group"] = key
+        observations = observations[["group", *observations.columns[:-1]]]
+        concatenated_observations.append(observations)
+    observations = pd.concat(concatenated_observations).reset_index(drop=True)
     for categorical_column in ["group", "actor", "recipient", "category"]:
-        if categorical_column not in annotations.columns:
+        if categorical_column not in observations.columns:
             continue
-        annotations[categorical_column] = annotations[categorical_column].astype(
+        observations[categorical_column] = observations[categorical_column].astype(
             pd.CategoricalDtype()
         )
-    return annotations
+    return observations

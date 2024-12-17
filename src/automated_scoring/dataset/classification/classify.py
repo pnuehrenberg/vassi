@@ -42,7 +42,7 @@ def classify(
     timestamps = sampleable.trajectory.timestamps
     annotations = None
     if isinstance(sampleable, AnnotatedSampleable):
-        annotations = sampleable.annotations
+        annotations = sampleable.observations
         categories = sampleable.categories
     if categories is None:
         raise ValueError("specify categories when classifying unannotated sampleables.")

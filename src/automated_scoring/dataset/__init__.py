@@ -1,5 +1,5 @@
-from .annotations.concatenate import concatenate_annotations
-from .annotations.utils import check_annotations, to_annotations
+from .observations.concatenate import concatenate_observations
+from .observations.utils import check_observations, to_observations
 from .types import (
     AnnotatedDyad,
     AnnotatedGroup,
@@ -11,10 +11,10 @@ from .types import (
 )
 
 __all__ = [
-    # from annotations
-    "to_annotations",
-    "check_annotations",
-    "concatenate_annotations",
+    # from observations
+    "to_observations",
+    "check_observations",
+    "concatenate_observations",
     # from types
     "Individual",
     "AnnotatedIndividual",

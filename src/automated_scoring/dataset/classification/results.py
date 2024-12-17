@@ -1,5 +1,7 @@
+import warnings
+from collections.abc import Iterable
 from dataclasses import dataclass
-from typing import Callable, Iterable, Literal, Optional
+from typing import Callable, Literal, Optional, Self
 
 import numpy as np
 import pandas as pd
@@ -8,9 +10,15 @@ from sklearn.metrics import f1_score
 
 from ...data_structures import Trajectory
 from ...series_operations import smooth
-from ...utils import NDArray_to_NDArray
+from ...utils import NDArray_to_NDArray, warning_only
+from ..observations.utils import infill_observations, remove_overlapping_observations
 from ..types.utils import DyadIdentity, Identity
-from .utils import score_category_counts, to_predictions, validate_predictions
+from .utils import (
+    _filter_recipient_bouts,
+    score_category_counts,
+    to_predictions,
+    validate_predictions,
+)
 
 
 class _Result:
@@ -84,7 +92,7 @@ class ClassificationResult(_Result):
     _annotations: Optional[pd.DataFrame] = None
     _y_true_numeric: Optional[NDArray[np.int64]] = None
 
-    def smooth(self, label_smoothing_funcs: list[NDArray_to_NDArray]) -> None:
+    def smooth(self, label_smoothing_funcs: list[NDArray_to_NDArray]) -> Self:
         self._y_proba_smoothed = smooth(
             self.y_proba, filter_funcs=label_smoothing_funcs
         )
@@ -102,6 +110,7 @@ class ClassificationResult(_Result):
             self._annotations = validate_predictions(
                 self.predictions, self.annotations, on="annotations"
             )
+        return self
 
     @property
     def y_proba_smoothed(self):
@@ -134,9 +143,10 @@ class _NestedResult(_Result):
         "ClassificationResult | GroupClassificationResult",
     ]
 
-    def smooth(self, label_smoothing_funcs: list[NDArray_to_NDArray]) -> None:
+    def smooth(self, label_smoothing_funcs: list[NDArray_to_NDArray]) -> Self:
         for classification_result in self.classification_results.values():
             classification_result.smooth(label_smoothing_funcs)
+        return self
 
     @property
     def categories(self) -> tuple[str, ...]:
@@ -221,6 +231,79 @@ class GroupClassificationResult(_NestedResult):
                 annotations_key["actor"] = key
             annotations.append(annotations_key)
         return pd.concat(annotations, axis=0, ignore_index=True)
+
+    def _remove_overlapping_predictions(
+        self,
+        priority_func: Callable[[pd.DataFrame], Iterable[float]],
+        *,
+        prefilter_recipient_bouts: bool,
+        max_bout_gap: float,
+        max_allowed_bout_overlap: float,
+    ) -> Self:
+        predictions = self.predictions
+        if "recipient" not in predictions.columns:
+            with warning_only():
+                warnings.warn("individual predictions (not dyadic) do not overlap")
+            return self
+        predictions = predictions[predictions["category"] != "none"]
+        for actor in self.trajectories:
+            predictions_actor: pd.DataFrame = predictions[
+                predictions["actor"] == actor
+            ].reset_index(drop=True)  # type: ignore
+            if prefilter_recipient_bouts:
+                predictions_actor = _filter_recipient_bouts(
+                    predictions_actor,
+                    priority_func=priority_func,
+                    max_bout_gap=max_bout_gap,
+                    max_allowed_bout_overlap=max_allowed_bout_overlap,
+                )
+            predictions_actor = remove_overlapping_observations(
+                predictions_actor,
+                priority_func=priority_func,
+                max_allowed_overlap=0,
+                index_keys=[],
+            )
+            for recipient in self.trajectories:
+                if (actor, recipient) not in self.classification_results:
+                    continue
+                classification_result = self.classification_results[(actor, recipient)]
+                predictions_dyad: pd.DataFrame = predictions_actor[
+                    predictions_actor["recipient"] == recipient
+                ].reset_index(drop=True)  # type: ignore
+                predictions_dyad = infill_observations(
+                    predictions_dyad,
+                    observation_stop=classification_result.timestamps[-1],
+                )
+                try:
+                    predictions_dyad.loc[:, "mean_probability"] = predictions_dyad[
+                        "mean_probability"
+                    ].fillna(value=0)
+                except KeyError:
+                    predictions_dyad["mean_probability"] = 0
+                try:
+                    predictions_dyad.loc[:, "max_probability"] = predictions_dyad[
+                        "max_probability"
+                    ].fillna(value=0)
+                except KeyError:
+                    predictions_dyad["max_probability"] = 0
+                try:
+                    predictions_dyad = validate_predictions(
+                        predictions_dyad,
+                        classification_result.annotations,
+                        on="predictions",
+                        key_columns=[],
+                    )
+                except ValueError:
+                    pass
+                drop = [
+                    column
+                    for column in ["actor", "recipient"]
+                    if column in predictions_dyad.columns
+                ]
+                if len(drop) > 0:
+                    predictions_dyad = predictions_dyad.drop(columns=drop)
+                classification_result.predictions = predictions_dyad
+        return self
 
 
 @dataclass

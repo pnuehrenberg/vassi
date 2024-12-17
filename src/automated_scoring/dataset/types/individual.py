@@ -12,13 +12,13 @@ class Individual(Sampleable):
 
         def annotate(
             self,
-            annotations: pd.DataFrame,
+            observations: pd.DataFrame,
             *,
             categories: tuple[str, ...],
         ) -> "AnnotatedIndividual":
             return AnnotatedIndividual(
                 self.trajectory,
-                annotations=annotations,
+                observations=observations,
                 categories=categories,
             )
 
@@ -29,8 +29,8 @@ class AnnotatedIndividual(AnnotatedSampleable):
     def __init__(
         self,
         trajectory: Trajectory,
-        annotations: pd.DataFrame,
+        observations: pd.DataFrame,
         *,
         categories: tuple[str, ...],
     ) -> None:
-        super().__init__(trajectory, annotations=annotations, categories=categories)
+        super().__init__(trajectory, observations=observations, categories=categories)

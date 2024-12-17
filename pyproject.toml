@@ -3,7 +3,7 @@ requires = ["setuptools"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "pyTrajectory"
+name = "automated-scoring"
 version = "0.0.1"
 dependencies = [
     "numpy>=2.0",

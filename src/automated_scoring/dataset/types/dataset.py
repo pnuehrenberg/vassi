@@ -44,7 +44,7 @@ def get_subgroup(
         return AnnotatedGroup(
             group.trajectories,
             target=group.target,
-            annotations=group._annotations,
+            observations=group._observations,
             categories=group._categories,
             exclude=remaining,
         )
@@ -205,7 +205,7 @@ class Dataset(BaseDataset):
             self._label_encoder = self._groups_list[0].label_encoder
         return self._label_encoder
 
-    def get_annotations(
+    def get_observations(
         self,
         *,
         exclude: Optional[Iterable[Identity | DyadIdentity]] = None,
@@ -218,11 +218,11 @@ class Dataset(BaseDataset):
             [isinstance(group, AnnotatedGroup) for group in self.groups.values()]
         ):
             raise ValueError("dataset contains non-annotated groups")
-        from ..annotations.concatenate import (
-            concatenate_annotations,
+        from ..observations.concatenate import (
+            concatenate_observations,
         )  # local import here to avoid circular import
 
-        return concatenate_annotations(self.groups, exclude=exclude)  # type: ignore (see type checking above)
+        return concatenate_observations(self.groups, exclude=exclude)  # type: ignore (see type checking above)
 
     def _split(
         self,

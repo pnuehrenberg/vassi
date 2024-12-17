@@ -5,3 +5,4 @@ build
 .ropeproject
 .virtual_documents
 *.egg-info
+docs

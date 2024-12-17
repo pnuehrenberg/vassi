@@ -12,14 +12,14 @@ class Dyad(Sampleable):
 
     def annotate(
         self,
-        annotations: pd.DataFrame,
+        observations: pd.DataFrame,
         *,
         categories: tuple[str, ...],
     ) -> "AnnotatedDyad":
         return AnnotatedDyad(
             self.trajectory,
             self.trajectory_other,
-            annotations=annotations,
+            observations=observations,
             categories=categories,
         )
 
@@ -31,10 +31,13 @@ class AnnotatedDyad(AnnotatedSampleable):
         self,
         trajectory: Trajectory,
         trajectory_other: Trajectory,
-        annotations: pd.DataFrame,
+        observations: pd.DataFrame,
         *,
         categories: tuple[str, ...],
     ) -> None:
         super().__init__(
-            trajectory, trajectory_other, annotations=annotations, categories=categories
+            trajectory,
+            trajectory_other,
+            observations=observations,
+            categories=categories,
         )

@@ -1,6 +1,7 @@
 import os
+import warnings
 from collections.abc import ItemsView
-from typing import Literal, Mapping, Optional
+from typing import TYPE_CHECKING, Literal, Mapping, Optional
 
 import h5py
 import numpy as np
@@ -11,6 +12,7 @@ from numpy.typing import NDArray
 from .data_structures.trajectory import Trajectory
 from .dataset import AnnotatedGroup, Dataset, Group
 from .dataset.types.utils import Identity
+from .utils import warning_only
 
 
 def is_string_array(array: NDArray):
@@ -162,15 +164,15 @@ def save_dataset(
     *,
     dataset_name: str,
     directory: str = ".",
-    annotation_type: Literal["annotations", "predictions"] = "annotations",
+    observation_type: Literal["annotations", "predictions"] = "annotations",
 ):
     if not os.path.exists(directory):
         os.makedirs(directory, exist_ok=True)
-    annotation_file = os.path.join(directory, f"{dataset_name}_{annotation_type}.csv")
+    observation_file = os.path.join(directory, f"{dataset_name}_{observation_type}.csv")
     trajectory_file = os.path.join(directory, f"{dataset_name}_trajectories.h5")
-    annotations = dataset.get_annotations()
-    if annotations is not None:
-        annotations.to_csv(annotation_file, index=False)
+    observations = dataset.get_observations()
+    if observations is not None:
+        observations.to_csv(observation_file, index=False)
     group_keys = (
         list(dataset.groups.keys())
         if isinstance(dataset.groups, dict)
@@ -192,48 +194,54 @@ def load_dataset(
     *,
     directory: str = ".",
     target: Literal["individuals", "dyads"],
-    load_annotations: bool = True,
+    load_observations: bool = True,
     categories: Optional[tuple[str, ...]] = None,
-    annotation_type: Literal["annotations", "predictions"] = "annotations",
+    observation_type: Literal["annotations", "predictions"] = "annotations",
 ) -> Dataset:
-    annotation_file = os.path.join(directory, f"{dataset_name}_{annotation_type}.csv")
+    observation_file = os.path.join(directory, f"{dataset_name}_{observation_type}.csv")
     trajectory_file = os.path.join(directory, f"{dataset_name}_trajectories.h5")
-    annotations = None
-    if load_annotations and os.path.exists(annotation_file):
-        annotations = pd.read_csv(annotation_file).set_index("group")
-    elif load_annotations:
-        raise FileNotFoundError(f"{annotation_file} does not exist.")
+    observations = None
+    if load_observations and os.path.exists(observation_file):
+        observations = pd.read_csv(observation_file).set_index("group")
+    elif load_observations:
+        raise FileNotFoundError(f"{observation_file} does not exist.")
     groups: dict[Identity, Group | AnnotatedGroup] = {}
     group_keys = load_data(trajectory_file, "_groups")
     if not isinstance(group_keys, np.ndarray):
         raise ValueError(f"invalid dataset file with group keys of type {type(groups)}")
+    if categories is None and observations is not None:
+        categories = tuple(np.unique(observations["category"]))
+        with warning_only():
+            warnings.warn(
+                f"Loading categories ({", ".join(categories)}) from observations file, specify categories argument if incomplete."
+            )
     for group_key in group_keys.tolist():
-        if annotations is not None:
-            if categories is None:
-                raise ValueError("specify categories")
+        if observations is not None:
+            if TYPE_CHECKING:
+                assert categories is not None
             trajectories = load_trajectories(trajectory_file, str(group_key))
             str_identities = any(
                 [isinstance(identity, str) for identity in trajectories.keys()]
             )
-            annotations_group = annotations.loc[group_key].copy()
+            observations_group = observations.loc[group_key].reset_index()
             if str_identities:
-                annotations_group["actor"] = np.asarray(
-                    annotations_group["actor"]
+                observations_group["actor"] = np.asarray(
+                    observations_group["actor"]
                 ).astype(StringDType)
-                annotations_group["actor"] = annotations_group["actor"].astype(
+                observations_group["actor"] = observations_group["actor"].astype(
                     pd.CategoricalDtype()
                 )
-            if str_identities and "recipient" in annotations_group.columns:
-                annotations_group["recipient"] = np.asarray(
-                    annotations_group["recipient"]
+            if str_identities and "recipient" in observations_group.columns:
+                observations_group["recipient"] = np.asarray(
+                    observations_group["recipient"]
                 ).astype(StringDType)
-                annotations_group["recipient"] = annotations_group["recipient"].astype(
-                    pd.CategoricalDtype()
-                )
+                observations_group["recipient"] = observations_group[
+                    "recipient"
+                ].astype(pd.CategoricalDtype())
             group = AnnotatedGroup(
                 trajectories,
                 target=target,
-                annotations=annotations_group,
+                observations=observations_group,
                 categories=categories,
             )
         else:

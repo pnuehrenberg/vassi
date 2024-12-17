@@ -7,11 +7,26 @@ from numpy.dtypes import StringDType  # type: ignore
 from numpy.typing import NDArray
 
 from .. import config
-from . import instance, utils
+from . import _type_checking, instance, utils
 from .base import ConfiguredData
 
 
 class InstanceCollection(ConfiguredData):
+    """
+    Data structure for collections of instances.
+
+    Parameters
+    ----------
+    data: Mapping[str, NDArray], optional
+        Data of the instances.
+
+    cfg: Config, optional
+        Configuration of the instances.
+
+    validate_on_init: bool, optional
+        Whether to validate the data on initialization.
+    """
+
     _view_of: list["InstanceCollection"]
     _views: list["InstanceCollection"]
     _validate: bool = True
@@ -33,6 +48,14 @@ class InstanceCollection(ConfiguredData):
 
     @contextmanager
     def validate(self, validate: bool) -> Generator:
+        """
+        Context manager for validation.
+
+        Parameters
+        ----------
+        validate: bool
+            Whether to validate.
+        """
         _validate = self._validate
         self._validate = validate
         try:
@@ -44,6 +67,14 @@ class InstanceCollection(ConfiguredData):
 
     @property
     def length(self) -> int:
+        """
+        Length of the collection.
+
+        Returns
+        -------
+        int
+            Length (number of instances) of the collection.
+        """
         if self._data is None:
             return 0
         if not self._validate:
@@ -53,6 +84,14 @@ class InstanceCollection(ConfiguredData):
         return length
 
     def __len__(self) -> int:
+        """
+        Return the length of the collection.
+
+        Returns
+        -------
+        int
+            Length (number of instances) of the collection.
+        """
         return self.length
 
     def validate_data(
@@ -64,6 +103,32 @@ class InstanceCollection(ConfiguredData):
         try_broadcasting: bool = True,
         require_array_like=False,
     ) -> bool:
+        """
+        Validate data.
+
+        Parameters
+        ----------
+        data: Mapping[str, NDArray | int | float | str]
+            Data to validate.
+        allow_duplicated_timestamps: bool, optional
+            Whether to allow duplicated timestamps.
+        allow_missing_keys: bool, optional
+            Whether to allow missing keys.
+        try_broadcasting: bool, optional
+            Whether to try broadcasting.
+        require_array_like: bool, optional
+            Whether to require array-like values.
+
+        Returns
+        -------
+        bool
+            Whether the data is valid.
+
+        Raises
+        ------
+        ValueError
+            If the data is not valid and requirements are not met.
+        """
         complete_keys = utils.validate_keys(
             data.keys(), self.keys(), allow_missing=allow_missing_keys
         )
@@ -108,6 +173,7 @@ class InstanceCollection(ConfiguredData):
 
     @property
     def data(self) -> dict[str, NDArray]:
+        """Data of the collection."""
         return super().data
 
     @data.setter
@@ -123,6 +189,22 @@ class InstanceCollection(ConfiguredData):
         copy_config: bool = False,
         validate_on_init: bool = False,
     ) -> Self:
+        """Initialize a new instance of the collection with the same configuration.
+
+        Parameters
+        ----------
+        data: Mapping[str, NDArray]
+            Data of the new collection.
+        copy_config: bool, optional
+            Whether to copy the configuration.
+        validate_on_init: bool, optional
+            Whether to validate the data on initialization.
+
+        Returns
+        -------
+        Self
+            The new instance.
+        """
         cfg = self.cfg
         if copy_config:
             cfg = cfg.copy()
@@ -133,6 +215,18 @@ class InstanceCollection(ConfiguredData):
         )
 
     def copy(self, *, copy_config: bool = False) -> Self:
+        """Copy the collection.
+
+        Parameters
+        ----------
+        copy_config: bool, optional
+            Whether to copy the configuration.
+
+        Returns
+        -------
+        Self
+            The copy.
+        """
         return self._init_other(
             data=self.data, copy_config=copy_config, validate_on_init=False
         )
@@ -143,6 +237,18 @@ class InstanceCollection(ConfiguredData):
         value: utils.Value,
         at: slice | int | np.integer,
     ) -> None:
+        """
+        Set the value of a key at a given index or slice.
+
+        Parameters
+        ----------
+        key: str
+            Key to set the value for.
+        value: NDArray | int | float | str
+            Value to set.
+        at: slice | int | np.integer
+            Index or slice to set the value at.
+        """
         if self._data is None:
             raise ValueError("not initialized")
         _value = self._get_value(key, copy=False)
@@ -163,7 +269,7 @@ class InstanceCollection(ConfiguredData):
         ...
 
     @overload
-    def __getitem__(self, key: utils.MultipleStrings) -> tuple[NDArray, ...]:
+    def __getitem__(self, key: tuple[str, ...] | list[str]) -> tuple[NDArray, ...]:
         # multiple keys
         ...
 
@@ -179,7 +285,7 @@ class InstanceCollection(ConfiguredData):
 
     @overload
     def __getitem__(
-        self, key: tuple[slice, utils.MultipleStrings]
+        self, key: tuple[slice, tuple[str, ...] | list[str]]
     ) -> dict[str, NDArray]:
         # slice multiple keys
         ...
@@ -196,7 +302,7 @@ class InstanceCollection(ConfiguredData):
 
     @overload
     def __getitem__(
-        self, key: tuple[int | np.integer, utils.MultipleStrings]
+        self, key: tuple[int | np.integer, tuple[str, ...] | list[str]]
     ) -> dict[str, utils.Value]:
         # trajectory index with multiple keys
         ...
@@ -206,14 +312,15 @@ class InstanceCollection(ConfiguredData):
         key: (
             None
             | str
-            | utils.MultipleStrings
+            | tuple[str, ...]
+            | list[str]
             | slice
             | tuple[slice, str]
-            | tuple[slice, utils.MultipleStrings]
+            | tuple[slice, tuple[str, ...] | list[str]]
             | int
             | np.integer
             | tuple[int | np.integer, str]
-            | tuple[int | np.integer, utils.MultipleStrings]
+            | tuple[int | np.integer, tuple[str, ...] | list[str]]
         ),
     ) -> (
         NDArray
@@ -225,12 +332,36 @@ class InstanceCollection(ConfiguredData):
         | utils.Value
         | dict[str, utils.Value]
     ):
+        """
+        Get a value or values from the collection.
+
+        There are multiple ways to specify the key:
+        - None: returns the entire collection.
+        - str: returns the value for the specified key.
+        - tuple[str, ...] | list[str]: returns the values for the specified keys.
+        - slice: returns the values for the specified slice.
+        - tuple[slice, str]: returns the values for the specified slice and key.
+        - tuple[slice, tuple[str, ...] | list[str]]: returns the values for the specified slice and keys.
+        - int: returns the value at the specified index.
+        - tuple[int, str]: returns the value at the specified index and key.
+        - tuple[int, tuple[str, ...] | list[str]]: returns the values at the specified index and keys.
+
+        Parameters
+        ----------
+        key: None | str | tuple[str, ...] | list[str] | slice | tuple[slice, str] | tuple[slice, tuple[str, ...] | list[str]] | int | tuple[int, str] | tuple[int, tuple[str, ...] | list[str]]
+            Key to get the value for.
+
+        Returns
+        -------
+        NDArray | tuple[NDArray, ...] | Self | NDArray | dict[str, NDArray] | instance.Instance | utils.Value | dict[str, utils.Value]
+            Value or values from the collection.
+        """
         if key is None:
             raise KeyError
         if isinstance(key, str):
             # single key
             return self._get_value(key)
-        valid, _key = utils.is_str_iterable(key)
+        valid, _key = _type_checking.is_str_iterable(key)
         if valid:
             # multiple keys
             return tuple(self._get_value(_key) for _key in _key)
@@ -242,11 +373,11 @@ class InstanceCollection(ConfiguredData):
             self._views.append(view)
             view._view_of.append(self)
             return view
-        valid, _key = utils.is_slice_str(key)
+        valid, _key = _type_checking.is_slice_str(key)
         if valid:
             # slice single key
             return self._get_value(_key[1])[_key[0]]
-        valid, _key = utils.is_slice_str_iterable(key)
+        valid, _key = _type_checking.is_slice_str_iterable(key)
         if valid:
             # slice multiple keys
             return {__key: self._get_value(__key)[_key[0]] for __key in _key[1]}
@@ -257,11 +388,11 @@ class InstanceCollection(ConfiguredData):
                 for _key, value in self.items(copy=False)
             }
             return instance.Instance(cfg=self.cfg, **instance_data, from_scalars=True)
-        valid, _key = utils.is_int_str(key)
+        valid, _key = _type_checking.is_int_str(key)
         if valid:
             # instance value at index
             return self._get_value(_key[1], copy=True)[_key[0]]
-        valid, _key = utils.is_int_str_iterable(key)
+        valid, _key = _type_checking.is_int_str_iterable(key)
         if valid:
             # instance values at index
             return {
@@ -275,14 +406,14 @@ class InstanceCollection(ConfiguredData):
         ...
 
     @overload
-    def __setitem__(self, key: utils.MultipleStrings, value: utils.Value) -> None:
+    def __setitem__(self, key: tuple[str, ...] | list[str], value: utils.Value) -> None:
         # multiple keys, single value
         ...
 
     @overload
     def __setitem__(
         self,
-        key: utils.MultipleStrings,
+        key: tuple[str, ...] | list[str],
         value: utils.MultipleValues,
     ) -> None:
         # multiple keys and corresponding values
@@ -309,7 +440,7 @@ class InstanceCollection(ConfiguredData):
     @overload
     def __setitem__(
         self,
-        key: tuple[slice, utils.MultipleStrings],
+        key: tuple[slice, tuple[str, ...] | list[str]],
         value: utils.Value,
     ) -> None:
         # multiple keys with slice, single value
@@ -318,7 +449,7 @@ class InstanceCollection(ConfiguredData):
     @overload
     def __setitem__(
         self,
-        key: tuple[slice, utils.MultipleStrings],
+        key: tuple[slice, tuple[str, ...] | list[str]],
         value: utils.MultipleValues,
     ) -> None:
         # multiple keys with slice, corresponding values
@@ -345,7 +476,7 @@ class InstanceCollection(ConfiguredData):
     @overload
     def __setitem__(
         self,
-        key: tuple[int, utils.MultipleStrings],
+        key: tuple[int, tuple[str, ...] | list[str]],
         value: utils.Value,
     ) -> None:
         # instance values at index
@@ -354,7 +485,7 @@ class InstanceCollection(ConfiguredData):
     @overload
     def __setitem__(
         self,
-        key: tuple[int, utils.MultipleStrings],
+        key: tuple[int, tuple[str, ...] | list[str]],
         value: utils.MultipleValues,
     ) -> None:
         # instance values at index, corresponding values
@@ -375,16 +506,18 @@ class InstanceCollection(ConfiguredData):
         # instance values at index, corresponding values
         key: (
             str
-            | utils.MultipleStrings
-            | utils.MultipleStrings
+            | tuple[str, ...]
+            | list[str]
+            | tuple[str, ...]
+            | list[str]
             | slice
             | tuple[slice, str]
-            | tuple[slice, utils.MultipleStrings]
-            | tuple[slice, utils.MultipleStrings]
+            | tuple[slice, tuple[str, ...] | list[str]]
+            | tuple[slice, tuple[str, ...] | list[str]]
             | int
             | tuple[int, str]
-            | tuple[int, utils.MultipleStrings]
-            | tuple[int, utils.MultipleStrings]
+            | tuple[int, tuple[str, ...] | list[str]]
+            | tuple[int, tuple[str, ...] | list[str]]
         ),
         value: (
             utils.Value
@@ -400,8 +533,36 @@ class InstanceCollection(ConfiguredData):
             | utils.MultipleValues
         ),
     ) -> None:
+        """
+        Set a value or values in the collection.
+
+        There are multiple ways to specify the key and value:
+        - str, NDArray: sets the value for the specified key to the specified value.
+        - tuple[str, ...] | list[str], NDArray: sets the values for the specified keys to the specified value.
+        - tuple[str, ...] | list[str], tuple[NDArray, ...]: sets the values for the specified keys to the specified values.
+        - slice, Self: sets the values for the specified slice to the values in the specified collection.
+        - tuple[slice, str], NDArray: sets the values for the specified slice and key to the specified value.
+        - tuple[slice, tuple[str, ...] | list[str]], NDArray: sets the values for the specified slice and keys to the specified value.
+        - tuple[slice, tuple[str, ...] | list[str]], tuple[NDArray, ...]: sets the values for the specified slice and keys to the specified values.
+        - int, instance.Instance: sets the value at the specified index to the specified instance.
+        - tuple[int, str], NDArray: sets the value at the specified index and key to the specified value.
+        - tuple[int, tuple[str, ...] | list[str]], NDArray: sets the value at the specified index and keys to the specified value.
+
+        Parameters
+        ----------
+        key:  str | tuple[str, ...] | list[str] | slice | tuple[slice, str] | tuple[slice, tuple[str, ...] | list[str]] | int | tuple[int, str] | tuple[int, tuple[str, ...] | list[str]]
+            Key (or keys) to set the value for.
+
+        value: NDArray | int | float | Iterable[NDArray | int | float] | InstanceCollection | Instance
+            Value to set the value for.
+
+        Raises
+        ------
+        TypeError
+            If the key is not specified correctly.
+        """
         # single value
-        valid_value, _value = utils.is_value(value)
+        valid_value, _value = _type_checking.is_value(value)
         if valid_value and isinstance(key, str):
             # single key, single value
             if self._validate:
@@ -410,7 +571,7 @@ class InstanceCollection(ConfiguredData):
                 self.validate_data(data)
             self._set_value(key, _value, slice(None))
             return
-        valid_key, _key = utils.is_str_iterable(key)
+        valid_key, _key = _type_checking.is_str_iterable(key)
         if valid_value and valid_key:
             # multiple keys, single value
             if self._validate:
@@ -421,7 +582,7 @@ class InstanceCollection(ConfiguredData):
             for __key in _key:
                 self._set_value(__key, _value, slice(None))
             return
-        valid_key, _key = utils.is_slice_str(key)
+        valid_key, _key = _type_checking.is_slice_str(key)
         if valid_value and valid_key:
             # single key with slice
             if self._validate:
@@ -430,7 +591,7 @@ class InstanceCollection(ConfiguredData):
                 self.validate_data(data)
             self._set_value(_key[1], _value, _key[0])
             return
-        valid_key, _key = utils.is_slice_str_iterable(key)
+        valid_key, _key = _type_checking.is_slice_str_iterable(key)
         if valid_value and valid_key:
             # multiple keys with slice, single value
             if self._validate:
@@ -441,7 +602,7 @@ class InstanceCollection(ConfiguredData):
             for __key in _key[1]:
                 self._set_value(__key, _value, _key[0])
             return
-        valid_key, _key = utils.is_int_str(key)
+        valid_key, _key = _type_checking.is_int_str(key)
         if valid_value and valid_key:
             # instance value at index
             if self._validate:
@@ -450,7 +611,7 @@ class InstanceCollection(ConfiguredData):
                 self.validate_data(data)
             self._set_value(_key[1], _value, _key[0])
             return
-        valid_key, _key = utils.is_int_str_iterable(key)
+        valid_key, _key = _type_checking.is_int_str_iterable(key)
         if valid_value and valid_key:
             # instance values at index
             if self._validate:
@@ -462,8 +623,8 @@ class InstanceCollection(ConfiguredData):
                 self._set_value(__key, _value, _key[0])
             return
         # corresponding values
-        valid_value, _value = utils.is_value_iterable(value)
-        valid_key, _key = utils.is_str_iterable(key)
+        valid_value, _value = _type_checking.is_value_iterable(value)
+        valid_key, _key = _type_checking.is_str_iterable(key)
         if valid_value and valid_key:
             # multiple keys and corresponding values
             if self._validate:
@@ -474,9 +635,9 @@ class InstanceCollection(ConfiguredData):
             for __key, __value in zip(_key, _value):
                 self._set_value(__key, __value, slice(None))
             return
-        valid_key, _key = utils.is_slice_str_iterable(key)
+        valid_key, _key = _type_checking.is_slice_str_iterable(key)
         if not valid_key:
-            valid_key, _key = utils.is_int_str_iterable(key)
+            valid_key, _key = _type_checking.is_int_str_iterable(key)
         if valid_value and valid_key:
             # multiple keys with slice, corresponding values
             # instance values at index, corresponding values
@@ -528,6 +689,27 @@ class InstanceCollection(ConfiguredData):
         timestamp: Optional[utils.Value] = None,
         identity: Optional[utils.Value] = None,
     ) -> Self:
+        """
+        Selects a subset of the data.
+
+        Parameters
+        ----------
+        timestamp: NDArray | int | float, optional
+            Timestamp (or timestamps) to select the data for.
+
+        identity:  NDarray, int, str, optional
+            Identity (or identities) to select the data for.
+
+        Returns
+        -------
+        Self
+            The selected data.
+
+        Raises
+        ------
+        TypeError
+            If timestamps or identities are selected, but not defined in the configuration.
+        """
         if self._data is None:
             raise ValueError("not initialized")
         selection = np.ones(self.length, dtype=bool)
@@ -564,6 +746,25 @@ class InstanceCollection(ConfiguredData):
         copy_config: bool = False,
         validate: bool = True,
     ) -> Self:
+        """
+        Concatenates multiple collections into one.
+
+        Parameters
+        ----------
+        *collections: InstanceCollection
+            Collections to concatenate.
+
+        copy_config: bool, optional
+            Whether to copy the configuration of the collections.
+
+        validate: bool, optional
+            Whether to validate the configurations of the collections.
+
+        Returns
+        -------
+        Self
+            The concatenated collection.
+        """
         if len(collections) == 0:
             raise AssertionError("need at least one collection to concatenate")
         cfg = collections[0].cfg

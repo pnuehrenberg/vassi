@@ -12,7 +12,7 @@ from ...config import Config
 from ...data_structures import Trajectory
 from ...features import DataFrameFeatureExtractor, FeatureExtractor
 from ...utils import warning_only
-from ..annotations.utils import check_annotations, infill_annotations
+from ..observations.utils import check_observations, infill_observations
 from ..sampling import split, test_stratify
 from ._dataset_base import BaseDataset
 
@@ -250,12 +250,12 @@ class Sampleable(BaseSampleable):
         return feature_extractor.extract(self.trajectory, self.trajectory_other)
 
     def annotate(
-        self, annotations: pd.DataFrame, *, categories: tuple[str, ...]
+        self, observations: pd.DataFrame, *, categories: tuple[str, ...]
     ) -> "AnnotatedSampleable":
         return AnnotatedSampleable(
             self.trajectory,
             self.trajectory_other,
-            annotations=annotations,
+            observations=observations,
             categories=categories,
         )
 
@@ -280,11 +280,11 @@ class AnnotatedSampleable(Sampleable):
         trajectory: Trajectory,
         trajectory_other: Optional[Trajectory] = None,
         *,
-        annotations: pd.DataFrame,
+        observations: pd.DataFrame,
         categories: tuple[str, ...],
     ) -> None:
         super().__init__(trajectory, trajectory_other)
-        self._annotations = check_annotations(annotations, self.required_columns)
+        self._observations = check_observations(observations, self.required_columns)
         self._categories = ("none",)
         categories = tuple(
             category for category in categories if category not in self._categories
@@ -292,40 +292,40 @@ class AnnotatedSampleable(Sampleable):
         self._categories = tuple(sorted(self._categories + categories))
 
     def annotate(
-        self, annotations: pd.DataFrame, *, categories: tuple[str, ...]
+        self, observations: pd.DataFrame, *, categories: tuple[str, ...]
     ) -> Self:
         return type(self)(
             self.trajectory,
             self.trajectory_other,
-            annotations=annotations,
+            observations=observations,
             categories=categories,
         )
 
     @property
-    def annotations(self) -> pd.DataFrame:
-        return infill_annotations(self._annotations, self.trajectory.timestamps[-1])
+    def observations(self) -> pd.DataFrame:
+        return infill_observations(self._observations, self.trajectory.timestamps[-1])
 
     @property
     def categories(self) -> tuple[str, ...]:
         if self._categories is not None:
             return self._categories
-        return tuple(np.unique(self.annotations["category"]).tolist())
+        return tuple(np.unique(self.observations["category"]).tolist())
 
     def durations(
         self, category: Optional[str] = None, *, exclude: Iterable[str] = ("none",)
     ) -> NDArray:
-        annotations = self.annotations.set_index("category")
+        observations = self.observations.set_index("category")
         if category is not None:
-            durations = annotations.loc[[category], "duration"]
+            durations = observations.loc[[category], "duration"]
         else:
-            durations = annotations.drop(list(exclude), axis="index")["duration"]
+            durations = observations.drop(list(exclude), axis="index")["duration"]
         return np.asarray(durations)
 
     def category_idx(self, category: str) -> NDArray:
         if category not in self.categories:
             raise KeyError
         try:
-            intervals = self.annotations.set_index("category").loc[[category]]
+            intervals = self.observations.set_index("category").loc[[category]]
         except KeyError:
             return np.array([], dtype=int)
         idx = np.concatenate(
@@ -338,7 +338,7 @@ class AnnotatedSampleable(Sampleable):
         return idx[(idx >= 0) & (idx < self.trajectory.get_interpolated_length())]
 
     def interval_idx(self, row: int) -> NDArray:
-        interval = self.annotations.iloc[row]
+        interval = self.observations.iloc[row]
         idx = np.arange(interval["start"], interval["stop"] + 1)
         idx -= self.trajectory.timestamps[0]
         return idx[(idx >= 0) & (idx < self.trajectory.get_interpolated_length())]
@@ -354,7 +354,7 @@ class AnnotatedSampleable(Sampleable):
         return y[np.argsort(category_idx)]
 
     def _sample_groups(self) -> NDArray | None:
-        group_idx = [self.interval_idx(row) for row in range(len(self.annotations))]
+        group_idx = [self.interval_idx(row) for row in range(len(self.observations))]
         groups = [
             np.repeat(group, len(_group_idx))
             for group, _group_idx in enumerate(group_idx)

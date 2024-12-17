@@ -9,7 +9,7 @@ from sklearn.preprocessing import OneHotEncoder
 
 from ...data_structures import Trajectory
 from ...features import DataFrameFeatureExtractor, FeatureExtractor
-from ..annotations.utils import check_annotations
+from ..observations.utils import check_observations
 from ._dataset_base import BaseDataset
 from ._sampleable import AnnotatedSampleable, Sampleable
 from .dyad import Dyad
@@ -71,12 +71,12 @@ class Group(BaseDataset):
         return tuple(sorted(self.trajectories.keys()))
 
     def annotate(
-        self, annotations: pd.DataFrame, *, categories: tuple[str, ...]
+        self, observations: pd.DataFrame, *, categories: tuple[str, ...]
     ) -> "AnnotatedGroup":
         return AnnotatedGroup(
             self.trajectories,
             target=self.target,
-            annotations=annotations,
+            observations=observations,
             categories=categories,
             exclude=self.exclude,
         )
@@ -181,7 +181,7 @@ class AnnotatedGroup(Group):
         *,
         target: Literal["individuals", "dyads"],
         exclude: Optional[Iterable[Identity | DyadIdentity]] = None,
-        annotations: pd.DataFrame,
+        observations: pd.DataFrame,
         categories: tuple[str, ...],
     ) -> None:
         self._sampleables: dict[  # type: ignore
@@ -191,49 +191,56 @@ class AnnotatedGroup(Group):
         required_columns = [*AnnotatedSampleable.required_columns, "actor"]
         if self.target == "dyads":
             required_columns.append("recipient")
-        self._annotations = check_annotations(
-            annotations,
+        observations = check_observations(
+            observations,
             required_columns=required_columns,
             allow_overlapping=True,
             allow_unsorted=True,
         )
+        if "group" in observations.columns:
+            observations = observations.drop(columns=["group"])
+        self._observations = observations
         self._categories: tuple[str, ...] = tuple()
         for key, sampleable in self._sampleables.items():
             if self.target == "dyads":
                 assert isinstance(key, tuple)
-                annotations = self.get_annotations(*key)
+                observations = self.get_observations(*key)
             else:
                 assert isinstance(key, str | int)
-                annotations = self.get_annotations(key, None)
+                observations = self.get_observations(key, None)
             annotated_sampleable = self._sampleables[key].annotate(
-                annotations, categories=categories
+                observations, categories=categories
             )
             self._sampleables[key] = annotated_sampleable
             if len(self._categories) == 0:
                 self._categories = annotated_sampleable.categories
 
     @property
+    def observations(self) -> pd.DataFrame:
+        return self._observations.copy()
+
+    @property
     def categories(self) -> tuple[str, ...]:
         return self._categories
 
-    def get_annotations(
+    def get_observations(
         self, actor: Identity, recipient: Optional[Identity]
     ) -> pd.DataFrame:
         if self.target == "dyads" and recipient is None:
             raise ValueError("provide recipient for sampling target 'dyads'")
         elif self.target == "dyads":
-            annotations = self._annotations.set_index(["actor", "recipient"])
+            observations = self.observations.set_index(["actor", "recipient"])
             try:
-                annotations = annotations.loc[[(actor, recipient)]]
+                observations = observations.loc[[(actor, recipient)]]
             except KeyError:
-                annotations = annotations.iloc[:0]
+                observations = observations.iloc[:0]
         else:
-            annotations = self._annotations.set_index(["actor"])
+            observations = self.observations.set_index(["actor"])
             try:
-                annotations = annotations.loc[[actor]]
+                observations = observations.loc[[actor]]
             except KeyError:
-                annotations = annotations.iloc[:0]
-        return annotations.reset_index(drop=True).sort_values("start")
+                observations = observations.iloc[:0]
+        return observations.reset_index(drop=True).sort_values("start")
 
     @property
     def label_encoder(self) -> OneHotEncoder:

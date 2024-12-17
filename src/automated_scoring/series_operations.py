@@ -3,10 +3,7 @@ from copy import deepcopy
 import numpy as np
 from numpy.typing import NDArray
 
-import pyTrajectory.math as math
-import pyTrajectory.sliding_metrics as sliding_metrics
-
-from . import utils
+from . import math, sliding_metrics, utils
 
 
 def sample_1d(

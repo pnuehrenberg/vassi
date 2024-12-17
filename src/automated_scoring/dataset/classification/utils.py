@@ -1,20 +1,21 @@
 from collections.abc import Iterable
-from typing import (
-    TYPE_CHECKING,
-    Literal,
-)
+from typing import TYPE_CHECKING, Callable, Literal
 
 import numpy as np
 import pandas as pd
 from numpy.typing import NDArray
 
 from .. import AnnotatedGroup, Dataset
-from ..annotations.utils import (
-    check_annotations,
-    infill_annotations,
-    to_annotations,
+from ..observations.bouts import aggregate_bouts
+from ..observations.utils import (
+    check_observations,
+    ensure_matching_index_keys,
+    ensure_single_index,
+    infill_observations,
+    remove_overlapping_observations,
+    to_observations,
 )
-from ..utils import interval_overlap
+from ..utils import interval_contained, interval_overlap
 
 if TYPE_CHECKING:
     from .results import DatasetClassificationResult
@@ -26,7 +27,7 @@ def to_predictions(
     category_names: Iterable[str],
     timestamps: NDArray[np.int64 | np.float64],
 ) -> pd.DataFrame:
-    predictions = to_annotations(y, category_names, timestamps=timestamps)
+    predictions = to_observations(y, category_names, timestamps=timestamps)
     probabilities = [
         y_proba[
             (timestamps >= prediction["start"]) & (timestamps <= prediction["stop"])
@@ -55,30 +56,12 @@ def to_prediction_dataset(
             group_key: AnnotatedGroup(
                 group_result.trajectories,
                 target=target,
-                annotations=group_result.predictions,
+                observations=group_result.predictions,
                 categories=categories,
             )
             for group_key, group_result in dataset_classification_result.classification_results.items()
         }
     )
-
-
-def _ensure_matching_index_keys(
-    predictions: pd.DataFrame,
-    annotations: pd.DataFrame,
-    index_keys: Iterable[str],
-) -> tuple[pd.DataFrame, pd.DataFrame]:
-    predictions = predictions.set_index(index_keys)
-    annotations = annotations.set_index(index_keys)
-    if len(np.unique(predictions.index)) > 1:
-        raise ValueError(
-            "intervals cannot be matched with more than one unique key column combination in predictions"
-        )
-    if len(np.unique(annotations.index)) > 1:
-        raise ValueError(
-            "intervals cannot be matched with more than one unique key column combination in annotations"
-        )
-    return predictions.reset_index(drop=True), annotations.reset_index(drop=True)
 
 
 def validate_predictions(
@@ -96,14 +79,14 @@ def validate_predictions(
             raise ValueError("columns do not match")
         available_key_columns.append(column_name)
     if len(available_key_columns) > 0:
-        predictions, annotations = _ensure_matching_index_keys(
+        predictions, annotations = ensure_matching_index_keys(
             predictions, annotations, available_key_columns
         )
-    predictions = check_annotations(predictions, ("start", "stop", "category"))
-    annotations = check_annotations(annotations, ("start", "stop", "category"))
+    predictions = check_observations(predictions, ("start", "stop", "category"))
+    annotations = check_observations(annotations, ("start", "stop", "category"))
     stop: int = max(predictions["stop"].max(), annotations["stop"].max())  # type: ignore
-    predictions = infill_annotations(predictions, stop)
-    annotations = infill_annotations(annotations, stop)
+    predictions = infill_observations(predictions, stop)
+    annotations = infill_observations(annotations, stop)
     alternative_categories = []
     intervals_predictions = predictions[["start", "stop"]].to_numpy()
     intervals_annotations = annotations[["start", "stop"]].to_numpy()
@@ -147,4 +130,66 @@ def score_category_counts(
     )
     return np.minimum(counts_annotated, counts_predicted) / np.maximum(
         counts_annotated, counts_predicted
+    )
+
+
+def _filter_recipient_bouts(
+    observations: pd.DataFrame,
+    *,
+    priority_func: Callable[[pd.DataFrame], Iterable[float]],
+    max_bout_gap: float,
+    max_allowed_bout_overlap: float,
+):
+    observations = check_observations(
+        observations,
+        required_columns=["start", "stop", "actor", "recipient", "category"],
+        allow_overlapping=True,
+        allow_unsorted=True,
+    )
+    observations = observations[observations["category"] != "none"]  # type: ignore
+    observations = ensure_single_index(observations, index_keys=["actor"], drop=False)
+    bouts = []
+    for recipient, observations_recipient in observations.groupby("recipient"):
+        if len(observations_recipient) == 0:
+            continue
+        bouts.append(
+            aggregate_bouts(
+                observations_recipient,
+                max_bout_gap=max_bout_gap,
+                index_keys=[],
+            )
+        )
+    if len(bouts) == 0:
+        return observations
+    bouts = (
+        remove_overlapping_observations(
+            pd.concat(bouts, ignore_index=True),
+            index_keys=[],
+            priority_func=priority_func,
+            max_allowed_overlap=max_allowed_bout_overlap,
+        )
+        .sort_values("start")
+        .reset_index(drop=True)
+    )
+    same_recipient = np.asarray(observations["recipient"])[:, np.newaxis] == np.asarray(
+        bouts["recipient"]
+    )
+    contained_in_bout = np.sum(
+        same_recipient
+        & interval_contained(
+            observations[["start", "stop"]].to_numpy(),
+            bouts[["start", "stop"]].to_numpy(),
+        ),
+        axis=1,
+    )
+    assert np.isin(contained_in_bout, [0, 1]).all()
+    idx = np.argwhere(contained_in_bout).ravel()
+    indices = observations.index[idx]
+    observations["in_bout"] = False
+    observations.loc[indices, "in_bout"] = True
+    observations = observations[observations["in_bout"]]  # type: ignore
+    return (
+        observations.drop(columns=["in_bout"])
+        .sort_values("start")
+        .reset_index(drop=True)
     )

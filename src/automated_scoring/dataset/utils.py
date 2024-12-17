@@ -22,3 +22,12 @@ def interval_overlap(
     if clip_negative:
         overlap[overlap < 0] = 0
     return overlap
+
+
+def interval_contained(
+    intervals_1: NDArray,
+    intervals_2: NDArray,
+    element_wise: bool = False,
+):
+    overlap = interval_overlap(intervals_1, intervals_2, element_wise=element_wise)
+    return overlap == np.diff(intervals_1, axis=1) + 1

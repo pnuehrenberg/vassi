@@ -10,10 +10,8 @@ import pandas as pd
 import yaml
 from numpy.typing import NDArray
 
-from pyTrajectory.utils import warning_only
-
 from ..data_structures import Trajectory
-from ..utils import hash_dict
+from ..utils import hash_dict, warning_only
 from . import decorators, features, temporal_features, utils
 
 FeatureCategory = Literal["individual", "dyadic"]

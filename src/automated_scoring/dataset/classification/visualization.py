@@ -82,6 +82,7 @@ def plot_classification_timeline(
     categories: Iterable[str],
     *,
     annotations: Optional[pd.DataFrame] = None,
+    timestamps: Optional[NDArray] = None,
     y_proba: Optional[NDArray] = None,
     y_proba_smoothed: Optional[NDArray] = None,
     axes: Optional[Array[Axes]] = None,
@@ -92,17 +93,18 @@ def plot_classification_timeline(
     x_tick_step: float = 30,
     x_tick_conversion: Optional[Callable[[Sequence[float]], Sequence]] = None,
     x_label: Optional[str] = None,
+    limit_interval: bool = True,
 ):
     def _plot_timeline(
         ax: Axes,
-        annotations: pd.DataFrame,
+        observations: pd.DataFrame,
         categories: list[str],
         y_range: tuple[float, float],
         color,
     ):
         try:
             intervals = (
-                predictions.set_index("category")
+                observations.set_index("category")
                 .loc[[categories[idx]], ["start", "duration"]]
                 .to_numpy()
             )
@@ -115,10 +117,11 @@ def plot_classification_timeline(
             color=color,
         )
 
-    interval = (
-        max(interval[0], predictions["start"].min()),
-        min(interval[1], predictions["stop"].max()),
-    )  # type: ignore
+    if limit_interval:
+        interval = (
+            max(interval[0], predictions["start"].min()),
+            min(interval[1], predictions["stop"].max()),
+        )  # type: ignore
     categories = list(categories)
     category_labels = categories if category_labels is None else list(category_labels)
     if axes is None:
@@ -137,14 +140,21 @@ def plot_classification_timeline(
         if annotations is not None:
             _plot_timeline(axes[idx], annotations, categories, (0, 0.5), "#67a9cf")
         if y_proba is not None:
+            assert (
+                timestamps is not None
+            ), "specify timestamps when plotting probabilities"
             axes[idx].plot(
+                timestamps,
                 y_proba[:, idx],
                 lw=1,
                 c="k",
                 alpha=0.5 if y_proba_smoothed is not None else 1,
             )
         if y_proba_smoothed is not None:
-            axes[idx].plot(y_proba_smoothed[:, idx], lw=1, c="k")
+            assert (
+                timestamps is not None
+            ), "specify timestamps when plotting probabilities"
+            axes[idx].plot(timestamps, y_proba_smoothed[:, idx], lw=1, c="k")
         axes[idx].set_facecolor("#f7f7f7")
         axes[idx].spines[["right", "top", "bottom"]].set_visible(False)
         if y_proba is None and y_proba_smoothed is None:
