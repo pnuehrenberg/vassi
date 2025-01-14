@@ -42,7 +42,7 @@ class TimestampedInstanceCollection(InstanceCollection):
     @property
     def key_timestamp(self) -> str:
         """
-        Timestamp key of the trajectory.
+        Timestamp key of the collection.
         """
         assert self.cfg.key_timestamp is not None
         assert self.cfg.key_timestamp in self.cfg.trajectory_keys
@@ -51,14 +51,14 @@ class TimestampedInstanceCollection(InstanceCollection):
     @property
     def timestamps(self) -> NDArray[np.int64 | np.float64]:
         """
-        Timestamps of the trajectory.
+        Timestamps of the collection.
         """
         return self[self.key_timestamp]
 
     @property
     def is_sorted(self) -> np.bool_:
         """
-        Whether the trajectory is sorted by timestamps.
+        Whether the collection is sorted by timestamps.
         """
         timestamps = self.timestamps
         # trajectories do not allow duplicate timestamps, so >= is valid
@@ -66,22 +66,22 @@ class TimestampedInstanceCollection(InstanceCollection):
 
     def sort(self, copy: bool = True) -> Self:
         """
-        Sort the trajectory by timestamps.
+        Sort the collection by timestamps.
 
         Parameters
         ----------
         copy: bool, optional
-            Whether to copy the trajectory before sorting.
+            Whether to copy the collection before sorting.
 
         Returns
         -------
         Self
-            Sorted trajectory.
+            Sorted collection.
 
         Raises
         ------
         ValueError
-            If the trajectory is already sorted or if there are views.
+            If the collection is is a view of another, or has views of itself.
         """
         if not copy and len(self._view_of) > 0:
             base = ", ".join([str(base) for base in self._view_of])
@@ -126,28 +126,26 @@ class TimestampedInstanceCollection(InstanceCollection):
         Raises
         ------
         ValueError
-            If the trajectory is empty or not sorted.
+            If the collection is empty or not sorted.
         OutOfInterval
-            If the specified timestamps are out of the interval of the trajectory.
+            If the specified timestamps are out of the interval of the collection.
         """
         if self.length == 0:
-            raise utils.OutOfInterval(
-                "window slicing requires non zero-length trajectory"
-            )
+            raise ValueError("window slicing requires non zero-length collection")
         if not self.is_sorted:
             raise ValueError(
-                "window slicing requires sorted trajectory, call sort first."
+                "window slicing requires sorted collection, call sort first."
             )
         timestamps = self.timestamps
         first = timestamps.min()
         last = timestamps.max()
         if start < first:
             raise utils.OutOfInterval(
-                f"start: {start} not in trajectory range: [{first} {last}]"
+                f"start: {start} not in timestamp range: [{first} {last}]"
             )
         if stop > last:
             raise utils.OutOfInterval(
-                f"stop: {stop} not in trajectory range: [{first} {last}]"
+                f"stop: {stop} not in timestamp range: [{first} {last}]"
             )
         return utils.get_interval_slice(timestamps, start, stop)
 
@@ -157,7 +155,7 @@ class TimestampedInstanceCollection(InstanceCollection):
         stop: int | float,
     ) -> Self:
         """
-        Slice the trajectory by timestamps.
+        Slice the collection by timestamps.
 
         Parameters
         ----------
@@ -170,6 +168,6 @@ class TimestampedInstanceCollection(InstanceCollection):
         Returns
         -------
         Self
-            Sliced trajectory (view).
+            Sliced collection (view).
         """
         return self[self._window_to_slice(start, stop)]

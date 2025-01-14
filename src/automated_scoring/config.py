@@ -34,7 +34,7 @@ class BaseConfig:
     - 2.0
     <BLANKLINE>
 
-    Config objects can also be set up without passing arguments by using assigning attributes:
+    Config objects can also be set up without passing arguments by assigning attributes:
 
     >>> cfg = Config()
     >>> cfg.key1 = "value1"

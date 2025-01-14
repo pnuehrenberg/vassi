@@ -82,7 +82,7 @@ class BaseDataset:
     def label_encoder(self) -> OneHotEncoder:
         raise NotImplementedError
 
-    def encode(self, y: NDArray, *, one_hot: bool = False) -> NDArray:
+    def encode(self, y: NDArray, *, one_hot: bool = False) -> NDArray[np.integer]:
         if y.ndim == 1:
             y = y.reshape(-1, 1)
         y_encoded = self.label_encoder.transform(y)

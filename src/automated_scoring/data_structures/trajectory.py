@@ -27,6 +27,7 @@ class Trajectory(TimestampedInstanceCollection):
     validate_on_init: bool, optional
         Whether to validate the data on initialization.
     """
+
     _timestep: Optional[int | float] = None
 
     def __init__(

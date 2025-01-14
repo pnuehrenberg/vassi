@@ -1,4 +1,29 @@
-def get_instance_range(instance, padding=0):
+from .data_structures import Instance, Trajectory
+
+
+def get_instance_range(
+    instance: Instance, padding: float = 0
+) -> tuple[tuple[float, float], tuple[float, float]]:
+    """
+    Compute the range of the instance.
+
+    Parameters
+    ----------
+    instance : Instance
+        The instance.
+    padding : int, optional
+        The padding, by default 0.
+
+    Returns
+    -------
+    tuple[tuple[float, float], tuple[float, float]]
+        The range of the instance.
+
+    Raises
+    ------
+    NotImplementedError
+        If the instance does not have a box or keypoints.
+    """
     cfg = instance.cfg
     if cfg.key_box is not None:
         box = instance[cfg.key_box]
@@ -19,7 +44,29 @@ def get_instance_range(instance, padding=0):
     )
 
 
-def get_trajectory_range(trajectory, padding=0):
+def get_trajectory_range(
+    trajectory: Trajectory, padding: float = 0
+) -> tuple[tuple[float, float], tuple[float, float]]:
+    """
+    Compute the range of the trajectory.
+
+    Parameters
+    ----------
+    trajectory : Trajectory
+        The trajectory.
+    padding : int, optional
+        The padding, by default 0.
+
+    Returns
+    -------
+    tuple[tuple[float, float], tuple[float, float]]
+        The range of the trajectory.
+
+    Raises
+    ------
+    NotImplementedError
+        If the trajectory does not have a box or keypoints.
+    """
     cfg = trajectory.cfg
     if cfg.key_box is not None:
         boxes = trajectory[cfg.key_box]

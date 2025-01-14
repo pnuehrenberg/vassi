@@ -94,7 +94,7 @@ def rotate(vectors: NDArray, angles: NDArray) -> NDArray:
 
 
 # @jit(nopython=True, cache=True)
-def as_angle(vectors):
+def as_angle(vectors: NDArray) -> NDArray:
     """Represent vectors as angles in radians on the unit circle.
 
     Note that input vectors do not need to be unit vectors.

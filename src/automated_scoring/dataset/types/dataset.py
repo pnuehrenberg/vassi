@@ -104,6 +104,7 @@ class Dataset(BaseDataset):
         pipeline: Optional[Pipeline] = None,
         fit_pipeline: bool = True,
         exclude: Optional[Iterable[Identity | DyadIdentity]] = None,
+        show_progress: bool = True,
     ) -> tuple[NDArray | pd.DataFrame, NDArray | None]:
         return get_concatenated_dataset(
             recursive_sampleables(self, exclude=exclude),
@@ -111,6 +112,7 @@ class Dataset(BaseDataset):
             pipeline=pipeline,
             fit_pipeline=fit_pipeline,
             sampling_type="sample",
+            show_progress=show_progress,
         )
 
     @overload
@@ -138,6 +140,7 @@ class Dataset(BaseDataset):
         reset_stored_indices: bool = False,
         try_even_subsampling: bool = True,
         exclude: Optional[Iterable[Identity | DyadIdentity]] = None,
+        show_progress: bool = True,
     ) -> tuple[NDArray | pd.DataFrame, NDArray | None]:
         if exclude is None:
             exclude = []
@@ -155,6 +158,7 @@ class Dataset(BaseDataset):
             categories=categories,
             try_even_subsampling=try_even_subsampling,
             sampling_type="subsample",
+            show_progress=show_progress,
         )
 
     @property

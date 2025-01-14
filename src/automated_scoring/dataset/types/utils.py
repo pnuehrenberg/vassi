@@ -89,6 +89,7 @@ def get_concatenated_dataset(
     try_even_subsampling: bool = True,
     # other kwargs
     sampling_type: Literal["sample", "subsample"],
+    show_progress: bool = True,
 ) -> tuple[NDArray | pd.DataFrame, NDArray | None]:
     kwargs = dict(
         feature_extractor=feature_extractor,
@@ -104,17 +105,27 @@ def get_concatenated_dataset(
         try_even_subsampling=try_even_subsampling,
         sampling_type=sampling_type,
     )
-    X, y = zip(
-        *list(
-            tqdm(
+    if show_progress:
+        X, y = zip(
+            *list(
+                tqdm(
+                    map(
+                        _process,
+                        [(sampleable, kwargs) for sampleable in sampleables],
+                    ),
+                    total=len(sampleables),
+                ),
+            ),
+        )
+    else:
+        X, y = zip(
+            *list(
                 map(
                     _process,
                     [(sampleable, kwargs) for sampleable in sampleables],
                 ),
-                total=len(sampleables),
             ),
-        ),
-    )
+        )
     if any([_y is None for _y in y]):
         y = []
     X = type(feature_extractor).concatenate(*X, axis=0)

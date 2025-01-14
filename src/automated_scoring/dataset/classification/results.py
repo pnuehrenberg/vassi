@@ -33,7 +33,7 @@ class _Result:
         per: Literal["timestamp", "annotation", "prediction"],
         *,
         average: Optional[Literal["micro", "macro", "weighted"]] = None,
-        encode_func: Callable[[NDArray], NDArray[np.int64]],
+        encode_func: Callable[[NDArray], NDArray[np.integer]],
     ) -> float | tuple[float, ...]:
         categories: tuple[str, ...] = tuple(self.categories)  # type: ignore
         if per == "timestamp":
@@ -59,7 +59,8 @@ class _Result:
             zero_division=np.nan,  # type: ignore
         )
 
-    def score(self, encode_func: Callable[[NDArray], NDArray[np.int64]]) -> NDArray:
+    def score(self, encode_func: Callable[[NDArray], NDArray[np.integer]]) -> NDArray:
+        # resulting dims: four scores x categories
         category_count_scores = self.score_category_counts()
         f1_per_timestamp = np.asarray(
             self.f1_score("timestamp", encode_func=encode_func)
@@ -79,37 +80,99 @@ class _Result:
             ]
         )
 
+    def _remove_overlapping_predictions(
+        self,
+        priority_func: Callable[[pd.DataFrame], Iterable[float]],
+        *,
+        prefilter_recipient_bouts: bool,
+        max_bout_gap: float,
+        max_allowed_bout_overlap: float,
+    ) -> Self:
+        raise NotImplementedError(
+            "this should be implemented by subclasses if applicable"
+        )
+
 
 @dataclass
 class ClassificationResult(_Result):
     categories: Iterable[str]
-    predictions: pd.DataFrame
-    timestamps: NDArray[np.int64]
+    timestamps: NDArray[np.integer]
     y_proba: NDArray
-    y_pred_numeric: NDArray[np.int64]
+    y_pred_numeric: NDArray[np.integer]
     _y_proba_smoothed: Optional[NDArray] = None
-    _y_pred_numeric_smoothed: Optional[NDArray[np.int64]] = None
+    _predictions: Optional[pd.DataFrame] = None
     _annotations: Optional[pd.DataFrame] = None
-    _y_true_numeric: Optional[NDArray[np.int64]] = None
+    _y_true_numeric: Optional[NDArray[np.integer]] = None
 
-    def smooth(self, label_smoothing_funcs: list[NDArray_to_NDArray]) -> Self:
-        self._y_proba_smoothed = smooth(
-            self.y_proba, filter_funcs=label_smoothing_funcs
-        )
-        self._y_pred_numeric_smoothed = np.argmax(self._y_proba_smoothed, axis=1)
-        self.predictions = to_predictions(
-            self.y_pred_numeric_smoothed,
-            self.y_proba_smoothed,
+    def _apply_thresholds(
+        self,
+        decision_thresholds: Optional[Iterable[float]] = None,
+        default_decision: int | str = "none",
+    ) -> Self:
+        if isinstance(default_decision, str):
+            default_decision = list(self.categories).index(default_decision)
+        probabilities = self.y_proba
+        try:
+            probabilities = self.y_proba_smoothed
+        except ValueError:
+            pass
+        if decision_thresholds is None:
+            self.y_pred_numeric = np.argmax(probabilities, axis=1)
+            return self
+        decision_thresholds = list(decision_thresholds)
+        if len(decision_thresholds) != probabilities.shape[1]:
+            raise ValueError(
+                f"number of decision thresholds ({len(decision_thresholds)}) does not match number of categories ({probabilities.shape[1]})"
+            )
+        probabilities = probabilities.copy()
+        for idx, threshold in enumerate(decision_thresholds):
+            probabilities[:, idx] = np.where(
+                probabilities[:, idx] >= threshold, probabilities[:, idx], 0
+            )
+        # if no category surpasses threshold, force background category
+        probabilities[probabilities.sum(axis=1) == 0, default_decision] = 1
+        self.y_pred_numeric = np.argmax(probabilities, axis=1)
+        return self
+
+    def threshold(
+        self,
+        decision_thresholds: Optional[Iterable[float]] = None,
+        default_decision: int | str = "none",
+    ) -> Self:
+        self._apply_thresholds(decision_thresholds, default_decision)
+        probabilties = self.y_proba
+        try:
+            probabilties = self.y_proba_smoothed
+        except ValueError:
+            pass
+        self._predictions = to_predictions(
+            self.y_pred_numeric,
+            probabilties,
             category_names=self.categories,
             timestamps=self.timestamps,
         )
         if self.annotations is not None:
-            self.predictions = validate_predictions(
+            self._predictions = validate_predictions(
                 self.predictions, self.annotations, on="predictions"
             )
             self._annotations = validate_predictions(
                 self.predictions, self.annotations, on="annotations"
             )
+        return self
+
+    def smooth(
+        self,
+        label_smoothing_funcs: list[NDArray_to_NDArray],
+        *,
+        threshold: bool = True,
+        decision_thresholds: Optional[Iterable[float]] = None,
+        default_decision: int | str = "none",
+    ) -> Self:
+        self._y_proba_smoothed = smooth(
+            self.y_proba, filter_funcs=label_smoothing_funcs
+        )
+        if threshold:
+            return self.threshold(decision_thresholds, default_decision)
         return self
 
     @property
@@ -119,10 +182,10 @@ class ClassificationResult(_Result):
         return self._y_proba_smoothed
 
     @property
-    def y_pred_numeric_smoothed(self):
-        if self._y_pred_numeric_smoothed is None:
-            raise ValueError("no smoothing functions applied")
-        return self._y_pred_numeric_smoothed
+    def predictions(self):
+        if self._predictions is None:
+            raise ValueError("result not thresholded")
+        return self._predictions
 
     @property
     def annotations(self):
@@ -137,15 +200,29 @@ class ClassificationResult(_Result):
         return self._y_true_numeric
 
 
+@dataclass
 class _NestedResult(_Result):
     classification_results: dict[
         Identity | DyadIdentity,
         "ClassificationResult | GroupClassificationResult",
     ]
+    target: Literal["individuals", "dyads"]
 
-    def smooth(self, label_smoothing_funcs: list[NDArray_to_NDArray]) -> Self:
+    def smooth(
+        self,
+        label_smoothing_funcs: list[NDArray_to_NDArray],
+        *,
+        threshold: bool = True,
+        decision_thresholds: Optional[Iterable[float]] = None,
+        default_decision: int | str = "none",
+    ) -> Self:
         for classification_result in self.classification_results.values():
-            classification_result.smooth(label_smoothing_funcs)
+            classification_result.smooth(
+                label_smoothing_funcs,
+                threshold=threshold,
+                decision_thresholds=decision_thresholds,
+                default_decision=default_decision,
+            )
         return self
 
     @property
@@ -162,6 +239,35 @@ class _NestedResult(_Result):
                 "nested results should contain at least one classification result"
             )
         return categories
+
+    def remove_overlapping_predictions(
+        self,
+        *,
+        priority_func: Callable[[pd.DataFrame], Iterable[float]],
+        prefilter_recipient_bouts: bool,
+        max_bout_gap: float,
+        max_allowed_bout_overlap: float,
+    ) -> Self:
+        try:
+            return self._remove_overlapping_predictions(
+                priority_func,
+                prefilter_recipient_bouts=prefilter_recipient_bouts,
+                max_bout_gap=max_bout_gap,
+                max_allowed_bout_overlap=max_allowed_bout_overlap,
+            )
+        except NotImplementedError:
+            pass
+        for classification_result in self.classification_results.values():
+            try:
+                classification_result._remove_overlapping_predictions(
+                    priority_func,
+                    prefilter_recipient_bouts=prefilter_recipient_bouts,
+                    max_bout_gap=max_bout_gap,
+                    max_allowed_bout_overlap=max_allowed_bout_overlap,
+                )
+            except NotImplementedError:
+                pass
+        return self
 
     @property
     def y_proba(self) -> NDArray:
@@ -183,15 +289,6 @@ class _NestedResult(_Result):
         for classification_result in self.classification_results.values():
             y_proba_smoothed.append(classification_result.y_proba_smoothed)
         return np.concatenate(y_proba_smoothed, axis=0)
-
-    @property
-    def y_pred_numeric_smoothed(self) -> NDArray:
-        y_pred_numeric_smoothed = []
-        for classification_result in self.classification_results.values():
-            y_pred_numeric_smoothed.append(
-                classification_result.y_pred_numeric_smoothed
-            )
-        return np.concatenate(y_pred_numeric_smoothed, axis=0)
 
     @property
     def y_true_numeric(self) -> NDArray:
@@ -302,8 +399,47 @@ class GroupClassificationResult(_NestedResult):
                 ]
                 if len(drop) > 0:
                     predictions_dyad = predictions_dyad.drop(columns=drop)
-                classification_result.predictions = predictions_dyad
+                classification_result._predictions = predictions_dyad
         return self
+
+    @classmethod
+    def combine(
+        cls, results: Iterable["GroupClassificationResult"]
+    ) -> "GroupClassificationResult":
+        targets: list[Literal["individuals", "dyads"]] = [
+            result.target for result in results
+        ]
+        target = targets[0]
+        if any(target != result_target for result_target in targets):
+            raise ValueError(
+                "cannot combine GroupClassificationResults with mixed targets (dyads and individuals)"
+            )
+        trajectories = {}
+        for result in results:
+            for identity, trajectory in result.trajectories.items():
+                if identity in trajectories and trajectories[identity] != trajectory:
+                    raise ValueError(
+                        "cannot combine GroupClassificationResults with mismatching trajectories"
+                    )
+                trajectories[identity] = trajectory
+        classification_results = {}
+        for result in results:
+            for key, classification_result in result.classification_results.items():
+                if key in classification_results:
+                    raise ValueError(
+                        "cannot combine GroupClassificationResults with multiple classification results for the same sampleable"
+                    )
+                classification_results[key] = classification_result
+        return cls(
+            classification_results={
+                key: classification_results[key]
+                for key in sorted(classification_results)
+            },
+            trajectories={
+                identity: trajectories[identity] for identity in sorted(trajectories)
+            },
+            target=target,
+        )
 
 
 @dataclass
@@ -327,3 +463,37 @@ class DatasetClassificationResult(_NestedResult):
             annotations_key["group"] = key
             annotations.append(annotations_key)
         return pd.concat(annotations, axis=0, ignore_index=True)
+
+    @classmethod
+    def combine(
+        cls, results: Iterable["DatasetClassificationResult"]
+    ) -> "DatasetClassificationResult":
+        targets: list[Literal["individuals", "dyads"]] = [
+            result.target for result in results
+        ]
+        target = targets[0]
+        if any(target != result_target for result_target in targets):
+            raise ValueError(
+                "cannot combine DatasetClassificationResult with mixed targets (dyads and individuals)"
+            )
+        classification_results = {}
+        for result in results:
+            for (
+                group_key,
+                classification_result,
+            ) in result.classification_results.items():
+                if group_key in classification_results:
+                    classification_results[group_key] = (
+                        GroupClassificationResult.combine(
+                            [classification_results[group_key], classification_result]
+                        )
+                    )
+                else:
+                    classification_results[group_key] = classification_result
+        return cls(
+            classification_results={
+                group_key: classification_results[group_key]
+                for group_key in sorted(classification_results)
+            },
+            target=target,
+        )

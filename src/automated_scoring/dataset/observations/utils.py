@@ -31,10 +31,10 @@ def with_duration(
 
 @with_duration
 def to_observations(
-    y: NDArray[np.int64],
+    y: NDArray[np.integer],
     category_names: Iterable[str],
     drop: Optional[Iterable[str]] = None,
-    timestamps: Optional[NDArray[np.int64 | np.float64]] = None,
+    timestamps: Optional[NDArray[np.integer | np.floating]] = None,
 ) -> pd.DataFrame:
     if not y.ndim == 1:
         raise ValueError("y should be a 1D array of category labels (int).")

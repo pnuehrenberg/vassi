@@ -1,10 +1,12 @@
 from collections.abc import Iterable
-from typing import TYPE_CHECKING, Callable, Literal
+from typing import TYPE_CHECKING, Callable, Literal, Optional, Protocol
 
 import numpy as np
 import pandas as pd
 from numpy.typing import NDArray
+from sklearn.pipeline import Pipeline
 
+from ...features import DataFrameFeatureExtractor, FeatureExtractor
 from .. import AnnotatedGroup, Dataset
 from ..observations.bouts import aggregate_bouts
 from ..observations.utils import (
@@ -22,10 +24,10 @@ if TYPE_CHECKING:
 
 
 def to_predictions(
-    y: NDArray[np.int64],
-    y_proba: NDArray[np.float64],
+    y: NDArray[np.integer],
+    y_proba: NDArray[np.floating],
     category_names: Iterable[str],
-    timestamps: NDArray[np.int64 | np.float64],
+    timestamps: NDArray[np.integer | np.floating],
 ) -> pd.DataFrame:
     predictions = to_observations(y, category_names, timestamps=timestamps)
     probabilities = [
@@ -45,8 +47,6 @@ def to_predictions(
 
 def to_prediction_dataset(
     dataset_classification_result: "DatasetClassificationResult",
-    *,
-    target: Literal["individuals", "dyads"],
 ) -> Dataset:
     categories = tuple(
         np.unique(list(dataset_classification_result.predictions["category"]))
@@ -55,7 +55,7 @@ def to_prediction_dataset(
         {
             group_key: AnnotatedGroup(
                 group_result.trajectories,
-                target=target,
+                target=dataset_classification_result.target,
                 observations=group_result.predictions,
                 categories=categories,
             )
@@ -193,3 +193,34 @@ def _filter_recipient_bouts(
         .sort_values("start")
         .reset_index(drop=True)
     )
+
+
+class EncodingFunction(Protocol):
+    def __call__(
+        self,
+        y: NDArray,
+        *args,
+        **kwargs,
+    ) -> NDArray[np.integer]: ...
+
+
+class SamplingFunction(Protocol):
+    def __call__(
+        self,
+        dataset: Dataset,
+        extractor: FeatureExtractor | DataFrameFeatureExtractor,
+        *args,
+        pipeline: Optional[Pipeline],
+        fit_pipeline: bool,
+        random_state: Optional[np.random.Generator | int],
+        **kwargs,
+    ) -> tuple[pd.DataFrame | NDArray, NDArray]: ...
+
+
+class SmoothingFunction(Protocol):
+    def __call__(
+        self,
+        array: NDArray,
+        *args,
+        **kwargs,
+    ) -> NDArray: ...

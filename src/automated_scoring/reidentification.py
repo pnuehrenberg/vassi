@@ -21,12 +21,58 @@ def assign_identities(
     *,
     position_func: Feature,
     max_lag: int,
-    max_distance: int | float,
+    max_distance: float,
     similarity_features: Optional[Iterable[tuple[Feature, FeatureDistance]]] = None,
     dissimilarity_weights: float | Iterable[float] = 1,
     cfg: Optional[config.Config] = None,
     show_progress: bool = True,
 ):
+    """
+    Automatically assigns instances into trajectories (formatted as TimestampedInstanceCollection) with unique identities.
+
+    Assignments are optimized using the hungarian algorithm on similarity matrices, with thresholds
+    (max_lag, max_distance) to avoid assigning instances to trajectories with too much lag or over too far distances.
+
+    Similarity matrices are calculated as the weighted average (dissimilarity_weights) of similarity features computed
+    on pairs (previous instances and current instances) of instances.
+
+    Parameters
+    ----------
+    instances: TimestampedInstanceCollection
+        The instances to assign into trajectories.
+    position_func: Feature
+        Function to compute the position of an instance.
+    max_lag: int
+        Maximum lag to allow for an instance to be assigned to a trajectory.
+    max_distance: float
+        Maximum distance to allow for an instance to be assigned to a trajectory.
+    similarity_features: Iterable[tuple[Feature, FeatureDistance]], optional
+        Tuples of feature functions and distance functions (between calculated features) to calculate similarity features.
+        If None (default), the the euclidean distances between instances (calculated using the position_func) are used.
+    dissimilarity_weights: float | Iterable[float], optional
+        Weights to use for the similarity features. If a single float is provided, the same weight is used for all
+        similarity features. If an iterable is provided, it must have the same length as the number of similarity
+        features.
+    cfg: config.Config, optional
+        Configuration object. If None, a the configuration of the instance collection is used.
+    show_progress: bool, optional
+        Whether to show a progress bar.
+
+    Returns
+    -------
+    trajectories: TimestampedInstanceCollection
+        The instances with assigned identities.
+
+    Raises
+    ------
+    ValueError
+        If the number of similarity features is not equal to the number of dissimilarity weights.
+    ValueError
+        If the identity key of the configuration is not set.
+    ValueError
+        If the dtype of the identity key of the configuration is not int or numpy.dtypes.StringDType.
+    """
+
     def next_identity() -> str | int:
         if len(used_decimal_identities) == 0:
             identity = 0
