@@ -46,7 +46,7 @@ def plot_confusion_matrix(
     y_pred = np.asarray(y_pred)
     if not y_true.shape == y_pred.shape:
         raise ValueError("y_true and y_pred must be of same shape")
-    if y_true.ndim == 1:
+    if y_true.ndim == 1 and y_true.dtype != "O":
         cm = confusion_matrix(
             y_true, y_pred, labels=range(max(max(y_true), max(y_pred)) + 1)
         )
@@ -55,7 +55,15 @@ def plot_confusion_matrix(
             np.asarray(
                 [
                     confusion_matrix(
-                        y_true, y_pred, labels=range(max(max(y_true), max(y_pred)) + 1)
+                        y_true,
+                        y_pred,
+                        labels=range(
+                            max(
+                                np.concatenate(y_true).max(),
+                                np.concatenate(y_pred).max(),
+                            )
+                            + 1
+                        ),
                     )
                     for y_true, y_pred in zip(y_true, y_pred)
                 ]

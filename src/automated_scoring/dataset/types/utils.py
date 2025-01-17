@@ -49,15 +49,11 @@ def _process(args):
     if kwargs["sampling_type"] == "sample":
         return sampleable.sample(
             kwargs["feature_extractor"],
-            pipeline=kwargs["pipeline"],
-            fit_pipeline=kwargs["fit_pipeline"],
         )
     if kwargs["sampling_type"] == "subsample":
         return sampleable.subsample(
             kwargs["feature_extractor"],
             kwargs["size"],
-            pipeline=kwargs["pipeline"],
-            fit_pipeline=kwargs["fit_pipeline"],
             random_state=kwargs["random_state"],
             stratify_by_groups=kwargs["stratify_by_groups"],
             store_indices=kwargs["store_indices"],

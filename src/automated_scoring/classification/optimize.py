@@ -366,7 +366,7 @@ def optimize_decision_thresholds(
     smoothing_func: Optional[SmoothingFunction] = None,
     show_progress: bool = False,
     tolerance: float = 0.01,
-    plot_results: bool = False,
+    plot_results: bool = True,
     # k fold paramters
     k: int,
     exclude: Optional[Iterable[Identity | DyadIdentity]] = None,
