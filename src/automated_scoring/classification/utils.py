@@ -6,10 +6,9 @@ import pandas as pd
 from numpy.typing import NDArray
 from sklearn.pipeline import Pipeline
 
-from ...features import DataFrameFeatureExtractor, FeatureExtractor
-from .. import AnnotatedGroup, Dataset
-from ..observations.bouts import aggregate_bouts
-from ..observations.utils import (
+from ..dataset import AnnotatedGroup, Dataset
+from ..dataset.observations.bouts import aggregate_bouts
+from ..dataset.observations.utils import (
     check_observations,
     ensure_matching_index_keys,
     ensure_single_index,
@@ -17,7 +16,8 @@ from ..observations.utils import (
     remove_overlapping_observations,
     to_observations,
 )
-from ..utils import interval_contained, interval_overlap
+from ..dataset.utils import interval_contained, interval_overlap
+from ..features import DataFrameFeatureExtractor, FeatureExtractor
 
 if TYPE_CHECKING:
     from .results import DatasetClassificationResult
@@ -196,6 +196,8 @@ def _filter_recipient_bouts(
 
 
 class EncodingFunction(Protocol):
+    __name__: str
+
     def __call__(
         self,
         y: NDArray,
@@ -205,6 +207,8 @@ class EncodingFunction(Protocol):
 
 
 class SamplingFunction(Protocol):
+    __name__: str
+
     def __call__(
         self,
         dataset: Dataset,
@@ -218,6 +222,8 @@ class SamplingFunction(Protocol):
 
 
 class SmoothingFunction(Protocol):
+    __name__: str
+
     def __call__(
         self,
         array: NDArray,

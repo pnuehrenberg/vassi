@@ -6,17 +6,20 @@ import matplotlib.pyplot as plt
 import matplotlib.transforms as transforms
 import numpy as np
 import pandas as pd
+from matplotlib.axes import Axes
+from pyTrajectory.dataset.types.group import NDArray
 from sklearn.pipeline import Pipeline
 
-from ...features import DataFrameFeatureExtractor, FeatureExtractor
-from ...utils import ensure_generator, formatted_tqdm
-from .. import Dataset
-from ..types.utils import DyadIdentity, Identity
-from .classify import k_fold_predict
+from ..dataset import Dataset
+from ..dataset.types.utils import DyadIdentity, Identity
+from ..features import DataFrameFeatureExtractor, FeatureExtractor
+from ..utils import ensure_generator, formatted_tqdm
+from .predict import k_fold_predict
 from .utils import EncodingFunction, SamplingFunction, SmoothingFunction
+from .visualization import Array
 
 
-def parameter_grid_to_combinations(
+def _parameter_grid_to_combinations(
     paramter_grid: dict[str, Iterable],
 ) -> list[dict[str, Any]]:
     """Convert a parameter grid specified as a dictionary of iterables to a list of combinations."""
@@ -26,12 +29,50 @@ def parameter_grid_to_combinations(
     ]
 
 
+def _prepare_thresholds(
+    decision_threshold_range: tuple[float, float] | Iterable[tuple[float, float]],
+    decision_threshold_step: float | Iterable[float],
+    num_categories: int,
+) -> list[NDArray]:
+    if isinstance(decision_threshold_range, tuple) and isinstance(
+        decision_threshold_range[0], float
+    ):
+        decision_threshold_ranges: list[tuple[float, float]] = [
+            decision_threshold_range
+        ] * num_categories  # type: ignore  # see check above
+    elif (
+        len(decision_threshold_ranges := list(decision_threshold_range))  # type: ignore  # see check above
+        != num_categories
+    ):
+        raise ValueError(
+            f"decision_threshold_range must be a list of {num_categories} ranges (number of categories), but is {len(decision_threshold_ranges)}"
+        )
+    if isinstance(decision_threshold_step, float | int):
+        decision_threshold_steps = [decision_threshold_step] * num_categories
+    elif (
+        len(decision_threshold_steps := list(decision_threshold_step)) != num_categories
+    ):
+        raise ValueError(
+            f"decision_threshold_step must be a list of {num_categories} steps (number of categories), but is {len(decision_threshold_steps)}"
+        )
+    return [
+        np.arange(*threshold_range, step)
+        for threshold_range, step in zip(
+            decision_threshold_ranges, decision_threshold_steps
+        )
+    ]
+
+
 def _evaluate_results(
     results: pd.DataFrame,
     *,
     parameter_names: Iterable[str],
+    parameter_weight: Iterable[float] | float = 1.0,
     tolerance: float,
     plot_results: bool,
+    figsize: Optional[tuple[float, float]] = None,
+    dpi: float = 100,
+    axes: Optional[Array[Axes]] = None,
     score_names: Iterable[str] = (
         "category_count_score",
         "f1_per_timestamp",
@@ -48,10 +89,18 @@ def _evaluate_results(
         The results dataframe.
     parameter_names : Iterable[str]
         The names of the parameters to evaluate.
+    parameter_weight : Iterable[float] | float, optional
+        The cost of each parameter when choosing the best combination within the tolerance interval. Defaults to 1.0.
     tolerance : float
         The tolerance for the best parameter combination.
     plot_results : bool
         Whether to plot the results.
+    figsize : tuple[float, float], optional
+        The size of the figure if axes is not specified. Defaults to None.
+    dpi : float, optional
+        The DPI of the figure if axes is not specified. Defaults to 100.
+    axes : Array[Axes], optional
+        The axes to plot the results on. Defaults to None, which creates a new figure.
     score_names : Iterable[str], optional
         The names of the scores to evaluate, by default
         ("category_count_score", "f1_per_timestamp", "f1_per_annotation", "f1_per_prediction")
@@ -78,6 +127,14 @@ def _evaluate_results(
         )
     if "iteration" not in results.columns:
         raise ValueError("results must contain an iteration column")
+    if not isinstance(parameter_weight, float | int):
+        parameter_weight = list(parameter_weight)
+        if len(parameter_weight) != len(parameter_names):
+            raise ValueError(
+                f"parameter_weight must be a single value or an iterable of {len(parameter_names)} values, but is {len(parameter_weight)}"
+            )
+    else:
+        parameter_weight = [parameter_weight] * len(parameter_names)
     results["average_score"] = results[score_names].mean(axis=1)
     # average across iterations
     average_results = (
@@ -91,28 +148,48 @@ def _evaluate_results(
     within_tolerance = np.argwhere(
         average_results["average_score"] >= max_score - tolerance
     ).ravel()
-    best_parameters = average_results.iloc[within_tolerance[0]][
+    # normalize and weight parameters and find lowest combination within the tolerance interval
+    # by default, lower parameters are preferred, otherwise, negative weights can be used
+    parameters = np.asarray(average_results[parameter_names]).astype(float)
+    parameters -= parameters.min(axis=0)
+    parameters /= parameters.max(axis=0)
+    parameter_costs = parameters * np.asarray(parameter_weight)
+    best = parameter_costs[within_tolerance].sum(axis=1).argmin()
+    best_parameters = average_results.iloc[within_tolerance[best]][
         parameter_names
     ].to_dict()
     if not plot_results:
         return best_parameters
 
-    fig, axes = plt.subplots(1, len(parameter_names), sharey=True)
+    show_on_return = False
+    if axes is None:
+        fig = plt.figure(figsize=figsize, dpi=dpi)
+        axes = fig.subplots(len(parameter_names), 1, sharey=True, squeeze=False)  # type: ignore  # for some reason, squeeze changes return type
+        show_on_return = True
+    if TYPE_CHECKING:
+        assert axes is not None
+    axes = axes.ravel()
     for idx, parameter_name in enumerate(parameter_names):
         ax = axes[idx]
         for iteration, results_iteration in results.groupby("iteration"):
-            x = results_iteration[:, parameter_name]
-            y = results_iteration[:, "average_score"]
+            x = np.asarray(results_iteration[parameter_name])
+            y = np.asarray(results_iteration["average_score"])
             ax.plot(
-                x[np.argsort(x)], y[np.argsort(x)], lw=1, alpha=0.2, color="k", zorder=1
+                x[np.argsort(x)],
+                y[np.argsort(x)],
+                lw=1,
+                alpha=0.5,
+                color="grey",
+                zorder=1,
             )
-        x = average_results[:, parameter_name]
-        y = average_results[:, "average_score"]
-        ax.plot(
-            x[np.argsort(x)], y[np.argsort(x)], lw=1, alpha=0.5, color="k", zorder=2
-        )
+        x = average_results[parameter_name]
+        y = average_results["average_score"]
+        ax.plot(x[np.argsort(x)], y[np.argsort(x)], lw=1, color="k", zorder=2)
+        best_value = float(best_parameters[parameter_name])
+        if best_value == round(best_value):
+            best_value = int(best_value)
         ax.annotate(
-            str(best_parameters[parameter_name]),
+            str(best_value),
             (best_parameters[parameter_name], max_score),
             xytext=(0, 20),
             textcoords="offset points",
@@ -133,10 +210,12 @@ def _evaluate_results(
             ha="left",
             va="center",
         )
+        ax.set_xlabel(parameter_name.capitalize().replace("_", " "))
+        ax.set_ylabel("Score")
         ax.spines[["right", "top"]].set_visible(False)
-        ax.set_xlabel(parameter_name)
-        ax.set_ylabel("score")
-    plt.show()
+    if show_on_return:
+        plt.show()
+
     return best_parameters
 
 
@@ -150,7 +229,7 @@ def optimize_smoothing(
     num_iterations: int,
     show_progress: bool = False,
     tolerance: float = 0.01,
-    plot_results: bool = False,
+    plot_results: bool = True,
     # k fold paramters
     k: int,
     exclude: Optional[Iterable[Identity | DyadIdentity]] = None,
@@ -189,7 +268,7 @@ def optimize_smoothing(
     tolerance : float, optional
         The tolerance for the best parameter combination. Defaults to 0.01.
     plot_results : bool, optional
-        Whether to plot the results. Defaults to False.
+        Whether to plot the results. Defaults to True.
     k : int, optional
         The number of folds to use for k-fold cross-validation. Defaults to 5.
     exclude : Iterable[Identity | DyadIdentity], optional
@@ -216,11 +295,16 @@ def optimize_smoothing(
     """
     random_state = ensure_generator(random_state)
     results = []
-    parameter_combinations = parameter_grid_to_combinations(smoothing_parameters_grid)
-    for iteration in (
-        formatted_tqdm(range(num_iterations), desc="iterations")
-        if show_progress
-        else range(num_iterations)
+    parameter_combinations = _parameter_grid_to_combinations(smoothing_parameters_grid)
+    if encode_func is None:
+        try:
+            encode_func = dataset.encode
+        except ValueError:
+            raise ValueError("specify encode_func for non-annotated datasets")
+    if TYPE_CHECKING:
+        assert encode_func is not None
+    for iteration in formatted_tqdm(
+        range(num_iterations), desc="iterations", disable=not show_progress
     ):
         classification_result = k_fold_predict(
             dataset,
@@ -236,21 +320,14 @@ def optimize_smoothing(
             encode_func=encode_func,
             show_progress=show_k_fold_progress,
         )
-        for parameters in (
-            formatted_tqdm(parameter_combinations, desc="scoring combinations")
-            if show_progress
-            else parameter_combinations
+        for parameters in formatted_tqdm(
+            parameter_combinations,
+            desc="scoring combinations",
+            disable=not show_progress,
         ):
             classification_result = classification_result.smooth(
                 [lambda array: smoothing_func(array, parameters)]
             )
-            if encode_func is None:
-                try:
-                    encode_func = dataset.encode
-                except ValueError:
-                    raise ValueError("specify encode_func for non-annotated datasets")
-            if TYPE_CHECKING:
-                assert encode_func is not None
             results.append(
                 {
                     "iteration": iteration,
@@ -285,8 +362,14 @@ def optimize_decision_thresholds(
     extractor: FeatureExtractor | DataFrameFeatureExtractor,
     classifier: Any,
     *,
-    smoothing_func: SmoothingFunction,
     num_iterations: int,
+    decision_threshold_range: tuple[float, float] | Iterable[tuple[float, float]] = (
+        0.0,
+        1.0,
+    ),
+    decision_threshold_step: float | Iterable[float] = 0.01,
+    default_decision: int | str = "none",
+    smoothing_func: Optional[SmoothingFunction] = None,
     show_progress: bool = False,
     tolerance: float = 0.01,
     plot_results: bool = False,
@@ -305,4 +388,84 @@ def optimize_decision_thresholds(
     encode_func: Optional[EncodingFunction] = None,
     show_k_fold_progress: bool = False,
 ):
-    pass
+    random_state = ensure_generator(random_state)
+    num_categories = len(dataset.categories)
+    decision_thresholds = _prepare_thresholds(
+        decision_threshold_range, decision_threshold_step, num_categories
+    )
+    if encode_func is None:
+        try:
+            encode_func = dataset.encode
+        except ValueError:
+            raise ValueError("specify encode_func for non-annotated datasets")
+    if TYPE_CHECKING:
+        assert encode_func is not None
+    results = [[] for _ in range(num_categories)]
+    for iteration in formatted_tqdm(
+        range(num_iterations), desc="iterations", disable=not show_progress
+    ):
+        classification_result = k_fold_predict(
+            dataset,
+            extractor,
+            classifier,
+            k=k,
+            exclude=exclude,
+            random_state=random_state,
+            sampling_func=sampling_func,
+            balance_sample_weights=balance_sample_weights,
+            pipeline=pipeline,
+            fit_pipeline=fit_pipeline,
+            encode_func=encode_func,
+            show_progress=show_k_fold_progress,
+        )
+        if smoothing_func is not None:
+            classification_result = classification_result.smooth(
+                [smoothing_func], threshold=False
+            )
+            for category_idx in formatted_tqdm(
+                range(num_categories),
+                desc="thresholding categories",
+                disable=not show_progress,
+            ):
+                for threshold in formatted_tqdm(
+                    decision_thresholds[category_idx],
+                    desc="scoring thresholds",
+                    disable=not show_progress,
+                ):
+                    thresholds = np.zeros(num_categories)
+                    thresholds[category_idx] = threshold
+                    results[category_idx].append(
+                        {
+                            "iteration": iteration,
+                            f"threshold_{dataset.categories[category_idx]}": threshold,
+                            **{
+                                key: value
+                                for key, value in zip(
+                                    [
+                                        "category_count_score",
+                                        "f1_per_timestamp",
+                                        "f1_per_annotation",
+                                        "f1_per_prediction",
+                                    ],
+                                    (
+                                        classification_result.threshold(
+                                            thresholds,
+                                            default_decision=default_decision,
+                                        )
+                                        .score(encode_func=encode_func)
+                                        .mean(axis=-1)
+                                    ),
+                                )
+                            },
+                        }
+                    )
+    results = [pd.DataFrame(category_results) for category_results in results]
+    return tuple(
+        _evaluate_results(
+            category_results,
+            parameter_names=[f"threshold_{category}"],
+            tolerance=tolerance,
+            plot_results=plot_results,
+        )
+        for category_results, category in zip(results, dataset.categories)
+    )

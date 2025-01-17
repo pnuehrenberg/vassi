@@ -4,6 +4,7 @@ from typing import (
     Callable,
     Generic,
     Optional,
+    Self,
     TypeVar,
 )
 
@@ -14,7 +15,7 @@ from matplotlib.axes import Axes
 from numpy.typing import NDArray
 from sklearn.metrics import confusion_matrix
 
-# Little helper class, which is only used as a type.
+# Little helper class, only used for array type annotations.
 # https://stackoverflow.com/questions/72649220/precise-type-annotating-array-numpy-ndarray-of-matplotlib-axes-from-plt-subplo
 DType = TypeVar("DType")
 
@@ -23,10 +24,12 @@ class Array(np.ndarray, Generic[DType]):
     def __getitem__(self, key) -> DType:  # type: ignore
         return super().__getitem__(key)  # type: ignore
 
+    def ravel(self, *args, **kwargs) -> Self: ...
+
 
 def plot_confusion_matrix(
-    y_true: NDArray[np.integer],
-    y_pred: NDArray[np.integer],
+    y_true: NDArray[np.integer] | Iterable[NDArray[np.integer]],
+    y_pred: NDArray[np.integer] | Iterable[NDArray[np.integer]],
     *,
     ax: Optional[Axes] = None,
     figsize: tuple[float, float] = (3, 3),
@@ -39,14 +42,35 @@ def plot_confusion_matrix(
             return f"{count / 1000:.1f}k"
         return count
 
-    cm = confusion_matrix(
-        y_true, y_pred, labels=range(max(max(y_true), max(y_pred)) + 1)
-    )
+    y_true = np.asarray(y_true)
+    y_pred = np.asarray(y_pred)
+    if not y_true.shape == y_pred.shape:
+        raise ValueError("y_true and y_pred must be of same shape")
+    if y_true.ndim == 1:
+        cm = confusion_matrix(
+            y_true, y_pred, labels=range(max(max(y_true), max(y_pred)) + 1)
+        )
+    else:
+        cm = (
+            np.asarray(
+                [
+                    confusion_matrix(
+                        y_true, y_pred, labels=range(max(max(y_true), max(y_pred)) + 1)
+                    )
+                    for y_true, y_pred in zip(y_true, y_pred)
+                ]
+            )
+            .mean(axis=0)
+            .round()
+            .astype(int)
+        )
     with np.errstate(divide="ignore", invalid="ignore"):
         cm_prob = (cm.T / cm.sum(axis=1)).T
+    show_on_return = False
     if ax is None:
         fig = plt.figure(figsize=figsize, dpi=dpi)
         ax = fig.add_axes((0, 0, 1, 1))
+        show_on_return = True
     ax_colorbar = None
     if show_colorbar:
         ax_colorbar = ax.inset_axes((1.05, 0, 0.05, 1))
@@ -75,6 +99,8 @@ def plot_confusion_matrix(
     ax.xaxis.set_ticks_position("bottom")
     ax.set_xlim(-0.5, cm.shape[1] - 0.5)
     ax.set_ylim(cm.shape[0] - 0.5, -0.5)
+    if show_on_return:
+        plt.show()
 
 
 def plot_classification_timeline(
@@ -124,9 +150,11 @@ def plot_classification_timeline(
         )  # type: ignore
     categories = list(categories)
     category_labels = categories if category_labels is None else list(category_labels)
+    show_on_return = False
     if axes is None:
         fig = plt.figure(figsize=figsize, dpi=dpi)
         axes = fig.subplots(len(categories), 1, sharey=True)
+        show_on_return = True
     if TYPE_CHECKING:
         assert axes is not None
     predictions_y_range = (
@@ -169,4 +197,5 @@ def plot_classification_timeline(
         axes[-1].set_xticklabels(x_tick_conversion(list(axes[-1].get_xticks())))
     if x_label is not None:
         axes[-1].set_xlabel(x_label)
-    plt.show()
+    if show_on_return:
+        plt.show()

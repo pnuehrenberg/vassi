@@ -5,10 +5,17 @@ from numpy.typing import NDArray
 from sklearn.pipeline import Pipeline
 from sklearn.utils.class_weight import compute_sample_weight
 
-from ...features import DataFrameFeatureExtractor, FeatureExtractor
-from ...utils import ensure_generator, formatted_tqdm, to_int_seed
-from .. import AnnotatedDyad, AnnotatedIndividual, Dataset, Dyad, Group, Individual
-from ..types.utils import DyadIdentity, Identity
+from ..dataset import (
+    AnnotatedDyad,
+    AnnotatedIndividual,
+    Dataset,
+    Dyad,
+    Group,
+    Individual,
+)
+from ..dataset.types.utils import DyadIdentity, Identity
+from ..features import DataFrameFeatureExtractor, FeatureExtractor
+from ..utils import ensure_generator, formatted_tqdm, to_int_seed
 from .results import (
     ClassificationResult,
     DatasetClassificationResult,
@@ -17,7 +24,7 @@ from .results import (
 from .utils import SamplingFunction
 
 
-def classify(
+def predict(
     classifier: Any,
     sampleable: Dyad | AnnotatedDyad | Individual | AnnotatedIndividual,
     extractor: FeatureExtractor | DataFrameFeatureExtractor,
@@ -53,7 +60,7 @@ def classify(
     ).threshold()
 
 
-def classify_group(
+def predict_group(
     classifier: Any,
     group: Group,
     extractor: FeatureExtractor | DataFrameFeatureExtractor,
@@ -84,7 +91,7 @@ def classify_group(
                 )
         else:
             raise ValueError(f"unsupported sampleable of type {type(sampleable)}")
-        results[sampleable_key] = classify(
+        results[sampleable_key] = predict(
             classifier,
             sampleable,
             extractor,
@@ -101,7 +108,7 @@ def classify_group(
     )
 
 
-def classify_dataset(
+def predict_dataset(
     classifier: Any,
     dataset: Dataset,
     extractor: FeatureExtractor | DataFrameFeatureExtractor,
@@ -122,7 +129,7 @@ def classify_dataset(
     for group_key in dataset.group_keys:
         if exclude is not None and group_key in exclude:
             continue
-        results[group_key] = classify_group(
+        results[group_key] = predict_group(
             classifier,
             dataset.select(group_key),
             extractor,
@@ -201,7 +208,7 @@ def k_fold_predict(
             sample_weight=sample_weight,
         )
         fold_results.append(
-            classify_dataset(
+            predict_dataset(
                 classifier,
                 fold_holdout,
                 extractor,

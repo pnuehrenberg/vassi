@@ -8,11 +8,14 @@ import pandas as pd
 from numpy.typing import NDArray
 from sklearn.metrics import f1_score
 
-from ...data_structures import Trajectory
-from ...series_operations import smooth
-from ...utils import NDArray_to_NDArray, warning_only
-from ..observations.utils import infill_observations, remove_overlapping_observations
-from ..types.utils import DyadIdentity, Identity
+from ..data_structures import Trajectory
+from ..dataset.observations.utils import (
+    infill_observations,
+    remove_overlapping_observations,
+)
+from ..dataset.types.utils import DyadIdentity, Identity
+from ..series_operations import smooth
+from ..utils import NDArray_to_NDArray, warning_only
 from .utils import (
     _filter_recipient_bouts,
     score_category_counts,
@@ -137,6 +140,7 @@ class ClassificationResult(_Result):
     def threshold(
         self,
         decision_thresholds: Optional[Iterable[float]] = None,
+        *,
         default_decision: int | str = "none",
     ) -> Self:
         self._apply_thresholds(decision_thresholds, default_decision)
@@ -172,7 +176,9 @@ class ClassificationResult(_Result):
             self.y_proba, filter_funcs=label_smoothing_funcs
         )
         if threshold:
-            return self.threshold(decision_thresholds, default_decision)
+            return self.threshold(
+                decision_thresholds, default_decision=default_decision
+            )
         return self
 
     @property
@@ -222,6 +228,18 @@ class _NestedResult(_Result):
                 threshold=threshold,
                 decision_thresholds=decision_thresholds,
                 default_decision=default_decision,
+            )
+        return self
+
+    def threshold(
+        self,
+        decision_thresholds: Optional[Iterable[float]] = None,
+        *,
+        default_decision: int | str = "none",
+    ) -> Self:
+        for classification_result in self.classification_results.values():
+            classification_result.threshold(
+                decision_thresholds, default_decision=default_decision
             )
         return self
 
