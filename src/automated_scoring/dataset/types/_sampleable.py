@@ -5,7 +5,6 @@ from typing import TYPE_CHECKING, Optional, Self, overload
 import numpy as np
 import pandas as pd
 from numpy.typing import NDArray
-from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import OneHotEncoder
 
 from ...config import Config
@@ -68,8 +67,6 @@ class BaseSampleable(BaseDataset):
         self,
         feature_extractor: FeatureExtractor | DataFrameFeatureExtractor,
         *,
-        pipeline: Optional[Pipeline] = None,
-        fit_pipeline: bool = True,
         exclude: Optional[Iterable["Identity | tuple[Identity, Identity]"]] = None,
     ) -> tuple[NDArray | pd.DataFrame, NDArray | None]:
         if exclude is not None:
@@ -77,13 +74,7 @@ class BaseSampleable(BaseDataset):
                 warnings.warn("Ignoring exclude keyword argument.")
         X = self.extract_features(feature_extractor)
         y = self._sample_y()
-        if pipeline is None:
-            return X, y
-        if isinstance(feature_extractor, DataFrameFeatureExtractor):
-            pipeline.set_output(transform="pandas")
-        if fit_pipeline:
-            return pipeline.fit_transform(X), y
-        return pipeline.transform(X), y
+        return X, y
 
     @overload
     def subsample(
@@ -122,8 +113,6 @@ class BaseSampleable(BaseDataset):
         feature_extractor: FeatureExtractor | DataFrameFeatureExtractor,
         size: int | float,
         *,
-        pipeline: Optional[Pipeline] = None,
-        fit_pipeline: bool = True,
         random_state: Optional[np.random.Generator | int] = None,
         stratify_by_groups: bool = True,
         store_indices: bool = False,
@@ -140,8 +129,6 @@ class BaseSampleable(BaseDataset):
             return self.even_subsample(
                 feature_extractor,
                 size,
-                pipeline=pipeline,
-                fit_pipeline=fit_pipeline,
                 random_state=random_state,
                 stratify_by_groups=stratify_by_groups,
                 store_indices=store_indices,
@@ -149,11 +136,7 @@ class BaseSampleable(BaseDataset):
                 reset_stored_indices=reset_stored_indices,
                 categories=categories,
             )
-        X, y = self.sample(
-            feature_extractor,
-            pipeline=pipeline,
-            fit_pipeline=fit_pipeline,
-        )
+        X, y = self.sample(feature_extractor)
         mask = np.ones(len(X), dtype=bool)
         idx = np.arange(len(X), dtype=int)
         exclude_idx = np.isin(idx, self.get_sampled_idx(reset_stored_indices))
@@ -378,8 +361,6 @@ class AnnotatedSampleable(Sampleable):
         feature_extractor: FeatureExtractor | DataFrameFeatureExtractor,
         size: int | float,
         *,
-        pipeline: Optional[Pipeline] = None,
-        fit_pipeline: bool = True,
         random_state: Optional[np.random.Generator | int] = None,
         stratify_by_groups: bool = True,
         store_indices: bool = False,
@@ -418,8 +399,6 @@ class AnnotatedSampleable(Sampleable):
             _X, _y = self.subsample(
                 feature_extractor,
                 size_per_category,
-                pipeline=pipeline,
-                fit_pipeline=fit_pipeline,
                 random_state=random_state,
                 stratify_by_groups=stratify_by_groups,
                 store_indices=store_indices,

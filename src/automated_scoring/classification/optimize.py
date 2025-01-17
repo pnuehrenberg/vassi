@@ -8,7 +8,6 @@ import numpy as np
 import pandas as pd
 from matplotlib.axes import Axes
 from pyTrajectory.dataset.types.group import NDArray
-from sklearn.pipeline import Pipeline
 
 from ..dataset import Dataset
 from ..dataset.types.utils import DyadIdentity, Identity
@@ -238,9 +237,6 @@ def optimize_smoothing(
     # sampling parameters
     sampling_func: SamplingFunction,
     balance_sample_weights: bool = True,
-    # pipeline parameters are also used for sampling in classification
-    pipeline: Optional[Pipeline] = None,
-    fit_pipeline: bool = True,
     # encode_func required for k-fold prediction of datasets with non-annotated groups
     encode_func: Optional[EncodingFunction] = None,
     show_k_fold_progress: bool = False,
@@ -315,8 +311,6 @@ def optimize_smoothing(
             random_state=random_state,
             sampling_func=sampling_func,
             balance_sample_weights=balance_sample_weights,
-            pipeline=pipeline,
-            fit_pipeline=fit_pipeline,
             encode_func=encode_func,
             show_progress=show_k_fold_progress,
         )
@@ -381,9 +375,6 @@ def optimize_decision_thresholds(
     # sampling parameters
     sampling_func: SamplingFunction,
     balance_sample_weights: bool = True,
-    # pipeline parameters are also used for sampling in classification
-    pipeline: Optional[Pipeline] = None,
-    fit_pipeline: bool = True,
     # encode_func required for k-fold prediction of datasets with non-annotated groups
     encode_func: Optional[EncodingFunction] = None,
     show_k_fold_progress: bool = False,
@@ -413,8 +404,6 @@ def optimize_decision_thresholds(
             random_state=random_state,
             sampling_func=sampling_func,
             balance_sample_weights=balance_sample_weights,
-            pipeline=pipeline,
-            fit_pipeline=fit_pipeline,
             encode_func=encode_func,
             show_progress=show_k_fold_progress,
         )

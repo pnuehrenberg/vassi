@@ -2,7 +2,6 @@ from typing import Any, Callable, Iterable, Literal, Optional
 
 import numpy as np
 from numpy.typing import NDArray
-from sklearn.pipeline import Pipeline
 from sklearn.utils.class_weight import compute_sample_weight
 
 from ..dataset import (
@@ -30,13 +29,11 @@ def predict(
     extractor: FeatureExtractor | DataFrameFeatureExtractor,
     encode_func: Callable[[NDArray], NDArray[np.integer]],
     *,
-    pipeline: Optional[Pipeline] = None,
-    fit_pipeline: bool = True,
     categories: Optional[Iterable[str]] = None,
 ) -> ClassificationResult:
     if not hasattr(classifier, "predict") or not hasattr(classifier, "predict_proba"):
         raise ValueError(f"unsupported classifier of type {type(classifier)}")
-    X, y = sampleable.sample(extractor, pipeline=pipeline, fit_pipeline=fit_pipeline)
+    X, y = sampleable.sample(extractor)
     y_pred_numeric: NDArray = classifier.predict(X)
     y_proba: NDArray = classifier.predict_proba(X).astype(float)
     y_true_numeric: Optional[NDArray] = None
@@ -65,8 +62,6 @@ def predict_group(
     group: Group,
     extractor: FeatureExtractor | DataFrameFeatureExtractor,
     *,
-    pipeline: Optional[Pipeline] = None,
-    fit_pipeline: bool = True,
     encode_func: Callable[[NDArray], NDArray[np.integer]],
     exclude: Optional[Iterable[Identity | DyadIdentity]] = None,
 ) -> GroupClassificationResult:
@@ -96,8 +91,6 @@ def predict_group(
             sampleable,
             extractor,
             encode_func,
-            pipeline=pipeline,
-            fit_pipeline=fit_pipeline,
         )
     if target is None:
         raise ValueError("unsupported group with no sampleables")
@@ -113,8 +106,6 @@ def predict_dataset(
     dataset: Dataset,
     extractor: FeatureExtractor | DataFrameFeatureExtractor,
     *,
-    pipeline: Optional[Pipeline] = None,
-    fit_pipeline: bool = True,
     encode_func: Optional[Callable[[NDArray], NDArray[np.integer]]] = None,
     exclude: Optional[Iterable[Identity | DyadIdentity]] = None,
 ) -> DatasetClassificationResult:
@@ -133,8 +124,6 @@ def predict_dataset(
             classifier,
             dataset.select(group_key),
             extractor,
-            pipeline=pipeline,
-            fit_pipeline=fit_pipeline,
             encode_func=encode_func,
             exclude=exclude,
         )
@@ -167,9 +156,6 @@ def k_fold_predict(
     # sampling parameters
     sampling_func: SamplingFunction,
     balance_sample_weights: bool = True,
-    # pipeline parameters are also used for sampling in classification
-    pipeline: Optional[Pipeline] = None,
-    fit_pipeline: bool = True,
     # encode_func required for k-fold prediction of datasets with non-annotated groups
     encode_func: Optional[Callable[[NDArray], NDArray[np.integer]]] = None,
     show_progress: bool = False,
@@ -189,14 +175,12 @@ def k_fold_predict(
         raise ValueError(f"unsupported classifier of type {type(classifier)}")
     fold_results = []
     k_fold = dataset.k_fold(k, exclude=exclude, random_state=random_state)
-    if show_progress:
-        k_fold = formatted_tqdm(k_fold, desc="k-fold predict", total=k)
-    for fold_train, fold_holdout in k_fold:
+    for fold_train, fold_holdout in formatted_tqdm(
+        k_fold, desc="k-fold predict", total=k, disable=not show_progress
+    ):
         X_train, y_train = sampling_func(
             fold_train,
             extractor,
-            pipeline=pipeline,
-            fit_pipeline=fit_pipeline,
             random_state=random_state,
         )
         sample_weight = None
@@ -212,8 +196,6 @@ def k_fold_predict(
                 classifier,
                 fold_holdout,
                 extractor,
-                pipeline=pipeline,
-                fit_pipeline=fit_pipeline,
                 encode_func=encode_func,
             )
         )

@@ -3,7 +3,6 @@ from typing import TYPE_CHECKING, Iterable, Optional, overload
 import numpy as np
 import pandas as pd
 from numpy.typing import NDArray
-from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import OneHotEncoder
 
 from ...features import DataFrameFeatureExtractor, FeatureExtractor
@@ -39,8 +38,6 @@ class BaseDataset:
         self,
         feature_extractor: FeatureExtractor | DataFrameFeatureExtractor,
         *,
-        pipeline: Optional[Pipeline] = None,
-        fit_pipeline: bool = True,
         exclude: Optional[Iterable[Identity | DyadIdentity]] = None,
     ) -> tuple[NDArray | pd.DataFrame, NDArray | None]:
         raise NotImplementedError
@@ -60,8 +57,6 @@ class BaseDataset:
         feature_extractor: FeatureExtractor | DataFrameFeatureExtractor,
         size: int | float,
         *,
-        pipeline: Optional[Pipeline] = None,
-        fit_pipeline: bool = True,
         exclude: Optional[list[Identity | DyadIdentity]] = None,
         # subsample specific
         random_state: Optional[np.random.Generator | int] = None,

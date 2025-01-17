@@ -4,7 +4,6 @@ from typing import Iterable, Literal, Optional, overload
 import numpy as np
 import pandas as pd
 from numpy.typing import NDArray
-from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import OneHotEncoder
 
 from ...data_structures import Trajectory
@@ -101,16 +100,12 @@ class Group(BaseDataset):
         self,
         feature_extractor: FeatureExtractor | DataFrameFeatureExtractor,
         *,
-        pipeline: Optional[Pipeline] = None,
-        fit_pipeline: bool = True,
         exclude: Optional[Iterable[Identity | DyadIdentity]] = None,
         show_progress: bool = True,
     ) -> tuple[NDArray | pd.DataFrame, NDArray | None]:
         return get_concatenated_dataset(
             recursive_sampleables(self, exclude=exclude),
             feature_extractor,
-            pipeline=pipeline,
-            fit_pipeline=fit_pipeline,
             sampling_type="sample",
             show_progress=show_progress,
         )
@@ -130,8 +125,6 @@ class Group(BaseDataset):
         feature_extractor: FeatureExtractor | DataFrameFeatureExtractor,
         size: int | float,
         *,
-        pipeline: Optional[Pipeline] = None,
-        fit_pipeline: bool = True,
         random_state: Optional[np.random.Generator | int] = None,
         stratify_by_groups: bool = True,
         store_indices: bool = False,
@@ -147,8 +140,6 @@ class Group(BaseDataset):
         return get_concatenated_dataset(
             recursive_sampleables(self, exclude=exclude),
             feature_extractor,
-            pipeline=pipeline,
-            fit_pipeline=fit_pipeline,
             size=size,
             random_state=random_state,
             stratify_by_groups=stratify_by_groups,

@@ -4,10 +4,9 @@ from typing import TYPE_CHECKING, Iterable, Literal, Optional, Sequence
 import numpy as np
 import pandas as pd
 from numpy.typing import NDArray
-from sklearn.pipeline import Pipeline
-from tqdm.auto import tqdm
 
 from ...features import DataFrameFeatureExtractor, FeatureExtractor
+from ...utils import formatted_tqdm
 
 if TYPE_CHECKING:
     from ._sampleable import Sampleable
@@ -76,8 +75,6 @@ def get_concatenated_dataset(
     | Sequence["Sampleable"],
     feature_extractor: FeatureExtractor | DataFrameFeatureExtractor,
     *,
-    pipeline: Optional[Pipeline] = None,
-    fit_pipeline: bool = True,
     # subsample kwargs
     size: Optional[int | float] = None,
     random_state: Optional[np.random.Generator | int] = None,
@@ -93,8 +90,6 @@ def get_concatenated_dataset(
 ) -> tuple[NDArray | pd.DataFrame, NDArray | None]:
     kwargs = dict(
         feature_extractor=feature_extractor,
-        pipeline=pipeline,
-        fit_pipeline=fit_pipeline,
         size=size,
         random_state=random_state,
         stratify_by_groups=stratify_by_groups,
@@ -105,27 +100,19 @@ def get_concatenated_dataset(
         try_even_subsampling=try_even_subsampling,
         sampling_type=sampling_type,
     )
-    if show_progress:
-        X, y = zip(
-            *list(
-                tqdm(
-                    map(
-                        _process,
-                        [(sampleable, kwargs) for sampleable in sampleables],
-                    ),
-                    total=len(sampleables),
-                ),
-            ),
-        )
-    else:
-        X, y = zip(
-            *list(
+    X, y = zip(
+        *list(
+            formatted_tqdm(
                 map(
                     _process,
                     [(sampleable, kwargs) for sampleable in sampleables],
                 ),
+                total=len(sampleables),
+                desc="sampling",
+                disable=not show_progress,
             ),
-        )
+        ),
+    )
     if any([_y is None for _y in y]):
         y = []
     X = type(feature_extractor).concatenate(*X, axis=0)

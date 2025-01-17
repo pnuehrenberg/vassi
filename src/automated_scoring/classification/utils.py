@@ -4,7 +4,6 @@ from typing import TYPE_CHECKING, Callable, Literal, Optional, Protocol
 import numpy as np
 import pandas as pd
 from numpy.typing import NDArray
-from sklearn.pipeline import Pipeline
 
 from ..dataset import AnnotatedGroup, Dataset
 from ..dataset.observations.bouts import aggregate_bouts
@@ -214,8 +213,6 @@ class SamplingFunction(Protocol):
         dataset: Dataset,
         extractor: FeatureExtractor | DataFrameFeatureExtractor,
         *args,
-        pipeline: Optional[Pipeline],
-        fit_pipeline: bool,
         random_state: Optional[np.random.Generator | int],
         **kwargs,
     ) -> tuple[pd.DataFrame | NDArray, NDArray]: ...
