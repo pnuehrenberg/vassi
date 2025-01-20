@@ -409,6 +409,9 @@ class BaseExtractor:
                 continue
             config[feature_category] = []
             for func, kwargs in features:
+                kwargs = kwargs.copy()
+                if "flat" in kwargs:
+                    kwargs.pop("flat")
                 config[feature_category].append(
                     (decorators._inner(func).__name__, kwargs)
                 )
