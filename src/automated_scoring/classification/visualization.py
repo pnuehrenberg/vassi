@@ -59,8 +59,8 @@ def plot_confusion_matrix(
                         y_pred,
                         labels=range(
                             max(
-                                np.concatenate(y_true).max(),
-                                np.concatenate(y_pred).max(),
+                                max(y_true),
+                                max(y_pred),
                             )
                             + 1
                         ),
