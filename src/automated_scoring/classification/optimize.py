@@ -7,7 +7,7 @@ import matplotlib.transforms as transforms
 import numpy as np
 import pandas as pd
 from matplotlib.axes import Axes
-from pyTrajectory.dataset.types.group import NDArray
+from numpy.typing import NDArray
 
 from ..dataset import Dataset
 from ..dataset.types.utils import DyadIdentity, Identity
