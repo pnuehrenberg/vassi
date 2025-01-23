@@ -15,6 +15,7 @@ dependencies = [
     "xgboost",
     "networkx",
     "tqdm",
+    "observation-library @ git+ssh://git@github.com/pnuehrenberg/observation-library.git",
 ]
 
 [tool.pyright]
