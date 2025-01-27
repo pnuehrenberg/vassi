@@ -17,6 +17,7 @@ dependencies = [
     "tqdm",
     "observation-library @ git+ssh://git@github.com/pnuehrenberg/observation-library.git",
 ]
+requires-python = ">=3.12"
 
 [tool.pyright]
 venvPath = "/home/paul/miniforge3/envs"

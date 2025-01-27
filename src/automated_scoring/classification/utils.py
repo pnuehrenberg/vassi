@@ -5,7 +5,7 @@ import numpy as np
 import pandas as pd
 from numpy.typing import NDArray
 
-from ..dataset import AnnotatedGroup, Dataset
+from ..dataset import Dataset
 from ..dataset.observations.bouts import aggregate_bouts
 from ..dataset.observations.utils import (
     check_observations,
@@ -19,7 +19,7 @@ from ..dataset.utils import interval_contained, interval_overlap
 from ..features import DataFrameFeatureExtractor, FeatureExtractor
 
 if TYPE_CHECKING:
-    from .results import DatasetClassificationResult
+    pass
 
 
 def to_predictions(
@@ -42,25 +42,6 @@ def to_predictions(
         proba[:, proba.argmax(axis=1)].max() for proba in probabilities
     ]
     return predictions
-
-
-def to_prediction_dataset(
-    dataset_classification_result: "DatasetClassificationResult",
-) -> Dataset:
-    categories = tuple(
-        np.unique(list(dataset_classification_result.predictions["category"]))
-    )
-    return Dataset(
-        {
-            group_key: AnnotatedGroup(
-                group_result.trajectories,
-                target=dataset_classification_result.target,
-                observations=group_result.predictions,
-                categories=categories,
-            )
-            for group_key, group_result in dataset_classification_result.classification_results.items()
-        }
-    )
 
 
 def validate_predictions(

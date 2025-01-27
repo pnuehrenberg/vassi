@@ -23,7 +23,7 @@ from .results import (
 from .utils import SamplingFunction
 
 
-def predict(
+def predict_sampleable(
     classifier: Any,
     sampleable: Dyad | AnnotatedDyad | Individual | AnnotatedIndividual,
     extractor: FeatureExtractor | DataFrameFeatureExtractor,
@@ -86,7 +86,7 @@ def predict_group(
                 )
         else:
             raise ValueError(f"unsupported sampleable of type {type(sampleable)}")
-        results[sampleable_key] = predict(
+        results[sampleable_key] = predict_sampleable(
             classifier,
             sampleable,
             extractor,
@@ -101,7 +101,7 @@ def predict_group(
     )
 
 
-def predict_dataset(
+def predict(
     classifier: Any,
     dataset: Dataset,
     extractor: FeatureExtractor | DataFrameFeatureExtractor,
@@ -192,7 +192,7 @@ def k_fold_predict(
             sample_weight=sample_weight,
         )
         fold_results.append(
-            predict_dataset(
+            predict(
                 classifier,
                 fold_holdout,
                 extractor,

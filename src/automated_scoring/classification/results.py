@@ -1,7 +1,7 @@
 import warnings
-from collections.abc import Iterable
+from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
-from typing import Callable, Literal, Optional, Self
+from typing import Callable, Literal, Optional, Self, overload
 
 import numpy as np
 import pandas as pd
@@ -9,6 +9,7 @@ from numpy.typing import NDArray
 from sklearn.metrics import f1_score
 
 from ..data_structures import Trajectory
+from ..dataset import AnnotatedGroup, Dataset
 from ..dataset.observations.utils import (
     infill_observations,
     remove_overlapping_observations,
@@ -62,26 +63,52 @@ class _Result:
             zero_division=np.nan,  # type: ignore
         )
 
-    def score(self, encode_func: Callable[[NDArray], NDArray[np.integer]]) -> NDArray:
-        # resulting dims: four scores x categories
+    @overload
+    def score(
+        self,
+        encode_func: Callable[[NDArray], NDArray[np.integer]],
+        macro: Literal[False] = False,
+    ) -> Mapping[str, NDArray]: ...
+
+    @overload
+    def score(
+        self,
+        encode_func: Callable[[NDArray], NDArray[np.integer]],
+        macro: Literal[True],
+    ) -> Mapping[str, float]: ...
+
+    def score(
+        self,
+        encode_func: Callable[[NDArray], NDArray[np.integer]],
+        macro: bool = False,
+    ) -> Mapping[str, NDArray | float]:
         category_count_scores = self.score_category_counts()
-        f1_per_timestamp = np.asarray(
-            self.f1_score("timestamp", encode_func=encode_func)
-        )
-        f1_per_annotation = np.asarray(
-            self.f1_score("annotation", encode_func=encode_func)
-        )
-        f1_per_prediction = np.asarray(
-            self.f1_score("prediction", encode_func=encode_func)
-        )
-        return np.array(
-            [
-                category_count_scores,
-                f1_per_timestamp,
-                f1_per_annotation,
-                f1_per_prediction,
-            ]
-        )
+        f1_per_timestamp = self.f1_score("timestamp", encode_func=encode_func)
+        f1_per_annotation = self.f1_score("annotation", encode_func=encode_func)
+        f1_per_prediction = self.f1_score("prediction", encode_func=encode_func)
+        scores = {
+            score_name: np.asarray(values)
+            for score_name, values in zip(
+                [
+                    "category_count_score",
+                    "f1_per_timestamp",
+                    "f1_per_annotation",
+                    "f1_per_prediction",
+                ],
+                [
+                    category_count_scores,
+                    f1_per_timestamp,
+                    f1_per_annotation,
+                    f1_per_prediction,
+                ],
+            )
+        }
+        if macro:
+            return {
+                score_name: float(values.mean())
+                for score_name, values in scores.items()
+            }
+        return scores
 
     def _remove_overlapping_predictions(
         self,
@@ -142,6 +169,7 @@ class ClassificationResult(_Result):
         decision_thresholds: Optional[Iterable[float]] = None,
         *,
         default_decision: int | str = "none",
+        remove_overlapping_predictions: bool = False,
     ) -> Self:
         self._apply_thresholds(decision_thresholds, default_decision)
         probabilties = self.y_proba
@@ -171,13 +199,16 @@ class ClassificationResult(_Result):
         threshold: bool = True,
         decision_thresholds: Optional[Iterable[float]] = None,
         default_decision: int | str = "none",
+        remove_overlapping_predictions: bool = False,
     ) -> Self:
         self._y_proba_smoothed = smooth(
             self.y_proba, filter_funcs=label_smoothing_funcs
         )
         if threshold:
             return self.threshold(
-                decision_thresholds, default_decision=default_decision
+                decision_thresholds,
+                default_decision=default_decision,
+                remove_overlapping_predictions=remove_overlapping_predictions,
             )
         return self
 
@@ -221,6 +252,7 @@ class _NestedResult(_Result):
         threshold: bool = True,
         decision_thresholds: Optional[Iterable[float]] = None,
         default_decision: int | str = "none",
+        remove_overlapping_predictions: bool = False,
     ) -> Self:
         for classification_result in self.classification_results.values():
             classification_result.smooth(
@@ -228,6 +260,7 @@ class _NestedResult(_Result):
                 threshold=threshold,
                 decision_thresholds=decision_thresholds,
                 default_decision=default_decision,
+                remove_overlapping_predictions=remove_overlapping_predictions,
             )
         return self
 
@@ -236,6 +269,7 @@ class _NestedResult(_Result):
         decision_thresholds: Optional[Iterable[float]] = None,
         *,
         default_decision: int | str = "none",
+        remove_overlapping_predictions: bool = False,
     ) -> Self:
         for classification_result in self.classification_results.values():
             classification_result.threshold(
@@ -481,6 +515,22 @@ class DatasetClassificationResult(_NestedResult):
             annotations_key["group"] = key
             annotations.append(annotations_key)
         return pd.concat(annotations, axis=0, ignore_index=True)
+
+    def to_dataset(
+        self,
+    ) -> Dataset:
+        categories = tuple(np.unique(list(self.predictions["category"])))
+        return Dataset(
+            {
+                group_key: AnnotatedGroup(
+                    group_result.trajectories,
+                    target=self.target,
+                    observations=group_result.predictions,
+                    categories=categories,
+                )
+                for group_key, group_result in self.classification_results.items()
+            }
+        )
 
     @classmethod
     def combine(

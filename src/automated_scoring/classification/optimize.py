@@ -225,6 +225,7 @@ def optimize_smoothing(
     smoothing_func: SmoothingFunction,
     smoothing_parameters_grid: dict[str, Iterable],
     *,
+    remove_overlapping_predictions: bool,
     num_iterations: int,
     show_progress: bool = False,
     tolerance: float = 0.01,
@@ -253,10 +254,12 @@ def optimize_smoothing(
         The feature extractor to use.
     classifier : Any
         The classifier to evaluate. Should be compatible with the scikit-learn API.
-     smoothing_func : SmoothingFunction
+    smoothing_func : SmoothingFunction
         The smoothing function to use.
     smoothing_parameters_grid : dict[str, Iterable]
         The grid of smoothing parameters to evaluate.
+    remove_overlapping_predictions : bool
+        Whether to remove overlapping predictions in groups in which one individual has predictions for multiple recipients (multiple dyads per individual).
     num_iterations : int
         How often to run k-fold prediction and evaluation.
     show_progress : bool, optional
@@ -275,10 +278,6 @@ def optimize_smoothing(
         The sampling function to use.
     balance_sample_weights : bool, optional
         Whether to use balanced sample weights during classifier training. Defaults to True.
-    pipeline : Pipeline, optional
-        The pipeline to use for data sampling and classifier training. Defaults to None.
-    fit_pipeline : bool, optional
-        Whether to fit the specified pipeline on each fold. Defaults to True.
     encode_func : EncodingFunction, optional
         The encoding function to use to assign numerical predictions to categories. Required if an unannoated dataset is provided.
     show_k_fold_progress : bool, optional
@@ -319,27 +318,17 @@ def optimize_smoothing(
             desc="scoring combinations",
             disable=not show_progress,
         ):
+            if TYPE_CHECKING:
+                assert isinstance(parameters, dict)
             classification_result = classification_result.smooth(
-                [lambda array: smoothing_func(array, parameters)]
+                [lambda array: smoothing_func(array, parameters)],
+                remove_overlapping_predictions=remove_overlapping_predictions,
             )
             results.append(
                 {
                     "iteration": iteration,
                     **parameters,
-                    **{
-                        key: value
-                        for key, value in zip(
-                            [
-                                "category_count_score",
-                                "f1_per_timestamp",
-                                "f1_per_annotation",
-                                "f1_per_prediction",
-                            ],
-                            classification_result.score(encode_func=encode_func).mean(
-                                axis=-1
-                            ),
-                        )
-                    },
+                    **classification_result.score(encode_func=encode_func, macro=True),
                 }
             )
     results = pd.DataFrame(results)
@@ -356,6 +345,7 @@ def optimize_decision_thresholds(
     extractor: FeatureExtractor | DataFrameFeatureExtractor,
     classifier: Any,
     *,
+    remove_overlapping_predictions: bool,
     num_iterations: int,
     decision_threshold_range: tuple[float, float] | Iterable[tuple[float, float]] = (
         0.0,
@@ -427,25 +417,11 @@ def optimize_decision_thresholds(
                         {
                             "iteration": iteration,
                             f"threshold_{dataset.categories[category_idx]}": threshold,
-                            **{
-                                key: value
-                                for key, value in zip(
-                                    [
-                                        "category_count_score",
-                                        "f1_per_timestamp",
-                                        "f1_per_annotation",
-                                        "f1_per_prediction",
-                                    ],
-                                    (
-                                        classification_result.threshold(
-                                            thresholds,
-                                            default_decision=default_decision,
-                                        )
-                                        .score(encode_func=encode_func)
-                                        .mean(axis=-1)
-                                    ),
-                                )
-                            },
+                            **classification_result.threshold(
+                                thresholds,
+                                default_decision=default_decision,
+                                remove_overlapping_predictions=remove_overlapping_predictions,
+                            ).score(encode_func=encode_func, macro=True),
                         }
                     )
     results = [pd.DataFrame(category_results) for category_results in results]
