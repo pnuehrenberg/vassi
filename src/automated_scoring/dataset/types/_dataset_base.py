@@ -9,7 +9,7 @@ from ...features import DataFrameFeatureExtractor, FeatureExtractor
 from .utils import DyadIdentity, Identity
 
 if TYPE_CHECKING:
-    from ._sampleable import Sampleable
+    from ._sampleable import AnnotatedSampleable, Sampleable
 
 
 class BaseDataset:
@@ -70,7 +70,7 @@ class BaseDataset:
         raise NotImplementedError
 
     @property
-    def sampling_targets(self) -> list["Sampleable"]:
+    def sampling_targets(self) -> list["Sampleable"] | list["AnnotatedSampleable"]:
         raise NotImplementedError
 
     @property

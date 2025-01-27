@@ -10,7 +10,7 @@ from sklearn.preprocessing import OneHotEncoder
 from ...features import DataFrameFeatureExtractor, FeatureExtractor
 from ...utils import ensure_generator, to_int_seed
 from ._dataset_base import BaseDataset
-from ._sampleable import Sampleable
+from ._sampleable import AnnotatedSampleable, Sampleable
 from .group import AnnotatedGroup, Group
 from .utils import (
     DyadIdentity,
@@ -180,14 +180,14 @@ class Dataset(BaseDataset):
         return actors
 
     @property
-    def sampling_targets(self) -> list[Sampleable]:
+    def sampling_targets(self) -> list[Sampleable] | list[AnnotatedSampleable]:
         return [
             sampling_target
             for group in self._groups_list
             for sampling_target in group.sampling_targets
         ]
 
-    def select(self, key: Identity) -> Group:
+    def select(self, key: Identity) -> AnnotatedGroup | Group:
         if isinstance(self.groups, dict):
             return self.groups[key]
         if not isinstance(key, int):
