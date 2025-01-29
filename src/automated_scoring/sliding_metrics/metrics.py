@@ -1,51 +1,83 @@
-from collections.abc import Iterable
-
 import numpy as np
+from numba import njit, prange
 from numpy.typing import NDArray
 
 
+@njit(parallel=True, cache=True)
 def mean(array: NDArray) -> NDArray:
-    return np.mean(array, axis=-1, keepdims=True)
+    assert array.ndim == 3
+    result = np.zeros((array.shape[0], array.shape[1]), dtype=np.float64)
+    for t in prange(array.shape[0]):
+        for f in prange(array.shape[1]):
+            result[t, f] = np.mean(array[t, f])
+    return result
 
 
+@njit(parallel=True, cache=True)
 def median(array: NDArray) -> NDArray:
-    return np.median(array, axis=-1, keepdims=True)
+    assert array.ndim == 3
+    result = np.zeros((array.shape[0], array.shape[1]), dtype=np.float64)
+    for t in prange(array.shape[0]):
+        for f in prange(array.shape[1]):
+            result[t, f] = np.median(array[t, f])
+    return result
 
 
+@njit(parallel=True, cache=True)
 def min(array: NDArray) -> NDArray:
-    return np.min(array, axis=-1, keepdims=True)
+    assert array.ndim == 3
+    result = np.zeros((array.shape[0], array.shape[1]), dtype=np.float64)
+    for t in prange(array.shape[0]):
+        for f in prange(array.shape[1]):
+            result[t, f] = np.min(array[t, f])
+    return result
 
 
+@njit(parallel=True, cache=True)
 def max(array: NDArray) -> NDArray:
-    return np.max(array, axis=-1, keepdims=True)
+    assert array.ndim == 3
+    result = np.zeros((array.shape[0], array.shape[1]), dtype=np.float64)
+    for t in prange(array.shape[0]):
+        for f in prange(array.shape[1]):
+            result[t, f] = np.max(array[t, f])
+    return result
 
 
-def quantiles(array: NDArray, quantiles: Iterable[float]) -> NDArray:
-    last_dim_quantiles = np.quantile(array, tuple(quantiles), axis=-1)
-    transposed_axes = tuple(np.roll(range(last_dim_quantiles.ndim), -1))
-    last_dim_quantiles = last_dim_quantiles.transpose(*transposed_axes)
-    return last_dim_quantiles
+@njit(parallel=True, cache=True)
+def quantile(array: NDArray, q: float) -> NDArray:
+    assert array.ndim == 3
+    result = np.zeros((array.shape[0], array.shape[1]), dtype=np.float64)
+    for t in prange(array.shape[0]):
+        for f in prange(array.shape[1]):
+            result[t, f] = np.quantile(array[t, f], q)
+    return result
 
 
+@njit(cache=True)
 def q01(array: NDArray) -> NDArray:
-    return quantiles(array, (0.01,))
+    return quantile(array, 0.01)
 
 
+@njit(cache=True)
 def q05(array: NDArray) -> NDArray:
-    return quantiles(array, (0.05,))
+    return quantile(array, 0.05)
 
 
+@njit(cache=True)
 def q10(array: NDArray) -> NDArray:
-    return quantiles(array, (0.1,))
+    return quantile(array, 0.10)
 
 
+@njit(cache=True)
 def q90(array: NDArray) -> NDArray:
-    return quantiles(array, (0.9,))
+    return quantile(array, 0.90)
 
 
+@njit(cache=True)
 def q95(array: NDArray) -> NDArray:
-    return quantiles(array, (0.95,))
+    return quantile(array, 0.95)
 
 
+@njit(cache=True)
 def q99(array: NDArray) -> NDArray:
-    return quantiles(array, (0.95,))
+    return quantile(array, 0.99)

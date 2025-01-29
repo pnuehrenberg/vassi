@@ -1,127 +1,19 @@
 import os
-import pickle
 import warnings
-from typing import TYPE_CHECKING, Any, Callable, Literal, Optional, Self
+from typing import TYPE_CHECKING, Any, Literal, Optional, Self
 
 import numpy as np
 import pandas as pd
-
-# import portalocker
 import yaml
 from numpy.typing import NDArray
+from sklearn.pipeline import Pipeline
 
 from ..data_structures import Trajectory
 from ..utils import hash_dict, warning_only
 from . import decorators, features, temporal_features, utils
+from ._caching import cache
 
 FeatureCategory = Literal["individual", "dyadic"]
-
-
-def _to_cache(obj: Any, cache_file: str) -> None:
-    """
-    Helper function to write an object to a cache file using pickle.
-
-    Parameters
-    ----------
-    obj : Any
-        The object to write.
-    cache_file : str
-        The path to the cache file.
-    """
-    # TODO writing should catch keyboardinterrupt to avoid corrupted files
-    with open(cache_file, "wb") as cached:
-        pickle.dump(obj, cached)
-
-
-def _from_cache(cache_file: str):
-    """
-    Helper function to read an object from a cache file using pickle.
-
-    Parameters
-    ----------
-    cache_file : str
-        The path to the cache file.
-
-    Returns
-    -------
-    Any
-        The object read from the cache file.
-
-    Raises
-    ------
-    FileNotFoundError
-        If the cache file does not exist.
-    """
-    if not os.path.isfile(cache_file):
-        raise FileNotFoundError
-    # TODO or explicitly fail here and so that value gets recomputed
-    with open(cache_file, "rb") as cached:
-        return pickle.load(cached)
-
-
-def _hash_args(extractor: "BaseExtractor", *args, **kwargs) -> str:
-    """
-    Return a hash (hex digest) of the arguments of a method implemented by the BaseExtractor class.
-
-    Parameters
-    ----------
-    extractor : BaseExtractor
-        The extractor.
-    *args : Any
-        The arguments.
-    **kwargs : Any
-        The keyword arguments.
-
-    Returns
-    -------
-    str
-        The hash of the arguments.
-    """
-
-    def to_hash_string(arg):
-        if arg is None:
-            return "none"
-        if isinstance(arg, str):
-            return arg
-        if isinstance(arg, Trajectory):
-            return arg.sha1
-        raise NotImplementedError("invalid argument type")
-
-    d = {"extractor": extractor.sha1}
-    for idx, arg in enumerate(args):
-        d[f"arg_{idx}"] = to_hash_string(arg)
-    for key, value in kwargs.items():
-        d[key] = to_hash_string(value)
-    return hash_dict(d)
-
-
-def cache(func: Callable) -> Callable:
-    """
-    Decorator to cache the result of a method implemented by the BaseExtractor class.
-
-    Parameters
-    ----------
-    func : Callable
-        The method to cache.
-
-    Returns
-    -------
-    Callable
-        The decorated method.
-    """
-
-    def _cache(extractor: "BaseExtractor", *args, **kwargs):
-        hash_value = _hash_args(extractor, *args, **kwargs)
-        cache_file = os.path.join(extractor.cache_directory, hash_value)
-        try:
-            return _from_cache(cache_file)
-        except FileNotFoundError:
-            pass
-        value = func(extractor, *args, **kwargs)
-        _to_cache(value, cache_file)
-        return value
-
-    return _cache
 
 
 class _NoAliasDumper(yaml.SafeDumper):
@@ -205,6 +97,7 @@ class BaseExtractor:
     allowed_additional_kwargs: tuple[str, ...] = (
         "as_absolute",
         "as_sign_change_latency",
+        "reversed_dyad",
     )
 
     def __init__(
@@ -213,9 +106,11 @@ class BaseExtractor:
         features: list[tuple[utils.Feature, dict[str, Any]]] | None = None,
         dyadic_features: list[tuple[utils.Feature, dict[str, Any]]] | None = None,
         cache_directory: str,
+        pipeline: Optional[Pipeline] = None,
+        refit_pipeline: bool = False,
     ):
-        self._feature_funcs_individual: list[tuple[Callable, dict[str, Any]]] = []
-        self._feature_funcs_dyadic: list[tuple[Callable, dict[str, Any]]] = []
+        self._feature_funcs_individual: list[tuple[utils.Feature, dict[str, Any]]] = []
+        self._feature_funcs_dyadic: list[tuple[utils.Feature, dict[str, Any]]] = []
         self._feature_names_individual: list[str] = []
         self._feature_names_dyadic: list[str] = []
         if features is not None:
@@ -223,6 +118,8 @@ class BaseExtractor:
         if dyadic_features is not None:
             self._init_features(dyadic_features, category="dyadic")
         self.cache_directory = cache_directory
+        self.pipeline = pipeline
+        self.refit_pipeline = refit_pipeline
         if not os.path.exists(self.cache_directory):
             os.makedirs(self.cache_directory, exist_ok=True)
 
@@ -264,6 +161,7 @@ class BaseExtractor:
         func: utils.Feature,
         as_absolute: bool = False,
         as_sign_change_latency: bool = False,
+        **kwargs: Any,  # Additional keyword arguments are allowed, but ignored
     ) -> utils.Feature:
         """
         Adjust a feature function to be either absolute or sign change latency.
@@ -293,13 +191,15 @@ class BaseExtractor:
         return func
 
     @property
-    def feature_names(self):
+    def feature_names(self) -> list[str]:
         """
         The names of all features (both individual and dyadic).
         """
         return self._get_feature_names("individual") + self._get_feature_names("dyadic")
 
-    def _get_feature_funcs(self, category: FeatureCategory, *, clear: bool = False):
+    def _get_feature_funcs(
+        self, category: FeatureCategory, *, clear: bool = False
+    ) -> list[tuple[utils.Feature, dict[str, Any]]]:
         """
         Get the feature functions for a given category.
 
@@ -312,7 +212,7 @@ class BaseExtractor:
 
         Returns
         -------
-        list[tuple[Callable, dict[str, Any]]]
+        list[tuple[utils.Feature, dict[str, Any]]]
             The feature functions for the specified category.
         """
         if category == "individual":
@@ -357,7 +257,7 @@ class BaseExtractor:
 
     def _init_features(
         self,
-        feature_funcs: list[tuple[Callable, dict[str, Any]]],
+        feature_funcs: list[tuple[utils.Feature, dict[str, Any]]],
         *,
         category: FeatureCategory,
     ) -> None:
@@ -366,7 +266,7 @@ class BaseExtractor:
 
         Parameters
         ----------
-        feature_funcs : list[tuple[Callable, dict[str, Any]]]
+        feature_funcs : list[tuple[utils.Feature, dict[str, Any]]]
             The feature functions to initialize.
         category : Literal["individual", "dyadic"]
             The category of the features to initialize.
@@ -384,7 +284,8 @@ class BaseExtractor:
             )
             feature = decorators._inner(func)
             prefix = decorators._get_prefix(func)
-            # names = utils.get_feature_names(func, **kwargs)
+            if "reversed_dyad" in kwargs and kwargs["reversed_dyad"]:
+                prefix = f"r_{prefix}"
             names = [
                 f"{prefix}{name}" for name in utils.get_feature_names(feature, **kwargs)
             ]
@@ -515,25 +416,49 @@ class BaseExtractor:
             The computed features. The type depends on the subclass.
         """
 
-        def prepare_kwargs(kwargs: dict[str, Any]) -> dict[str, Any]:
+        def prepare_args(kwargs: dict[str, Any]) -> tuple[Trajectory, dict[str, Any]]:
+            nonlocal trajectory, trajectory_other
+            input_trajectory = trajectory
+            input_trajectory_other = trajectory_other
             kwargs = kwargs.copy()
             for kwarg in self.allowed_additional_kwargs:
                 if kwarg not in kwargs:
                     continue
+                if kwarg == "reversed_dyad" and kwargs[kwarg]:
+                    if input_trajectory_other is None:
+                        raise ValueError(
+                            "Can only reverse feature when trajectory_other is specified."
+                        )
+                    input_trajectory, input_trajectory_other = (
+                        input_trajectory_other,
+                        input_trajectory,
+                    )
                 kwargs.pop(kwarg)
             if category == "dyadic":
-                kwargs["trajectory_other"] = trajectory_other
-            return kwargs
+                if input_trajectory_other is None:
+                    raise ValueError(
+                        "Can only calculate dyadic feature when trajectory_other is specified."
+                    )
+                kwargs["trajectory_other"] = input_trajectory_other
+            return input_trajectory, kwargs
 
         feature_funcs = self._get_feature_funcs(category)
         if len(feature_funcs) == 0:
             raise ValueError("No features specified.")
-        return type(self).concatenate(
-            *[
-                func(trajectory, **prepare_kwargs(kwargs))
-                for func, kwargs in feature_funcs
-            ],
-        )
+        features = []
+        for func, kwargs in feature_funcs:
+            input_trajectory, kwargs = prepare_args(kwargs)
+            features.append(func(input_trajectory, **kwargs))
+        features = type(self).concatenate(*features)
+        if isinstance(features, pd.DataFrame):
+            features.columns = self._get_feature_names(category)
+        if self.pipeline is not None:
+            if isinstance(features, pd.DataFrame):
+                self.pipeline.set_output(transform="pandas")
+            if self.refit_pipeline:
+                self.pipeline.fit(features)
+            return self.pipeline.transform(features)
+        return features
 
     @cache
     def extract(
@@ -558,24 +483,33 @@ class BaseExtractor:
         Any
             The computed features. The type depends on the subclass.
         """
+
+        def extract_category(category: Literal["individual", "dyadic"]) -> Any:
+            nonlocal trajectory, trajectory_other
+            if category == "individual":
+                return self.extract_features(
+                    trajectory, trajectory_other, category="individual"
+                )
+            if category == "dyadic":
+                return self.extract_features(
+                    trajectory, trajectory_other, category="dyadic"
+                )
+            raise ValueError(f"Invalid feature category {category}.")
+
         if trajectory_other is None and len(self._feature_funcs_dyadic) > 0:
             with warning_only():
                 warnings.warn(
                     "Extracting only non-dyadic features, although dyadic features are specified."
                 )
         if trajectory_other is None:
-            return self.extract_features(trajectory, category="individual")
+            return extract_category("individual")
         if len(self._feature_funcs_dyadic) == 0:
-            return self.extract_features(trajectory, category="individual")
+            return extract_category("individual")
         if len(self._feature_funcs_individual) == 0:
-            return self.extract_features(
-                trajectory, trajectory_other, category="dyadic"
-            )
+            return extract_category("dyadic")
         return type(self).concatenate(
-            *[
-                self.extract_features(trajectory, category="individual"),
-                self.extract_features(trajectory, trajectory_other, category="dyadic"),
-            ],
+            extract_category("individual"),
+            extract_category("dyadic"),
         )
 
 
@@ -629,6 +563,7 @@ class DataFrameFeatureExtractor(BaseExtractor):
     allowed_additional_kwargs: tuple[str, ...] = (
         "as_absolute",
         "as_sign_change_latency",
+        "reversed_dyad",
         "keep",
         "discard",
     )
@@ -640,6 +575,7 @@ class DataFrameFeatureExtractor(BaseExtractor):
         as_sign_change_latency: bool = False,
         keep: list[str] | str | None = None,
         discard: list[str] | str | None = None,
+        **kwargs: Any,  # Additional keyword arguments are allowed, but ignored
     ) -> utils.DataFrameFeature:
         """
         Adjust a feature function to be a dataframe feature.
@@ -698,10 +634,6 @@ class DataFrameFeatureExtractor(BaseExtractor):
             trajectory_other: Optional[Trajectory] = None,
             *,
             category: FeatureCategory,
-        ) -> pd.DataFrame: ...
-
-        def extract_dyadic_features(
-            self, trajectory: Trajectory, trajectory_other: Trajectory
         ) -> pd.DataFrame: ...
 
         def extract(

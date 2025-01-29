@@ -6,7 +6,7 @@ from numpy.typing import NDArray
 from sklearn.preprocessing import OneHotEncoder
 
 from ...features import DataFrameFeatureExtractor, FeatureExtractor
-from .utils import DyadIdentity, Identity
+from ..utils import DyadIdentity, Identity
 
 if TYPE_CHECKING:
     from ._sampleable import AnnotatedSampleable, Sampleable

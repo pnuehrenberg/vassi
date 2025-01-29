@@ -7,14 +7,11 @@ from numpy.typing import NDArray
 
 from ...features import DataFrameFeatureExtractor, FeatureExtractor
 from ...utils import formatted_tqdm
+from ..utils import DyadIdentity, Identity
 
 if TYPE_CHECKING:
     from ._sampleable import Sampleable
     from .group import Group
-
-
-Identity = str | int
-DyadIdentity = tuple[Identity, Identity]
 
 
 def recursive_sampleables(

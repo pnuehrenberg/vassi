@@ -1,5 +1,5 @@
 import warnings
-from typing import Any, Callable, Iterable, Literal, Optional, Protocol, Self, overload
+from typing import Callable, Iterable, Literal, Optional, overload
 
 import numpy as np
 from numpy.typing import NDArray
@@ -16,23 +16,13 @@ from ..dataset import (
 )
 from ..dataset.types.utils import DyadIdentity, Identity
 from ..features import DataFrameFeatureExtractor, FeatureExtractor
-from ..utils import ensure_generator, formatted_tqdm, to_int_seed, warning_only
+from ..utils import ensure_generator, formatted_tqdm, warning_only
 from .results import (
     ClassificationResult,
     DatasetClassificationResult,
     GroupClassificationResult,
 )
-from .utils import SamplingFunction
-
-
-class Classifier(Protocol):
-    def predict(self, *args, **kwargs) -> NDArray: ...
-
-    def predict_proba(self, *args, **kwargs) -> NDArray: ...
-
-    def get_params(self) -> dict[str, Any]: ...
-
-    def fit(self, *args, **kwargs) -> Self: ...
+from .utils import Classifier, SamplingFunction, init_new_classifier
 
 
 def _predict_sampleable(
@@ -40,15 +30,15 @@ def _predict_sampleable(
     classifier: Classifier,
     extractor: FeatureExtractor | DataFrameFeatureExtractor,
     *,
-    encode_func: Callable[[NDArray], NDArray[np.integer]],
+    encode_func: Optional[Callable[[NDArray], NDArray[np.integer]]] = None,
     categories: Optional[Iterable[str]] = None,
 ) -> ClassificationResult:
-    if not hasattr(classifier, "predict") or not hasattr(classifier, "predict_proba"):
-        raise ValueError(f"unsupported classifier of type {type(classifier)}")
     X, y = sampleable.sample(extractor)
     y_pred_numeric: NDArray = classifier.predict(X)
     y_proba: NDArray = classifier.predict_proba(X).astype(float)
     y_true_numeric: Optional[NDArray] = None
+    if encode_func is None:
+        encode_func = sampleable.encode
     if y is not None:
         y_true_numeric = encode_func(y)
     timestamps = sampleable.trajectory.timestamps
@@ -79,7 +69,7 @@ def _predict_group(
     classifier: Classifier,
     extractor: FeatureExtractor | DataFrameFeatureExtractor,
     *,
-    encode_func: Callable[[NDArray], NDArray[np.integer]],
+    encode_func: Optional[Callable[[NDArray], NDArray[np.integer]]] = None,
     categories: Optional[Iterable[str]] = None,
     exclude: Optional[Iterable[Identity | DyadIdentity]] = None,
 ) -> GroupClassificationResult:
@@ -129,13 +119,6 @@ def _predict(
     categories: Optional[Iterable[str]] = None,
     exclude: Optional[Iterable[Identity | DyadIdentity]] = None,
 ) -> DatasetClassificationResult:
-    if encode_func is None:
-        try:
-            encode_func = dataset.encode
-        except ValueError:
-            pass
-    if encode_func is None:
-        raise ValueError("specify encode_func for non-annotated datasets")
     results: dict[Identity, GroupClassificationResult] = {}
     for group_key in dataset.group_keys:
         if exclude is not None and group_key in exclude:
@@ -200,21 +183,19 @@ def predict(
     ),
     classifier: Classifier,
     extractor: FeatureExtractor | DataFrameFeatureExtractor,
-    encode_func: Callable[[NDArray], NDArray[np.integer]],
     *,
+    encode_func: Optional[Callable[[NDArray], NDArray[np.integer]]] = None,
     categories: Optional[Iterable[str]] = None,
     exclude: Optional[Iterable[Identity | DyadIdentity]] = None,
 ) -> ClassificationResult | GroupClassificationResult | DatasetClassificationResult:
-    if isinstance(sampleable, (Dyad, AnnotatedDyad, Individual, AnnotatedIndividual)):
-        if exclude is not None:
-            with warning_only():
-                warnings.warn("ignoring exclude parameter for single sampleable")
-        return _predict_sampleable(
+    if isinstance(sampleable, Dataset):
+        return _predict(
             sampleable,
             classifier,
             extractor,
             encode_func=encode_func,
             categories=categories,
+            exclude=exclude,
         )
     if isinstance(sampleable, (Group, AnnotatedGroup)):
         return _predict_group(
@@ -225,16 +206,20 @@ def predict(
             categories=categories,
             exclude=exclude,
         )
-    if isinstance(sampleable, Dataset):
-        return _predict(
-            sampleable,
-            classifier,
-            extractor,
-            encode_func=encode_func,
-            categories=categories,
-            exclude=exclude,
-        )
-    raise TypeError(f"unsupported object of type {type(sampleable)}")
+    if not isinstance(
+        sampleable, (Dyad, AnnotatedDyad, Individual, AnnotatedIndividual)
+    ):
+        raise TypeError(f"unsupported object of type {type(sampleable)}")
+    if exclude is not None:
+        with warning_only():
+            warnings.warn("ignoring exclude parameter for single sampleable")
+    return _predict_sampleable(
+        sampleable,
+        classifier,
+        extractor,
+        encode_func=encode_func,
+        categories=categories,
+    )
 
 
 def k_fold_predict(
@@ -242,31 +227,17 @@ def k_fold_predict(
     extractor: FeatureExtractor | DataFrameFeatureExtractor,
     classifier: Classifier,
     *,
-    # k fold paramters
     k: int,
     exclude: Optional[Iterable[Identity | DyadIdentity]] = None,
-    # random_state is also used for sampling
     random_state: Optional[np.random.Generator | int] = None,
-    # sampling parameters
     sampling_func: SamplingFunction,
     balance_sample_weights: bool = True,
-    # encode_func required for k-fold prediction of datasets with non-annotated groups
     encode_func: Optional[Callable[[NDArray], NDArray[np.integer]]] = None,
     show_progress: bool = False,
 ) -> DatasetClassificationResult:
-    def init_new_classifier(
-        classifier: Classifier, random_state: Optional[np.random.Generator | int]
-    ) -> Classifier:
-        random_state = ensure_generator(random_state)
-        params = classifier.get_params()
-        params["random_state"] = to_int_seed(random_state)
-        return type(classifier)(**params)
-
     random_state = ensure_generator(random_state)
     if type(classifier) is type:
         classifier = init_new_classifier(classifier(), random_state)
-    if not hasattr(classifier, "fit") or not hasattr(classifier, "get_params"):
-        raise ValueError(f"unsupported classifier of type {type(classifier)}")
     fold_results = []
     k_fold = dataset.k_fold(k, exclude=exclude, random_state=random_state)
     for fold_train, fold_holdout in formatted_tqdm(

@@ -9,12 +9,11 @@ from sklearn.preprocessing import OneHotEncoder
 
 from ...features import DataFrameFeatureExtractor, FeatureExtractor
 from ...utils import ensure_generator, to_int_seed
+from ..utils import DyadIdentity, Identity
 from ._dataset_base import BaseDataset
 from ._sampleable import AnnotatedSampleable, Sampleable
 from .group import AnnotatedGroup, Group
 from .utils import (
-    DyadIdentity,
-    Identity,
     get_concatenated_dataset,
     recursive_sampleables,
 )

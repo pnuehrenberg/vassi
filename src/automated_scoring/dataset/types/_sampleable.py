@@ -1,6 +1,6 @@
 import warnings
 from collections.abc import Iterable
-from typing import TYPE_CHECKING, Optional, Self, overload
+from typing import Optional, Self, overload
 
 import numpy as np
 import pandas as pd
@@ -12,11 +12,9 @@ from ...data_structures import Trajectory
 from ...features import DataFrameFeatureExtractor, FeatureExtractor
 from ...utils import warning_only
 from ..observations.utils import check_observations, infill_observations
-from ..sampling import split, test_stratify
+from ..sampling.split import split, test_stratify
+from ..utils import Identity
 from ._dataset_base import BaseDataset
-
-if TYPE_CHECKING:
-    from .utils import Identity
 
 
 class BaseSampleable(BaseDataset):

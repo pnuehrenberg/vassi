@@ -1,25 +1,44 @@
 from collections.abc import Iterable
-from typing import TYPE_CHECKING, Callable, Literal, Optional, Protocol
+from typing import Any, Callable, Literal, Optional, Protocol, Self
 
 import numpy as np
 import pandas as pd
 from numpy.typing import NDArray
 
 from ..dataset import Dataset
-from ..dataset.observations.bouts import aggregate_bouts
-from ..dataset.observations.utils import (
+from ..dataset.observations import (
+    aggregate_bouts,
     check_observations,
-    ensure_matching_index_keys,
-    ensure_single_index,
     infill_observations,
     remove_overlapping_observations,
     to_observations,
 )
+from ..dataset.observations.utils import (
+    ensure_matching_index_keys,
+    ensure_single_index,
+)
 from ..dataset.utils import interval_contained, interval_overlap
 from ..features import DataFrameFeatureExtractor, FeatureExtractor
+from ..utils import ensure_generator, to_int_seed
 
-if TYPE_CHECKING:
-    pass
+
+class Classifier(Protocol):
+    def predict(self, *args, **kwargs) -> NDArray: ...
+
+    def predict_proba(self, *args, **kwargs) -> NDArray: ...
+
+    def get_params(self) -> dict[str, Any]: ...
+
+    def fit(self, *args, **kwargs) -> Self: ...
+
+
+def init_new_classifier(
+    classifier: Classifier, random_state: Optional[np.random.Generator | int]
+) -> Classifier:
+    random_state = ensure_generator(random_state)
+    params = classifier.get_params()
+    params["random_state"] = to_int_seed(random_state)
+    return type(classifier)(**params)
 
 
 def to_predictions(

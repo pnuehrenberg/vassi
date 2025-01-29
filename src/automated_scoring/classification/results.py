@@ -9,12 +9,11 @@ from numpy.typing import NDArray
 from sklearn.metrics import f1_score
 
 from ..data_structures import Trajectory
-from ..dataset import AnnotatedGroup, Dataset
+from ..dataset import AnnotatedGroup, Dataset, DyadIdentity, Identity
 from ..dataset.observations.utils import (
     infill_observations,
     remove_overlapping_observations,
 )
-from ..dataset.types.utils import DyadIdentity, Identity
 from ..series_operations import smooth
 from ..utils import NDArray_to_NDArray, warning_only
 from .utils import (
@@ -235,6 +234,21 @@ class ClassificationResult(_Result):
         if self._y_true_numeric is None:
             raise ValueError("classification on non-annotated sampleable")
         return self._y_true_numeric
+
+
+def _get_target(
+    results: Iterable["GroupClassificationResult"]
+    | Iterable["DatasetClassificationResult"],
+) -> Literal["individuals", "dyads"]:
+    targets: list[Literal["individuals", "dyads"]] = [
+        result.target for result in results
+    ]
+    target = targets[0]
+    if any(target != result_target for result_target in targets):
+        raise ValueError(
+            "results with mixed targets (dyads and individuals) are not supported"
+        )
+    return target
 
 
 @dataclass
@@ -458,14 +472,7 @@ class GroupClassificationResult(_NestedResult):
     def combine(
         cls, results: Iterable["GroupClassificationResult"]
     ) -> "GroupClassificationResult":
-        targets: list[Literal["individuals", "dyads"]] = [
-            result.target for result in results
-        ]
-        target = targets[0]
-        if any(target != result_target for result_target in targets):
-            raise ValueError(
-                "cannot combine GroupClassificationResults with mixed targets (dyads and individuals)"
-            )
+        target = _get_target(results)
         trajectories = {}
         for result in results:
             for identity, trajectory in result.trajectories.items():
@@ -536,14 +543,7 @@ class DatasetClassificationResult(_NestedResult):
     def combine(
         cls, results: Iterable["DatasetClassificationResult"]
     ) -> "DatasetClassificationResult":
-        targets: list[Literal["individuals", "dyads"]] = [
-            result.target for result in results
-        ]
-        target = targets[0]
-        if any(target != result_target for result_target in targets):
-            raise ValueError(
-                "cannot combine DatasetClassificationResult with mixed targets (dyads and individuals)"
-            )
+        target = _get_target(results)
         classification_results = {}
         for result in results:
             for (

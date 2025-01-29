@@ -1,6 +1,9 @@
 import numpy as np
 from numpy.typing import NDArray
 
+Identity = str | int
+DyadIdentity = tuple[Identity, Identity]
+
 
 def interval_overlap(
     intervals_1: NDArray,

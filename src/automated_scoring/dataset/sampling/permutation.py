@@ -7,8 +7,8 @@ from numpy.typing import NDArray
 
 from ...data_structures.utils import get_interval_slice
 from ...features import keypoint_distances
-from .. import AnnotatedGroup, Dataset, Dyad, Group
-from ..types.utils import Identity
+from .. import Identity
+from ..types import AnnotatedGroup, Dataset, Dyad, Group
 
 
 def get_proximitry_matrix(group: Group | AnnotatedGroup) -> tuple[NDArray, NDArray]:
@@ -96,13 +96,11 @@ def _permute_recipients_in_group(
     annotations_group = annotations_group[annotations_group["category"] != "none"]
     annotations_group["recipient"] = annotations_group.apply(
         _non_recipient_neighbor,
-        args=(
-            neighbor_rank,
-            list(group.trajectories.keys()),
-            proximitry_matrix,
-            timestamps,
-        ),
         axis=1,
+        rank=neighbor_rank,
+        identities=list(group.trajectories.keys()),
+        proximitry_matrix=proximitry_matrix,
+        timestamps=timestamps,
     )
     if TYPE_CHECKING:
         assert isinstance(annotations_group, pd.DataFrame)
@@ -136,7 +134,6 @@ def permute_recipients(
 ) -> Dataset | AnnotatedGroup:
     if isinstance(dataset, Dataset):
         return _permute_recipients(dataset, neighbor_rank=neighbor_rank)
-    elif isinstance(dataset, AnnotatedGroup):
+    if isinstance(dataset, AnnotatedGroup):
         return _permute_recipients_in_group(dataset, neighbor_rank=neighbor_rank)
-    else:
-        raise TypeError("dataset_or_group must be a Dataset or AnnotatedGroup")
+    raise TypeError("dataset_or_group must be a Dataset or AnnotatedGroup")

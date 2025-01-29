@@ -9,8 +9,7 @@ import pandas as pd
 from matplotlib.axes import Axes
 from numpy.typing import NDArray
 
-from ..dataset import Dataset
-from ..dataset.types.utils import DyadIdentity, Identity
+from ..dataset import Dataset, DyadIdentity, Identity
 from ..features import DataFrameFeatureExtractor, FeatureExtractor
 from ..utils import ensure_generator, formatted_tqdm
 from .predict import k_fold_predict

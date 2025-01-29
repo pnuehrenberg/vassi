@@ -9,13 +9,12 @@ from sklearn.preprocessing import OneHotEncoder
 from ...data_structures import Trajectory
 from ...features import DataFrameFeatureExtractor, FeatureExtractor
 from ..observations.utils import check_observations
+from ..utils import DyadIdentity, Identity
 from ._dataset_base import BaseDataset
 from ._sampleable import AnnotatedSampleable, Sampleable
 from .dyad import Dyad
 from .individual import Individual
 from .utils import (
-    DyadIdentity,
-    Identity,
     get_concatenated_dataset,
     recursive_sampleables,
 )

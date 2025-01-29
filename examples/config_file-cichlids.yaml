@@ -1,0 +1,311 @@
+individual:
+  - - speed
+    - step: 5
+      keypoints:
+        - 0
+        - 1
+        - 2
+  - - speed
+    - step: 15
+      keypoints:
+        - 0
+        - 1
+        - 2
+  - - speed
+    - step: 30
+      keypoints:
+        - 0
+        - 1
+        - 2
+  - - speed
+    - step: 5
+      keypoints:
+        - 0
+        - 1
+        - 2
+      reversed_dyad: true
+  - - speed
+    - step: 15
+      keypoints:
+        - 0
+        - 1
+        - 2
+      reversed_dyad: true
+  - - speed
+    - step: 30
+      keypoints:
+        - 0
+        - 1
+        - 2
+      reversed_dyad: true
+  - - projected_velocity
+    - step: 5
+      keypoints_1:
+        - 0
+        - 1
+        - 2
+      keypoint_pairs_2:
+        - - 1
+          - 0
+      discard: -rej
+  - - projected_velocity
+    - step: 5
+      keypoints_1:
+        - 0
+        - 1
+        - 2
+      keypoint_pairs_2:
+        - - 1
+          - 0
+      as_absolute: true
+      discard: -proj
+  - - projected_velocity
+    - step: 15
+      keypoints_1:
+        - 0
+        - 1
+        - 2
+      keypoint_pairs_2:
+        - - 1
+          - 0
+      discard: -rej
+  - - projected_velocity
+    - step: 15
+      keypoints_1:
+        - 0
+        - 1
+        - 2
+      keypoint_pairs_2:
+        - - 1
+          - 0
+      as_absolute: true
+      discard: -proj
+  - - projected_velocity
+    - step: 30
+      keypoints_1:
+        - 0
+        - 1
+        - 2
+      keypoint_pairs_2:
+        - - 1
+          - 0
+      discard: -rej
+  - - projected_velocity
+    - step: 30
+      keypoints_1:
+        - 0
+        - 1
+        - 2
+      keypoint_pairs_2:
+        - - 1
+          - 0
+      as_absolute: true
+      discard: -proj
+  - - orientation_change
+    - step: 5
+      keypoint_pairs:
+        - - 1
+          - 0
+        - - 2
+          - 1
+      as_absolute: true
+  - - orientation_change
+    - step: 15
+      keypoint_pairs:
+        - - 1
+          - 0
+        - - 2
+          - 1
+      as_absolute: true
+  - - orientation_change
+    - step: 30
+      keypoint_pairs:
+        - - 1
+          - 0
+        - - 2
+          - 1
+      as_absolute: true
+  - - posture_angles
+    - keypoint_pairs_1:
+        - - 2
+          - 1
+      keypoint_pairs_2:
+        - - 1
+          - 0
+      element_wise: true
+dyadic:
+  - - target_velocity
+    - step: 5
+      keypoints_1:
+        - 0
+        - 2
+      keypoint_pairs_2:
+        - - 0
+          - 0
+        - - 0
+          - 1
+        - - 0
+          - 2
+        - - 2
+          - 0
+        - - 2
+          - 1
+        - - 2
+          - 2
+      discard: -rej
+  - - target_velocity
+    - step: 15
+      keypoints_1:
+        - 0
+        - 2
+      keypoint_pairs_2:
+        - - 0
+          - 0
+        - - 0
+          - 1
+        - - 0
+          - 2
+        - - 2
+          - 0
+        - - 2
+          - 1
+        - - 2
+          - 2
+      discard: -rej
+  - - target_velocity
+    - step: 30
+      keypoints_1:
+        - 0
+        - 2
+      keypoint_pairs_2:
+        - - 0
+          - 0
+        - - 0
+          - 1
+        - - 0
+          - 2
+        - - 2
+          - 0
+        - - 2
+          - 1
+        - - 2
+          - 2
+      discard: -rej
+  - - target_velocity
+    - step: 5
+      keypoints_1:
+        - 0
+        - 2
+      keypoint_pairs_2:
+        - - 0
+          - 0
+        - - 0
+          - 1
+        - - 0
+          - 2
+        - - 2
+          - 0
+        - - 2
+          - 1
+        - - 2
+          - 2
+      as_absolute: true
+      discard: -proj
+  - - target_velocity
+    - step: 15
+      keypoints_1:
+        - 0
+        - 2
+      keypoint_pairs_2:
+        - - 0
+          - 0
+        - - 0
+          - 1
+        - - 0
+          - 2
+        - - 2
+          - 0
+        - - 2
+          - 1
+        - - 2
+          - 2
+      as_absolute: true
+      discard: -proj
+  - - target_velocity
+    - step: 30
+      keypoints_1:
+        - 0
+        - 2
+      keypoint_pairs_2:
+        - - 0
+          - 0
+        - - 0
+          - 1
+        - - 0
+          - 2
+        - - 2
+          - 0
+        - - 2
+          - 1
+        - - 2
+          - 2
+      as_absolute: true
+      discard: -proj
+  - - target_velocity
+    - step: 5
+      keypoints_1:
+        - 0
+      keypoint_pairs_2:
+        - - 0
+          - 0
+      discard: -rej
+      reversed_dyad: true
+  - - target_velocity
+    - step: 15
+      keypoints_1:
+        - 0
+      keypoint_pairs_2:
+        - - 0
+          - 0
+      discard: -rej
+      reversed_dyad: true
+  - - target_velocity
+    - step: 30
+      keypoints_1:
+        - 0
+      keypoint_pairs_2:
+        - - 0
+          - 0
+      discard: -rej
+      reversed_dyad: true
+  - - keypoint_distances
+    - keypoints_1:
+        - 0
+        - 1
+        - 2
+      keypoints_2:
+        - 0
+        - 1
+        - 2
+  - - target_angles
+    - keypoint_pairs_1:
+        - - 1
+          - 0
+        - - 2
+          - 1
+      keypoints_2:
+        - 0
+        - 1
+        - 2
+      as_absolute: true
+  - - posture_alignment
+    - keypoint_pairs_1:
+        - - 1
+          - 0
+        - - 2
+          - 1
+      keypoint_pairs_2:
+        - - 1
+          - 0
+        - - 2
+          - 1

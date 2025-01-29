@@ -1,5 +1,3 @@
-from .observations.concatenate import concatenate_observations
-from .observations.utils import check_observations, to_observations
 from .types import (
     AnnotatedDyad,
     AnnotatedGroup,
@@ -9,13 +7,9 @@ from .types import (
     Group,
     Individual,
 )
+from .utils import DyadIdentity, Identity
 
 __all__ = [
-    # from observations
-    "to_observations",
-    "check_observations",
-    "concatenate_observations",
-    # from types
     "Individual",
     "AnnotatedIndividual",
     "Dyad",
@@ -23,4 +17,6 @@ __all__ = [
     "Group",
     "AnnotatedGroup",
     "Dataset",
+    "Identity",
+    "DyadIdentity",
 ]

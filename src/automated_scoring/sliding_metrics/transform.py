@@ -8,7 +8,7 @@ from sklearn.base import BaseEstimator, TransformerMixin
 from sklearn.utils.validation import _check_feature_names_in
 
 from ..utils import NDArray_to_NDArray, closest_odd_divisible, flatten, warning_only
-from .sliding_window import apply_multiple_to_sliding_windows
+from .sliding_metrics import apply_multiple_to_sliding_windows
 
 
 @overload
@@ -72,7 +72,7 @@ class SlidingWindowAggregator(BaseEstimator, TransformerMixin):
         self,
         metric_funcs: list[NDArray_to_NDArray],
         window_size: int | Iterable[int],
-        window_slices: slice | list[slice] | None = None,
+        window_slices: list[slice] | None = None,
     ):
         self.metric_funcs = metric_funcs
         if isinstance(window_size, int):
@@ -96,7 +96,7 @@ class SlidingWindowAggregator(BaseEstimator, TransformerMixin):
                 X_array,
                 self.window_size,
                 self.metric_funcs,
-                window_slices=self.window_slices,
+                slices=self.window_slices,
             )
         )
 
@@ -144,6 +144,6 @@ class SlidingWindowAggregator(BaseEstimator, TransformerMixin):
                         stop = selection_slice.stop
                         if stop is not None:
                             stop -= self.window_size // 2
-                        name = f"{name}_w[{start}:{stop}]"
+                        name = f"{name}({start}:{stop})"
                     feature_names.append(name)
         return np.asarray(feature_names, dtype=object)
