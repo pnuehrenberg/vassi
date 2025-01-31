@@ -9,7 +9,7 @@ import pandas as pd
 from matplotlib.axes import Axes
 from numpy.typing import NDArray
 
-from ..dataset import Dataset, DyadIdentity, Identity
+from ..dataset import Dataset, Identifier
 from ..features import DataFrameFeatureExtractor, FeatureExtractor
 from ..utils import ensure_generator, formatted_tqdm
 from .predict import k_fold_predict
@@ -231,7 +231,7 @@ def optimize_smoothing(
     plot_results: bool = True,
     # k fold paramters
     k: int,
-    exclude: Optional[Iterable[Identity | DyadIdentity]] = None,
+    exclude: Optional[Iterable[Identifier]] = None,
     # random_state is also used for sampling
     random_state: Optional[np.random.Generator | int] = None,
     # sampling parameters
@@ -269,7 +269,7 @@ def optimize_smoothing(
         Whether to plot the results. Defaults to True.
     k : int, optional
         The number of folds to use for k-fold cross-validation. Defaults to 5.
-    exclude : Iterable[Identity | DyadIdentity], optional
+    exclude : Iterable[Identifier], optional
         The individuals, dyads, or groups to exclude from the dataset. Defaults to None.
     random_state : int | np.random.Generator, optional
         The random state to use for and sampling and k-fold prediction. Defaults to None.
@@ -358,7 +358,7 @@ def optimize_decision_thresholds(
     plot_results: bool = True,
     # k fold paramters
     k: int,
-    exclude: Optional[Iterable[Identity | DyadIdentity]] = None,
+    exclude: Optional[Iterable[Identifier]] = None,
     # random_state is also used for sampling
     random_state: Optional[np.random.Generator | int] = None,
     # sampling parameters

@@ -10,8 +10,13 @@ from numpy.dtypes import StringDType  # type: ignore
 from numpy.typing import NDArray
 
 from .data_structures.trajectory import Trajectory
-from .dataset import AnnotatedGroup, Dataset, Group
-from .dataset.types.utils import Identity
+from .dataset import (
+    AnnotatedGroup,
+    Dataset,
+    Group,
+    GroupIdentifier,
+    IndividualIdentifier,
+)
 from .utils import warning_only
 
 
@@ -192,7 +197,7 @@ def save_trajectories(
 
 def load_trajectories(
     trajectory_file: str, data_path: str | None = None, exclude: list[str] | None = None
-) -> dict[Identity, Trajectory]:
+) -> dict[IndividualIdentifier, Trajectory]:
     """
     Load trajectories from a HDF5 file that was saved with save_trajectories.
 
@@ -348,7 +353,7 @@ def load_dataset(
         observations = pd.read_csv(observation_file).set_index("group")
     elif load_observations:
         raise FileNotFoundError(f"{observation_file} does not exist.")
-    groups: dict[Identity, Group | AnnotatedGroup] = {}
+    groups: dict[GroupIdentifier, Group | AnnotatedGroup] = {}
     group_keys = load_data(trajectory_file, "_groups")
     if not isinstance(group_keys, np.ndarray):
         raise ValueError(f"invalid dataset file with group keys of type {type(groups)}")

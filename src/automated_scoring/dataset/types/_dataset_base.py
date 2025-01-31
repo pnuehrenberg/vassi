@@ -6,7 +6,7 @@ from numpy.typing import NDArray
 from sklearn.preprocessing import OneHotEncoder
 
 from ...features import DataFrameFeatureExtractor, FeatureExtractor
-from ..utils import DyadIdentity, Identity
+from ..utils import Identifier
 
 if TYPE_CHECKING:
     from ._sampleable import AnnotatedSampleable, Sampleable
@@ -38,7 +38,7 @@ class BaseDataset:
         self,
         feature_extractor: FeatureExtractor | DataFrameFeatureExtractor,
         *,
-        exclude: Optional[Iterable[Identity | DyadIdentity]] = None,
+        exclude: Optional[Iterable[Identifier]] = None,
     ) -> tuple[NDArray | pd.DataFrame, NDArray | None]:
         raise NotImplementedError
 
@@ -57,7 +57,7 @@ class BaseDataset:
         feature_extractor: FeatureExtractor | DataFrameFeatureExtractor,
         size: int | float,
         *,
-        exclude: Optional[list[Identity | DyadIdentity]] = None,
+        exclude: Optional[list[Identifier]] = None,
         # subsample specific
         random_state: Optional[np.random.Generator | int] = None,
         stratify_by_groups: bool = True,

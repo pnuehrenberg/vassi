@@ -13,7 +13,7 @@ from ...features import DataFrameFeatureExtractor, FeatureExtractor
 from ...utils import warning_only
 from ..observations.utils import check_observations, infill_observations
 from ..sampling.split import split, test_stratify
-from ..utils import Identity
+from ..utils import Identifier
 from ._dataset_base import BaseDataset
 
 
@@ -65,7 +65,7 @@ class BaseSampleable(BaseDataset):
         self,
         feature_extractor: FeatureExtractor | DataFrameFeatureExtractor,
         *,
-        exclude: Optional[Iterable["Identity | tuple[Identity, Identity]"]] = None,
+        exclude: Optional[Iterable[Identifier]] = None,
     ) -> tuple[NDArray | pd.DataFrame, NDArray | None]:
         if exclude is not None:
             with warning_only():
@@ -118,7 +118,7 @@ class BaseSampleable(BaseDataset):
         reset_stored_indices: bool = False,
         categories: Optional[list[str]] = None,
         try_even_subsampling: bool = True,
-        exclude: Optional[Iterable["Identity | tuple[Identity, Identity]"]] = None,
+        exclude: Optional[Iterable[Identifier]] = None,
     ) -> tuple[NDArray | pd.DataFrame, NDArray | None]:
         if exclude is not None:
             with warning_only():

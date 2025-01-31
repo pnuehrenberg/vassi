@@ -1,12 +1,11 @@
 import warnings
-from typing import Iterable, Optional, Self, overload, TYPE_CHECKING
+from typing import TYPE_CHECKING, Iterable, Optional, Self, overload
 
 import numpy as np
 import pandas as pd
 from numpy.typing import NDArray
 from sklearn.base import BaseEstimator, TransformerMixin
-from sklearn.utils.validation import _check_feature_names_in
-from sklearn.utils.validation import validate_data
+from sklearn.utils.validation import _check_feature_names_in, validate_data
 
 from ..utils import NDArray_to_NDArray, closest_odd_divisible, flatten, warning_only
 from .sliding_metrics import apply_multiple_to_sliding_windows

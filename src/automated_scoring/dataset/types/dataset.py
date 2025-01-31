@@ -9,7 +9,7 @@ from sklearn.preprocessing import OneHotEncoder
 
 from ...features import DataFrameFeatureExtractor, FeatureExtractor
 from ...utils import ensure_generator, to_int_seed
-from ..utils import DyadIdentity, Identity
+from ..utils import GroupIdentifier, Identifier, IndividualIdentifier, SubjectIdentifier
 from ._dataset_base import BaseDataset
 from ._sampleable import AnnotatedSampleable, Sampleable
 from .group import AnnotatedGroup, Group
@@ -18,25 +18,23 @@ from .utils import (
     recursive_sampleables,
 )
 
-# same as DyadIdentity, but for different purposes
-ActorIdentifier = tuple[Identity, Identity]
 
-
-def get_actor(key: Identity | DyadIdentity) -> Identity:
-    if isinstance(key, tuple):
-        return key[0]
-    return key
+def get_actor(identifier: Identifier) -> IndividualIdentifier:
+    if isinstance(identifier, tuple):
+        return identifier[0]
+    return identifier
 
 
 def get_subgroup(
     group: Group,
-    selected_actors: list[Identity],
-    exclude: Iterable[Identity | DyadIdentity],
+    selected_actors: list[IndividualIdentifier],
+    exclude: Iterable[Identifier],
 ):
     remaining = [
-        key
-        for key in group.keys
-        if (key in exclude) or (get_actor(key) not in selected_actors)
+        sampleable_id
+        for sampleable_id in group.identifiers
+        if (sampleable_id in exclude)
+        or (get_actor(sampleable_id) not in selected_actors)
     ]
     if isinstance(group, AnnotatedGroup):
         return AnnotatedGroup(
@@ -55,9 +53,9 @@ def get_subgroup(
 
 class Dataset(BaseDataset):
     _groups_list: list[Group]
-    groups: list[Group] | dict[Identity, Group]
+    groups: list[Group] | dict[GroupIdentifier, Group]
 
-    def __init__(self, groups: Sequence[Group] | dict[Identity, Group]) -> None:
+    def __init__(self, groups: Sequence[Group] | dict[GroupIdentifier, Group]) -> None:
         super().__init__()
         if len(groups) == 0:
             raise ValueError("provide at least one group.")
@@ -99,7 +97,7 @@ class Dataset(BaseDataset):
         self,
         feature_extractor: FeatureExtractor | DataFrameFeatureExtractor,
         *,
-        exclude: Optional[Iterable[Identity | DyadIdentity]] = None,
+        exclude: Optional[Iterable[Identifier]] = None,
         show_progress: bool = True,
     ) -> tuple[NDArray | pd.DataFrame, NDArray | None]:
         return get_concatenated_dataset(
@@ -131,7 +129,7 @@ class Dataset(BaseDataset):
         exclude_stored_indices: bool = False,
         reset_stored_indices: bool = False,
         try_even_subsampling: bool = True,
-        exclude: Optional[Iterable[Identity | DyadIdentity]] = None,
+        exclude: Optional[Iterable[Identifier]] = None,
         show_progress: bool = True,
     ) -> tuple[NDArray | pd.DataFrame, NDArray | None]:
         if exclude is None:
@@ -152,7 +150,7 @@ class Dataset(BaseDataset):
         )
 
     @property
-    def group_keys(self) -> list[Identity]:
+    def identifiers(self) -> list[GroupIdentifier]:
         # use for select
         return (
             list(self.groups.keys())
@@ -160,23 +158,23 @@ class Dataset(BaseDataset):
             else list(range(len(self.groups)))
         )
 
-    def get_actors(
-        self, *, exclude: Optional[Iterable[Identity | DyadIdentity]] = None
-    ) -> list[ActorIdentifier]:
+    def get_subjects(
+        self, *, exclude: Optional[Iterable[Identifier]] = None
+    ) -> list[SubjectIdentifier]:
         exclude = list(exclude) if exclude is not None else []
-        actors: list[ActorIdentifier] = []
-        for group_key in self.group_keys:
-            if group_key in exclude:
+        subjects: list[SubjectIdentifier] = []
+        for group_id in self.identifiers:
+            if group_id in exclude:
                 continue
-            group = self.select(group_key)
-            for key in group.keys:
-                if key in exclude:
+            group = self.select(group_id)
+            for sampleable_id in group.identifiers:
+                if sampleable_id in exclude:
                     continue
-                identifier = group_key, get_actor(key)
-                if identifier in actors:
+                identifier = group_id, get_actor(sampleable_id)
+                if identifier in subjects:
                     continue
-                actors.append(identifier)
-        return actors
+                subjects.append(identifier)
+        return subjects
 
     @property
     def sampling_targets(self) -> list[Sampleable] | list[AnnotatedSampleable]:
@@ -186,7 +184,7 @@ class Dataset(BaseDataset):
             for sampling_target in group.sampling_targets
         ]
 
-    def select(self, key: Identity) -> AnnotatedGroup | Group:
+    def select(self, key: GroupIdentifier) -> AnnotatedGroup | Group:
         if isinstance(self.groups, dict):
             return self.groups[key]
         if not isinstance(key, int):
@@ -202,7 +200,7 @@ class Dataset(BaseDataset):
     def get_observations(
         self,
         *,
-        exclude: Optional[Iterable[Identity | DyadIdentity]] = None,
+        exclude: Optional[Iterable[Identifier]] = None,
     ) -> pd.DataFrame:
         if isinstance(self.groups, list) and not all(
             [isinstance(group, AnnotatedGroup) for group in self.groups]
@@ -220,29 +218,33 @@ class Dataset(BaseDataset):
 
     def _split(
         self,
-        selected_actors: Iterable[ActorIdentifier],
-        remaining_actors: Iterable[ActorIdentifier],
+        selected_actors: Iterable[SubjectIdentifier],
+        remaining_actors: Iterable[SubjectIdentifier],
         *,
-        exclude: Optional[Iterable[Identity | DyadIdentity]] = None,
+        exclude: Optional[Iterable[Identifier]] = None,
     ):
         exclude = list(exclude) if exclude is not None else []
-        selected_actors_by_groups: dict[Identity, list[Identity]] = {}
-        remaining_actors_by_groups: dict[Identity, list[Identity]] = {}
-        for group_key, identity in selected_actors:
-            if group_key not in selected_actors_by_groups:
-                selected_actors_by_groups[group_key] = []
-            selected_actors_by_groups[group_key].append(identity)
-        for group_key, identity in remaining_actors:
-            if group_key not in remaining_actors_by_groups:
-                remaining_actors_by_groups[group_key] = []
-            remaining_actors_by_groups[group_key].append(identity)
+        selected_actors_by_groups: dict[
+            GroupIdentifier, list[IndividualIdentifier]
+        ] = {}
+        remaining_actors_by_groups: dict[
+            GroupIdentifier, list[IndividualIdentifier]
+        ] = {}
+        for group_id, identity in selected_actors:
+            if group_id not in selected_actors_by_groups:
+                selected_actors_by_groups[group_id] = []
+            selected_actors_by_groups[group_id].append(identity)
+        for group_id, identity in remaining_actors:
+            if group_id not in remaining_actors_by_groups:
+                remaining_actors_by_groups[group_id] = []
+            remaining_actors_by_groups[group_id].append(identity)
         selected_groups = {
-            group_key: get_subgroup(self.select(group_key), selected_actors, exclude)
-            for group_key, selected_actors in selected_actors_by_groups.items()
+            group_id: get_subgroup(self.select(group_id), selected_actors, exclude)
+            for group_id, selected_actors in selected_actors_by_groups.items()
         }
         remaining_groups = {
-            group_key: get_subgroup(self.select(group_key), remaining_actors, exclude)
-            for group_key, remaining_actors in remaining_actors_by_groups.items()
+            group_id: get_subgroup(self.select(group_id), remaining_actors, exclude)
+            for group_id, remaining_actors in remaining_actors_by_groups.items()
         }
         return Dataset(selected_groups), Dataset(remaining_groups)
 
@@ -250,14 +252,14 @@ class Dataset(BaseDataset):
         self,
         size: float,
         *,
-        exclude: Optional[Iterable[Identity | DyadIdentity]] = None,
+        exclude: Optional[Iterable[Identifier]] = None,
         random_state: Optional[np.random.Generator | int] = None,
     ) -> tuple["Dataset", "Dataset"]:
         random.seed(to_int_seed(ensure_generator(random_state)))
         if size < 0 or size > 1:
             raise ValueError("size should be between 0 and 1")
         exclude = list(exclude) if exclude is not None else []
-        actors = self.get_actors(exclude=exclude)
+        actors = self.get_subjects(exclude=exclude)
         num_selected = int(len(actors) * size)
         num_remaining = len(actors) - num_selected
         if num_selected < 1:
@@ -276,17 +278,17 @@ class Dataset(BaseDataset):
         self,
         k: int,
         *,
-        exclude: Optional[Iterable[Identity | DyadIdentity]] = None,
+        exclude: Optional[Iterable[Identifier]] = None,
         random_state: Optional[np.random.Generator | int] = None,
     ) -> Generator[tuple["Dataset", "Dataset"], Any, None]:
         random.seed(to_int_seed(ensure_generator(random_state)))
-        actors = self.get_actors(exclude=exclude)
+        actors = self.get_subjects(exclude=exclude)
         num_holdout_per_fold = len(actors) // k
         if num_holdout_per_fold < 1:
             raise ValueError(
                 "specified k is too large. each fold should contain at least one actor"
             )
-        folds: list[tuple[list[ActorIdentifier], list[ActorIdentifier]]] = []
+        folds: list[tuple[list[SubjectIdentifier], list[SubjectIdentifier]]] = []
         actors_remaining = actors
         for _ in range(k):
             holdout = random.sample(actors_remaining, num_holdout_per_fold)

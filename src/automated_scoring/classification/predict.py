@@ -12,9 +12,10 @@ from ..dataset import (
     Dataset,
     Dyad,
     Group,
+    GroupIdentifier,
+    Identifier,
     Individual,
 )
-from ..dataset.types.utils import DyadIdentity, Identity
 from ..features import DataFrameFeatureExtractor, FeatureExtractor
 from ..utils import ensure_generator, formatted_tqdm, warning_only
 from .results import (
@@ -71,9 +72,9 @@ def _predict_group(
     *,
     encode_func: Optional[Callable[[NDArray], NDArray[np.integer]]] = None,
     categories: Optional[Iterable[str]] = None,
-    exclude: Optional[Iterable[Identity | DyadIdentity]] = None,
+    exclude: Optional[Iterable[Identifier]] = None,
 ) -> GroupClassificationResult:
-    results: dict[Identity | DyadIdentity, ClassificationResult] = {}
+    results: dict[Identifier, ClassificationResult] = {}
     target = None
     for sampleable_key, sampleable in group._sampleables.items():
         if exclude is not None and sampleable_key in exclude:
@@ -117,14 +118,14 @@ def _predict(
     *,
     encode_func: Optional[Callable[[NDArray], NDArray[np.integer]]] = None,
     categories: Optional[Iterable[str]] = None,
-    exclude: Optional[Iterable[Identity | DyadIdentity]] = None,
+    exclude: Optional[Iterable[Identifier]] = None,
 ) -> DatasetClassificationResult:
-    results: dict[Identity, GroupClassificationResult] = {}
-    for group_key in dataset.group_keys:
-        if exclude is not None and group_key in exclude:
+    results: dict[GroupIdentifier, GroupClassificationResult] = {}
+    for group_id in dataset.identifiers:
+        if exclude is not None and group_id in exclude:
             continue
-        results[group_key] = _predict_group(
-            dataset.select(group_key),
+        results[group_id] = _predict_group(
+            dataset.select(group_id),
             classifier,
             extractor,
             encode_func=encode_func,
@@ -186,7 +187,7 @@ def predict(
     *,
     encode_func: Optional[Callable[[NDArray], NDArray[np.integer]]] = None,
     categories: Optional[Iterable[str]] = None,
-    exclude: Optional[Iterable[Identity | DyadIdentity]] = None,
+    exclude: Optional[Iterable[Identifier]] = None,
 ) -> ClassificationResult | GroupClassificationResult | DatasetClassificationResult:
     if isinstance(sampleable, Dataset):
         return _predict(
@@ -228,7 +229,7 @@ def k_fold_predict(
     classifier: Classifier,
     *,
     k: int,
-    exclude: Optional[Iterable[Identity | DyadIdentity]] = None,
+    exclude: Optional[Iterable[Identifier]] = None,
     random_state: Optional[np.random.Generator | int] = None,
     sampling_func: SamplingFunction,
     balance_sample_weights: bool = True,

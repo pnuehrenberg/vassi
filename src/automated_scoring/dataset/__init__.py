@@ -7,7 +7,13 @@ from .types import (
     Group,
     Individual,
 )
-from .utils import DyadIdentity, Identity
+from .utils import (
+    DyadIdentifier,
+    GroupIdentifier,
+    Identifier,
+    IndividualIdentifier,
+    SubjectIdentifier,
+)
 
 __all__ = [
     "Individual",
@@ -17,6 +23,9 @@ __all__ = [
     "Group",
     "AnnotatedGroup",
     "Dataset",
-    "Identity",
-    "DyadIdentity",
+    "IndividualIdentifier",
+    "DyadIdentifier",
+    "Identifier",
+    "GroupIdentifier",
+    "SubjectIdentifier",
 ]

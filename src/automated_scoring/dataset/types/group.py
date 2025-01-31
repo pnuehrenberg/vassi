@@ -9,7 +9,7 @@ from sklearn.preprocessing import OneHotEncoder
 from ...data_structures import Trajectory
 from ...features import DataFrameFeatureExtractor, FeatureExtractor
 from ..observations.utils import check_observations
-from ..utils import DyadIdentity, Identity
+from ..utils import Identifier, IndividualIdentifier
 from ._dataset_base import BaseDataset
 from ._sampleable import AnnotatedSampleable, Sampleable
 from .dyad import Dyad
@@ -23,10 +23,10 @@ from .utils import (
 class Group(BaseDataset):
     def __init__(
         self,
-        trajectories: dict[Identity, Trajectory],
+        trajectories: dict[IndividualIdentifier, Trajectory],
         *,
         target: Literal["individuals", "dyads"],
-        exclude: Optional[Iterable[Identity | DyadIdentity]] = None,
+        exclude: Optional[Iterable[Identifier]] = None,
     ) -> None:
         super().__init__()
         self.exclude = [] if exclude is None else list(exclude)
@@ -34,14 +34,14 @@ class Group(BaseDataset):
             raise ValueError("provide at least one trajectory.")
         self.trajectories = trajectories
         self._sampling_target = target
-        self._sampleables: dict[Identity | DyadIdentity, Sampleable] = {}
+        self._sampleables: dict[Identifier, Sampleable] = {}
         if target == "individuals":
-            for identity in self.identities:
+            for identity in self.individuals:
                 if identity in self.exclude:
                     continue
                 self._sampleables[identity] = Individual(self.trajectories[identity])
         elif target == "dyads":
-            for actor, recipient in list(permutations(self.identities, 2)):
+            for actor, recipient in list(permutations(self.individuals, 2)):
                 if (actor, recipient) in self.exclude:
                     continue
                 trajectory, trajectory_other = Sampleable.prepare_trajectories(
@@ -65,7 +65,7 @@ class Group(BaseDataset):
         return self._sampling_target
 
     @property
-    def identities(self) -> tuple[Identity, ...]:
+    def individuals(self) -> tuple[IndividualIdentifier, ...]:
         return tuple(sorted(self.trajectories.keys()))
 
     def annotate(
@@ -99,7 +99,7 @@ class Group(BaseDataset):
         self,
         feature_extractor: FeatureExtractor | DataFrameFeatureExtractor,
         *,
-        exclude: Optional[Iterable[Identity | DyadIdentity]] = None,
+        exclude: Optional[Iterable[Identifier]] = None,
         show_progress: bool = True,
     ) -> tuple[NDArray | pd.DataFrame, NDArray | None]:
         return get_concatenated_dataset(
@@ -131,7 +131,7 @@ class Group(BaseDataset):
         reset_stored_indices: bool = False,
         categories: Optional[list[str]] = None,
         try_even_subsampling: bool = True,
-        exclude: Optional[Iterable[Identity | DyadIdentity]] = None,
+        exclude: Optional[Iterable[Identifier]] = None,
         show_progress: bool = True,
     ) -> tuple[NDArray | pd.DataFrame, NDArray | None]:
         if exclude is None:
@@ -156,11 +156,11 @@ class Group(BaseDataset):
         return list(self._sampleables.values())
 
     @property
-    def keys(self) -> list[Identity | DyadIdentity]:
+    def identifiers(self) -> list[Identifier]:
         # use for select
         return list(self._sampleables.keys())
 
-    def select(self, key: Identity | DyadIdentity) -> Sampleable:
+    def select(self, key: Identifier) -> Sampleable:
         return self._sampleables[key]
 
     @property
@@ -171,15 +171,15 @@ class Group(BaseDataset):
 class AnnotatedGroup(Group):
     def __init__(
         self,
-        trajectories: dict[Identity, Trajectory],
+        trajectories: dict[IndividualIdentifier, Trajectory],
         *,
         target: Literal["individuals", "dyads"],
-        exclude: Optional[Iterable[Identity | DyadIdentity]] = None,
+        exclude: Optional[Iterable[Identifier]] = None,
         observations: pd.DataFrame,
         categories: tuple[str, ...],
     ) -> None:
         self._sampleables: dict[  # type: ignore
-            Identity | DyadIdentity, AnnotatedSampleable
+            Identifier, AnnotatedSampleable
         ] = {}
         super().__init__(trajectories, target=target, exclude=exclude)
         required_columns = [*AnnotatedSampleable.required_columns, "actor"]
@@ -218,7 +218,7 @@ class AnnotatedGroup(Group):
         return self._categories
 
     def get_observations(
-        self, actor: Identity, recipient: Optional[Identity]
+        self, actor: IndividualIdentifier, recipient: Optional[IndividualIdentifier]
     ) -> pd.DataFrame:
         if self.target == "dyads" and recipient is None:
             raise ValueError("provide recipient for sampling target 'dyads'")

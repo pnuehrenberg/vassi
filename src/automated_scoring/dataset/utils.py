@@ -1,8 +1,12 @@
 import numpy as np
 from numpy.typing import NDArray
 
-Identity = str | int
-DyadIdentity = tuple[Identity, Identity]
+IndividualIdentifier = str | int
+DyadIdentifier = tuple[IndividualIdentifier, IndividualIdentifier]
+Identifier = IndividualIdentifier | DyadIdentifier
+
+GroupIdentifier = IndividualIdentifier
+SubjectIdentifier = tuple[GroupIdentifier, IndividualIdentifier]
 
 
 def interval_overlap(

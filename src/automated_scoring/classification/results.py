@@ -9,8 +9,14 @@ from numpy.typing import NDArray
 from sklearn.metrics import f1_score
 
 from ..data_structures import Trajectory
-from ..dataset import AnnotatedGroup, Dataset, DyadIdentity, Identity
-from ..dataset.observations.utils import (
+from ..dataset import (
+    AnnotatedGroup,
+    Dataset,
+    GroupIdentifier,
+    Identifier,
+    IndividualIdentifier,
+)
+from ..dataset.observations import (
     infill_observations,
     remove_overlapping_observations,
 )
@@ -254,7 +260,7 @@ def _get_target(
 @dataclass
 class _NestedResult(_Result):
     classification_results: dict[
-        Identity | DyadIdentity,
+        Identifier,
         "ClassificationResult | GroupClassificationResult",
     ]
     target: Literal["individuals", "dyads"]
@@ -367,9 +373,9 @@ class _NestedResult(_Result):
 @dataclass
 class GroupClassificationResult(_NestedResult):
     classification_results: dict[  # type: ignore
-        Identity | DyadIdentity, ClassificationResult
+        Identifier, ClassificationResult
     ]
-    trajectories: dict[Identity, Trajectory]
+    trajectories: dict[IndividualIdentifier, Trajectory]
 
     @property
     def predictions(self) -> pd.DataFrame:
@@ -503,7 +509,7 @@ class GroupClassificationResult(_NestedResult):
 
 @dataclass
 class DatasetClassificationResult(_NestedResult):
-    classification_results: dict[Identity, GroupClassificationResult]  # type: ignore
+    classification_results: dict[GroupIdentifier, GroupClassificationResult]  # type: ignore
 
     @property
     def predictions(self) -> pd.DataFrame:

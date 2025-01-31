@@ -6,18 +6,18 @@ from ..types._sampleable import AnnotatedSampleable
 from ..types.dyad import AnnotatedDyad
 from ..types.group import AnnotatedGroup
 from ..types.individual import AnnotatedIndividual
-from ..types.utils import DyadIdentity, Identity
+from ..utils import GroupIdentifier, Identifier
 
 
 def concatenate_observations(
     sampleables: (
-        dict[Identity, AnnotatedGroup]
+        dict[GroupIdentifier, AnnotatedGroup]
         | Sequence[AnnotatedGroup]
-        | dict[Identity | DyadIdentity, AnnotatedSampleable]
+        | dict[Identifier, AnnotatedSampleable]
         | Sequence[AnnotatedSampleable]
     ),
     *,
-    exclude: Optional[Iterable[Identity | DyadIdentity]] = None,
+    exclude: Optional[Iterable[Identifier]] = None,
 ):
     concatenated_observations = []
     if isinstance(sampleables, dict):

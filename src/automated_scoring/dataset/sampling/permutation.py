@@ -7,7 +7,7 @@ from numpy.typing import NDArray
 
 from ...data_structures.utils import get_interval_slice
 from ...features import keypoint_distances
-from .. import Identity
+from .. import IndividualIdentifier
 from ..types import AnnotatedGroup, Dataset, Dyad, Group
 
 
@@ -52,10 +52,10 @@ def _non_recipient_neighbor(
     annotation: pd.Series,
     *,
     rank: int,
-    identities: Sequence[Identity],
+    identities: Sequence[IndividualIdentifier],
     proximitry_matrix: NDArray,
     timestamps: NDArray,
-) -> Identity:
+) -> IndividualIdentifier:
     identities = list(identities)
     if rank >= len(identities) - 2:
         raise ValueError(
@@ -109,11 +109,11 @@ def _permute_recipients_in_group(
 
 def _permute_recipients(dataset: Dataset, *, neighbor_rank: int) -> Dataset:
     groups = {}
-    for group_key in dataset.group_keys:
-        group = dataset.select(group_key)
+    for group_id in dataset.identifiers:
+        group = dataset.select(group_id)
         if not isinstance(group, AnnotatedGroup):
             raise ValueError("can only replace recipients in annotated groups")
-        groups[group_key] = _permute_recipients_in_group(
+        groups[group_id] = _permute_recipients_in_group(
             group, neighbor_rank=neighbor_rank
         )
     return Dataset(groups)
