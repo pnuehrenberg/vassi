@@ -260,20 +260,23 @@ class Dataset(BaseDataset):
         random_state: Optional[np.random.Generator | int] = None,
     ) -> Generator[tuple["Dataset", "Dataset"], Any, None]:
         random.seed(to_int_seed(ensure_generator(random_state)))
-        actors = self.get_subjects(exclude=exclude)
+        actors = set(self.get_subjects(exclude=exclude))
         num_holdout_per_fold = len(actors) // k
         if num_holdout_per_fold < 1:
             raise ValueError(
                 "specified k is too large. each fold should contain at least one actor"
             )
         folds: list[tuple[list[SubjectIdentifier], list[SubjectIdentifier]]] = []
-        actors_remaining = actors
-        for _ in range(k):
-            holdout = random.sample(actors_remaining, num_holdout_per_fold)
-            train = [actor for actor in actors if actor not in holdout]
-            folds.append((train, holdout))
-            actors_remaining = [
-                actor for actor in actors_remaining if actor not in holdout
-            ]
+        actors_remaining = actors.copy()
+        for idx in range(k):
+            if idx == k - 1:
+                holdout = actors_remaining
+            else:
+                holdout = set(
+                    random.sample(sorted(actors_remaining), num_holdout_per_fold)
+                )
+            train = actors - holdout
+            folds.append((list(sorted(train)), list(sorted(holdout))))
+            actors_remaining -= holdout
         for train, holdout in folds:
             yield self._split(train, holdout, exclude=exclude)
