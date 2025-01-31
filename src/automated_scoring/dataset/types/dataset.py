@@ -9,7 +9,13 @@ from sklearn.preprocessing import OneHotEncoder
 
 from ...features import DataFrameFeatureExtractor, FeatureExtractor
 from ...utils import ensure_generator, to_int_seed
-from ..utils import GroupIdentifier, Identifier, IndividualIdentifier, SubjectIdentifier
+from ..utils import (
+    GroupIdentifier,
+    Identifier,
+    IndividualIdentifier,
+    SubjectIdentifier,
+    get_actor,
+)
 from ._dataset_base import BaseDataset
 from ._sampleable import AnnotatedSampleable, Sampleable
 from .group import AnnotatedGroup, Group
@@ -17,38 +23,6 @@ from .utils import (
     get_concatenated_dataset,
     recursive_sampleables,
 )
-
-
-def get_actor(identifier: Identifier) -> IndividualIdentifier:
-    if isinstance(identifier, tuple):
-        return identifier[0]
-    return identifier
-
-
-def get_subgroup(
-    group: Group,
-    selected_actors: list[IndividualIdentifier],
-    exclude: Iterable[Identifier],
-):
-    remaining = [
-        sampleable_id
-        for sampleable_id in group.identifiers
-        if (sampleable_id in exclude)
-        or (get_actor(sampleable_id) not in selected_actors)
-    ]
-    if isinstance(group, AnnotatedGroup):
-        return AnnotatedGroup(
-            group.trajectories,
-            target=group.target,
-            observations=group._observations,
-            categories=group._categories,
-            exclude=remaining,
-        )
-    return Group(
-        group.trajectories,
-        target=group.target,
-        exclude=remaining,
-    )
 
 
 class Dataset(BaseDataset):
@@ -239,11 +213,15 @@ class Dataset(BaseDataset):
                 remaining_actors_by_groups[group_id] = []
             remaining_actors_by_groups[group_id].append(identity)
         selected_groups = {
-            group_id: get_subgroup(self.select(group_id), selected_actors, exclude)
+            group_id: self.select(group_id).get_subgroup(
+                selected_actors, exclude=exclude
+            )
             for group_id, selected_actors in selected_actors_by_groups.items()
         }
         remaining_groups = {
-            group_id: get_subgroup(self.select(group_id), remaining_actors, exclude)
+            group_id: self.select(group_id).get_subgroup(
+                remaining_actors, exclude=exclude
+            )
             for group_id, remaining_actors in remaining_actors_by_groups.items()
         }
         return Dataset(selected_groups), Dataset(remaining_groups)

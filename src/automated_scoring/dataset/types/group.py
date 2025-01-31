@@ -1,5 +1,5 @@
 from itertools import permutations
-from typing import Iterable, Literal, Optional, overload
+from typing import Iterable, Literal, Optional, Self, overload
 
 import numpy as np
 import pandas as pd
@@ -9,7 +9,7 @@ from sklearn.preprocessing import OneHotEncoder
 from ...data_structures import Trajectory
 from ...features import DataFrameFeatureExtractor, FeatureExtractor
 from ..observations.utils import check_observations
-from ..utils import Identifier, IndividualIdentifier
+from ..utils import Identifier, IndividualIdentifier, get_actor
 from ._dataset_base import BaseDataset
 from ._sampleable import AnnotatedSampleable, Sampleable
 from .dyad import Dyad
@@ -167,6 +167,27 @@ class Group(BaseDataset):
     def label_encoder(self) -> OneHotEncoder:
         raise ValueError("non annotated group can not encode labels")
 
+    def _copy(self, *, exclude: Iterable[Identifier]) -> Self:
+        return type(self)(
+            self.trajectories,
+            target=self.target,
+            exclude=exclude,
+        )
+
+    def get_subgroup(
+        self,
+        selected_individuals: Iterable[IndividualIdentifier],
+        *,
+        exclude: Iterable[Identifier],
+    ) -> Self:
+        remaining = [
+            sampleable_id
+            for sampleable_id in self.identifiers
+            if (sampleable_id in exclude)
+            or (get_actor(sampleable_id) not in selected_individuals)
+        ]
+        return self._copy(exclude=remaining)
+
 
 class AnnotatedGroup(Group):
     def __init__(
@@ -208,6 +229,15 @@ class AnnotatedGroup(Group):
             self._sampleables[key] = annotated_sampleable
             if len(self._categories) == 0:
                 self._categories = annotated_sampleable.categories
+
+    def _copy(self, *, exclude: Iterable[Identifier]) -> Self:
+        return type(self)(
+            self.trajectories,
+            target=self.target,
+            observations=self._observations,
+            categories=self._categories,
+            exclude=exclude,
+        )
 
     @property
     def observations(self) -> pd.DataFrame:

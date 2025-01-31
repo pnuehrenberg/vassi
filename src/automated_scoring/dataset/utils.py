@@ -9,6 +9,12 @@ GroupIdentifier = IndividualIdentifier
 SubjectIdentifier = tuple[GroupIdentifier, IndividualIdentifier]
 
 
+def get_actor(identifier: Identifier) -> IndividualIdentifier:
+    if isinstance(identifier, tuple):
+        return identifier[0]
+    return identifier
+
+
 def interval_overlap(
     intervals_1: NDArray,
     intervals_2: NDArray,
