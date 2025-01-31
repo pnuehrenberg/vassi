@@ -1,11 +1,12 @@
 import warnings
-from typing import Iterable, Optional, Self, overload
+from typing import Iterable, Optional, Self, overload, TYPE_CHECKING
 
 import numpy as np
 import pandas as pd
 from numpy.typing import NDArray
 from sklearn.base import BaseEstimator, TransformerMixin
 from sklearn.utils.validation import _check_feature_names_in
+from sklearn.utils.validation import validate_data
 
 from ..utils import NDArray_to_NDArray, closest_odd_divisible, flatten, warning_only
 from .sliding_metrics import apply_multiple_to_sliding_windows
@@ -86,14 +87,15 @@ class SlidingWindowAggregator(BaseEstimator, TransformerMixin):
 
     def transform(self, X: NDArray | pd.DataFrame) -> NDArray:
         # X is not typed in pandas
-        X_array: NDArray = self._validate_data(
+        X_numpy = validate_data(
+            self,
             X,  # type: ignore
-            cast_to_ndarray=True,
-            ensure_2d=True,
         )
+        if TYPE_CHECKING:
+            assert isinstance(X_numpy, np.ndarray)
         return flatten(
             apply_multiple_to_sliding_windows(
-                X_array,
+                X_numpy,
                 self.window_size,
                 self.metric_funcs,
                 slices=self.window_slices,
