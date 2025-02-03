@@ -1,5 +1,5 @@
 from itertools import permutations
-from typing import Iterable, Literal, Optional, Self, overload
+from typing import TYPE_CHECKING, Iterable, Literal, Optional, Self, overload
 
 import numpy as np
 import pandas as pd
@@ -41,7 +41,10 @@ class Group(BaseDataset):
                     continue
                 self._sampleables[identity] = Individual(self.trajectories[identity])
         elif target == "dyads":
-            for actor, recipient in list(permutations(self.individuals, 2)):
+            for identifier in self.potential_identifieres:
+                if TYPE_CHECKING:
+                    assert isinstance(identifier, tuple)
+                actor, recipient = identifier
                 if (actor, recipient) in self.exclude:
                     continue
                 trajectory, trajectory_other = Sampleable.prepare_trajectories(
@@ -156,9 +159,17 @@ class Group(BaseDataset):
         return list(self._sampleables.values())
 
     @property
+    def potential_identifieres(self) -> list[Identifier]:
+        if self.target == "individuals":
+            identifiers = self.individuals
+        else:
+            identifiers = list(permutations(self.individuals, 2))
+        return sorted(identifiers)
+
+    @property
     def identifiers(self) -> list[Identifier]:
         # use for select
-        return list(self._sampleables.keys())
+        return sorted(list(self._sampleables.keys()))
 
     def select(self, key: Identifier) -> Sampleable:
         return self._sampleables[key]
@@ -182,7 +193,7 @@ class Group(BaseDataset):
     ) -> Self:
         remaining = [
             sampleable_id
-            for sampleable_id in self.identifiers
+            for sampleable_id in self.potential_identifieres
             if (sampleable_id in exclude)
             or (get_actor(sampleable_id) not in selected_individuals)
         ]

@@ -127,7 +127,7 @@ class Dataset(BaseDataset):
     def identifiers(self) -> list[GroupIdentifier]:
         # use for select
         return (
-            list(self.groups.keys())
+            sorted(list(self.groups.keys()))
             if isinstance(self.groups, dict)
             else list(range(len(self.groups)))
         )
@@ -148,7 +148,7 @@ class Dataset(BaseDataset):
                 if identifier in subjects:
                     continue
                 subjects.append(identifier)
-        return subjects
+        return sorted(subjects)
 
     @property
     def sampling_targets(self) -> list[Sampleable] | list[AnnotatedSampleable]:
