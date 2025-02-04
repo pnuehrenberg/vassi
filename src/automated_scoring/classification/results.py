@@ -1,6 +1,8 @@
 import warnings
 from collections.abc import Iterable, Mapping
+from copy import deepcopy
 from dataclasses import dataclass
+from multiprocessing import Pool, cpu_count
 from typing import Callable, Literal, Optional, Self, overload
 
 import numpy as np
@@ -21,7 +23,7 @@ from ..dataset.observations import (
     remove_overlapping_observations,
 )
 from ..series_operations import smooth
-from ..utils import NDArray_to_NDArray, warning_only
+from ..utils import SmoothingFunction, warning_only
 from .utils import (
     _filter_recipient_bouts,
     score_category_counts,
@@ -128,6 +130,43 @@ class _Result:
         )
 
 
+def _smooth_probabilities(
+    arg: tuple[
+        "ClassificationResult",
+        list[SmoothingFunction],
+        bool,
+        Optional[Iterable[float]],
+        int | str,
+    ],
+) -> "ClassificationResult":
+    """Wrapper for smoothing probabilities in a classification result. Used in parallel processing."""
+    (
+        classification_result,
+        label_smoothing_funcs,
+        threshold,
+        decision_thresholds,
+        default_decision,
+    ) = arg
+    return classification_result.smooth(
+        label_smoothing_funcs,
+        threshold=threshold,
+        decision_thresholds=decision_thresholds,
+        default_decision=default_decision,
+    )
+
+
+def _threshold_probabilities(
+    arg: tuple["ClassificationResult", Optional[Iterable[float]], int | str],
+) -> "ClassificationResult":
+    """Wrapper for thresholding probabilities in a classification result. Used in parallel processing."""
+    classification_result, decision_thresholds, default_decision = arg
+    return classification_result.threshold(
+        decision_thresholds,
+        default_decision=default_decision,
+        remove_overlapping_predictions=False,
+    )
+
+
 @dataclass
 class ClassificationResult(_Result):
     categories: Iterable[str]
@@ -159,7 +198,7 @@ class ClassificationResult(_Result):
             raise ValueError(
                 f"number of decision thresholds ({len(decision_thresholds)}) does not match number of categories ({probabilities.shape[1]})"
             )
-        probabilities = probabilities.copy()
+        probabilities = deepcopy(probabilities)
         for idx, threshold in enumerate(decision_thresholds):
             probabilities[:, idx] = np.where(
                 probabilities[:, idx] >= threshold, probabilities[:, idx], 0
@@ -199,7 +238,7 @@ class ClassificationResult(_Result):
 
     def smooth(
         self,
-        label_smoothing_funcs: list[NDArray_to_NDArray],
+        label_smoothing_funcs: list[SmoothingFunction],
         *,
         threshold: bool = True,
         decision_thresholds: Optional[Iterable[float]] = None,
@@ -267,13 +306,32 @@ class _NestedResult(_Result):
 
     def smooth(
         self,
-        label_smoothing_funcs: list[NDArray_to_NDArray],
+        label_smoothing_funcs: list[SmoothingFunction],
         *,
         threshold: bool = True,
         decision_thresholds: Optional[Iterable[float]] = None,
         default_decision: int | str = "none",
         remove_overlapping_predictions: bool = False,
     ) -> Self:
+        num_cpus = cpu_count()
+        if (
+            isinstance(self, GroupClassificationResult)
+            and len(self.classification_results) >= num_cpus
+        ):
+            with Pool(processes=num_cpus) as pool:
+                pool.map(
+                    _smooth_probabilities,
+                    [
+                        (
+                            classification_result,
+                            label_smoothing_funcs,
+                            threshold,
+                            decision_thresholds,
+                            default_decision,
+                        )
+                        for classification_result in self.classification_results.values()
+                    ],
+                )
         for classification_result in self.classification_results.values():
             classification_result.smooth(
                 label_smoothing_funcs,
@@ -291,6 +349,23 @@ class _NestedResult(_Result):
         default_decision: int | str = "none",
         remove_overlapping_predictions: bool = False,
     ) -> Self:
+        num_cpus = cpu_count()
+        if (
+            isinstance(self, GroupClassificationResult)
+            and len(self.classification_results) >= num_cpus
+        ):
+            with Pool(processes=num_cpus) as pool:
+                pool.map(
+                    _threshold_probabilities,
+                    [
+                        (
+                            classification_result,
+                            decision_thresholds,
+                            default_decision,
+                        )
+                        for classification_result in self.classification_results.values()
+                    ],
+                )
         for classification_result in self.classification_results.values():
             classification_result.threshold(
                 decision_thresholds, default_decision=default_decision

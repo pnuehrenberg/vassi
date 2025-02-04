@@ -100,7 +100,7 @@ def filter_sliding_quantile_range_1d(
     return sample_1d(array[idx], idx, np.arange(array.size), keep_dtype=True)
 
 
-def smooth_1d(array: NDArray, filter_funcs: list[utils.NDArray_to_NDArray]) -> NDArray:
+def smooth_1d(array: NDArray, filter_funcs: list[utils.SmoothingFunction]) -> NDArray:
     """
     Apply multiple filter functions to a 1D array.
 
@@ -119,7 +119,7 @@ def smooth_1d(array: NDArray, filter_funcs: list[utils.NDArray_to_NDArray]) -> N
         The filtered array.
     """
     for filter_func in filter_funcs:
-        array = filter_func(array)
+        array = filter_func(array=array)
     return array
 
 
@@ -233,7 +233,7 @@ def filter_sliding_quantile_range(
 
 def smooth(
     series: NDArray,
-    filter_funcs: list[utils.NDArray_to_NDArray],
+    filter_funcs: list[utils.SmoothingFunction],
     copy: bool = True,
 ) -> NDArray:
     """

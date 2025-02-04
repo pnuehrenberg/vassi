@@ -1,4 +1,6 @@
+import os
 from collections.abc import Iterable
+from functools import partial
 from itertools import product
 from typing import TYPE_CHECKING, Any, Optional
 
@@ -11,10 +13,63 @@ from numpy.typing import NDArray
 
 from ..dataset import Dataset, Identifier
 from ..features import DataFrameFeatureExtractor, FeatureExtractor
-from ..utils import ensure_generator, formatted_tqdm
+from ..utils import SmoothingFunction, ensure_generator, formatted_tqdm, to_int_seed
 from .predict import k_fold_predict
-from .utils import EncodingFunction, SamplingFunction, SmoothingFunction
+from .utils import EncodingFunction, SamplingFunction
 from .visualization import Array
+
+try:
+    from mpi4py import MPI
+except ImportError:
+    MPI = None
+
+
+class MPIContext:
+    def __init__(self, random_state: Optional[np.random.Generator | int] = None):
+        self.seed = to_int_seed(ensure_generator(random_state))
+        self.data = {}
+        self.comm = None
+        self.rank = 0
+        self.size = 1
+        if MPI is None:
+            return
+        self.comm = MPI.COMM_WORLD
+        self.rank = self.comm.Get_rank()
+        self.size = self.comm.Get_size()
+
+    def do_iteration(self, iteration: int):
+        if self.comm is None:
+            return True
+        return iteration % self.size == self.rank
+
+    def get_random_state(
+        self, iteration: int, *, num_iterations: int
+    ) -> np.random.Generator:
+        random_state = ensure_generator(self.seed)
+        seeds = random_state.integers(10**6, size=num_iterations).tolist()
+        return ensure_generator(seeds[iteration])
+
+    @property
+    def is_root(self):
+        return self.rank == 0
+
+    def add(self, iteration, data):
+        if self.comm is None or self.is_root:
+            self.data[iteration] = data
+            return
+        self.comm.send(data, dest=0, tag=iteration)
+
+    def collect(self, *, num_iterations: int):
+        if self.comm is None:
+            return self.data
+        if not self.is_root:
+            raise RuntimeError("collect should only be called from root mpi process")
+        for iteration in range(1, num_iterations):
+            rank = iteration % self.size
+            if rank == self.rank:
+                continue
+            self.data[iteration] = self.comm.recv(source=rank, tag=iteration)
+        return {iteration: self.data[iteration] for iteration in sorted(self.data)}
 
 
 def _parameter_grid_to_combinations(
@@ -158,7 +213,6 @@ def _evaluate_results(
     ].to_dict()
     if not plot_results:
         return best_parameters
-
     show_on_return = False
     if axes is None:
         fig = plt.figure(figsize=figsize, dpi=dpi)
@@ -213,8 +267,123 @@ def _evaluate_results(
         ax.spines[["right", "top"]].set_visible(False)
     if show_on_return:
         plt.show()
-
     return best_parameters
+
+
+def _score_smoothing(
+    smoothing_func: SmoothingFunction,
+    parameter_combinations: list[dict[str, Any]],
+    dataset: Dataset,
+    extractor: FeatureExtractor | DataFrameFeatureExtractor,
+    classifier: Any,
+    *,
+    remove_overlapping_predictions: bool,
+    iteration: int,
+    k: int,
+    exclude: Iterable[Identifier] | None,
+    random_state: np.random.Generator | int,
+    sampling_func: SamplingFunction,
+    balance_sample_weights: bool,
+    encode_func: EncodingFunction,
+    show_k_fold_progress: bool,
+    show_progress: bool,
+) -> list[dict[str, Any]]:
+    classification_result = k_fold_predict(
+        dataset,
+        extractor,
+        classifier,
+        k=k,
+        exclude=exclude,
+        random_state=random_state,
+        sampling_func=sampling_func,
+        balance_sample_weights=balance_sample_weights,
+        encode_func=encode_func,
+        show_progress=show_k_fold_progress,
+    )
+    results = []
+    for parameters in formatted_tqdm(
+        parameter_combinations,
+        desc="scoring combinations",
+        disable=not show_progress,
+    ):
+        if TYPE_CHECKING:
+            assert isinstance(parameters, dict)
+        classification_result = classification_result.smooth(
+            [partial(smoothing_func, parameters)],
+            remove_overlapping_predictions=remove_overlapping_predictions,
+        )
+        results.append(
+            {
+                "iteration": iteration,
+                **parameters,
+                **classification_result.score(encode_func=encode_func, macro=True),
+            }
+        )
+    return results
+
+
+def _score_thresholds(
+    decision_thresholds: list[NDArray],
+    dataset: Dataset,
+    extractor: FeatureExtractor | DataFrameFeatureExtractor,
+    classifier: Any,
+    *,
+    remove_overlapping_predictions: bool,
+    default_decision: int | str,
+    iteration: int,
+    k: int,
+    exclude: Iterable[Identifier] | None,
+    random_state: np.random.Generator | int,
+    sampling_func: SamplingFunction,
+    balance_sample_weights: bool,
+    encode_func: EncodingFunction,
+    show_k_fold_progress: bool,
+    show_progress: bool,
+    smoothing_func: SmoothingFunction | None,
+) -> list[list[dict[str, Any]]]:
+    num_categories = len(decision_thresholds)
+    assert num_categories == len(dataset.categories)
+    classification_result = k_fold_predict(
+        dataset,
+        extractor,
+        classifier,
+        k=k,
+        exclude=exclude,
+        random_state=random_state,
+        sampling_func=sampling_func,
+        balance_sample_weights=balance_sample_weights,
+        encode_func=encode_func,
+        show_progress=show_k_fold_progress,
+    )
+    results = [[] for _ in range(num_categories)]
+    if smoothing_func is not None:
+        classification_result = classification_result.smooth(
+            [smoothing_func], threshold=False
+        )
+        for category_idx in formatted_tqdm(
+            range(num_categories),
+            desc="thresholding categories",
+            disable=not show_progress,
+        ):
+            for threshold in formatted_tqdm(
+                decision_thresholds[category_idx],
+                desc="scoring thresholds",
+                disable=not show_progress,
+            ):
+                thresholds = np.zeros(num_categories)
+                thresholds[category_idx] = threshold
+                results[category_idx].append(
+                    {
+                        "iteration": iteration,
+                        f"threshold_{dataset.categories[category_idx]}": threshold,
+                        **classification_result.threshold(
+                            thresholds,
+                            default_decision=default_decision,
+                            remove_overlapping_predictions=remove_overlapping_predictions,
+                        ).score(encode_func=encode_func, macro=True),
+                    }
+                )
+    return results
 
 
 def optimize_smoothing(
@@ -229,66 +398,16 @@ def optimize_smoothing(
     show_progress: bool = False,
     tolerance: float = 0.01,
     plot_results: bool = True,
-    # k fold paramters
     k: int,
     exclude: Optional[Iterable[Identifier]] = None,
-    # random_state is also used for sampling
     random_state: Optional[np.random.Generator | int] = None,
-    # sampling parameters
     sampling_func: SamplingFunction,
     balance_sample_weights: bool = True,
-    # encode_func required for k-fold prediction of datasets with non-annotated groups
     encode_func: Optional[EncodingFunction] = None,
     show_k_fold_progress: bool = False,
+    results_path: Optional[str] = None,
 ):
-    """
-    Find the best parameter combination for output smoothing of a classifier on a given dataset.
-    K-fold prediction is used to evaluate on the entire dataset.
-
-    Parameters
-    ----------
-    dataset : Dataset
-        The dataset to evaluate.
-    extractor : FeatureExtractor | DataFrameFeatureExtractor
-        The feature extractor to use.
-    classifier : Any
-        The classifier to evaluate. Should be compatible with the scikit-learn API.
-    smoothing_func : SmoothingFunction
-        The smoothing function to use.
-    smoothing_parameters_grid : dict[str, Iterable]
-        The grid of smoothing parameters to evaluate.
-    remove_overlapping_predictions : bool
-        Whether to remove overlapping predictions in groups in which one individual has predictions for multiple recipients (multiple dyads per individual).
-    num_iterations : int
-        How often to run k-fold prediction and evaluation.
-    show_progress : bool, optional
-        Whether to show a progress bar. Defaults to False.
-    tolerance : float, optional
-        The tolerance for the best parameter combination. Defaults to 0.01.
-    plot_results : bool, optional
-        Whether to plot the results. Defaults to True.
-    k : int, optional
-        The number of folds to use for k-fold cross-validation. Defaults to 5.
-    exclude : Iterable[Identifier], optional
-        The individuals, dyads, or groups to exclude from the dataset. Defaults to None.
-    random_state : int | np.random.Generator, optional
-        The random state to use for and sampling and k-fold prediction. Defaults to None.
-    sampling_func : SamplingFunction
-        The sampling function to use.
-    balance_sample_weights : bool, optional
-        Whether to use balanced sample weights during classifier training. Defaults to True.
-    encode_func : EncodingFunction, optional
-        The encoding function to use to assign numerical predictions to categories. Required if an unannoated dataset is provided.
-    show_k_fold_progress : bool, optional
-        Whether to show nested progress bars for k-fold progress. Defaults to False.
-
-    Returns
-    -------
-    dict[str, Any]
-        The best parameter combination.
-    """
-    random_state = ensure_generator(random_state)
-    results = []
+    mpi_context = MPIContext(random_state)
     parameter_combinations = _parameter_grid_to_combinations(smoothing_parameters_grid)
     if encode_func is None:
         try:
@@ -300,37 +419,40 @@ def optimize_smoothing(
     for iteration in formatted_tqdm(
         range(num_iterations), desc="iterations", disable=not show_progress
     ):
-        classification_result = k_fold_predict(
-            dataset,
-            extractor,
-            classifier,
-            k=k,
-            exclude=exclude,
-            random_state=random_state,
-            sampling_func=sampling_func,
-            balance_sample_weights=balance_sample_weights,
-            encode_func=encode_func,
-            show_progress=show_k_fold_progress,
-        )
-        for parameters in formatted_tqdm(
-            parameter_combinations,
-            desc="scoring combinations",
-            disable=not show_progress,
-        ):
-            if TYPE_CHECKING:
-                assert isinstance(parameters, dict)
-            classification_result = classification_result.smooth(
-                [lambda array: smoothing_func(array, parameters)],
+        if not mpi_context.do_iteration(iteration):
+            continue
+        mpi_context.add(
+            iteration,
+            _score_smoothing(
+                smoothing_func,
+                parameter_combinations,
+                dataset,
+                extractor,
+                classifier,
                 remove_overlapping_predictions=remove_overlapping_predictions,
-            )
-            results.append(
-                {
-                    "iteration": iteration,
-                    **parameters,
-                    **classification_result.score(encode_func=encode_func, macro=True),
-                }
-            )
+                iteration=iteration,
+                k=k,
+                exclude=exclude,
+                random_state=mpi_context.get_random_state(
+                    iteration, num_iterations=num_iterations
+                ),
+                sampling_func=sampling_func,
+                balance_sample_weights=balance_sample_weights,
+                encode_func=encode_func,
+                show_k_fold_progress=show_k_fold_progress,
+                show_progress=show_progress,
+            ),
+        )
+    if not mpi_context.is_root:
+        return
+    results = []
+    for iteration_results in mpi_context.collect(
+        num_iterations=num_iterations
+    ).values():
+        results.extend(iteration_results)
     results = pd.DataFrame(results)
+    if results_path is not None:
+        results.to_csv(os.path.join(results_path, "results_smoothing.csv"))
     return _evaluate_results(
         results,
         parameter_names=parameter_combinations[0].keys(),
@@ -356,17 +478,14 @@ def optimize_decision_thresholds(
     show_progress: bool = False,
     tolerance: float = 0.01,
     plot_results: bool = True,
-    # k fold paramters
     k: int,
     exclude: Optional[Iterable[Identifier]] = None,
-    # random_state is also used for sampling
     random_state: Optional[np.random.Generator | int] = None,
-    # sampling parameters
     sampling_func: SamplingFunction,
     balance_sample_weights: bool = True,
-    # encode_func required for k-fold prediction of datasets with non-annotated groups
     encode_func: Optional[EncodingFunction] = None,
     show_k_fold_progress: bool = False,
+    results_path: Optional[str] = None,
 ):
     random_state = ensure_generator(random_state)
     num_categories = len(dataset.categories)
@@ -384,46 +503,33 @@ def optimize_decision_thresholds(
     for iteration in formatted_tqdm(
         range(num_iterations), desc="iterations", disable=not show_progress
     ):
-        classification_result = k_fold_predict(
-            dataset,
-            extractor,
-            classifier,
-            k=k,
-            exclude=exclude,
-            random_state=random_state,
-            sampling_func=sampling_func,
-            balance_sample_weights=balance_sample_weights,
-            encode_func=encode_func,
-            show_progress=show_k_fold_progress,
-        )
-        if smoothing_func is not None:
-            classification_result = classification_result.smooth(
-                [smoothing_func], threshold=False
+        for category_idx, category_results in enumerate(
+            _score_thresholds(
+                decision_thresholds,
+                dataset,
+                extractor,
+                classifier,
+                remove_overlapping_predictions=remove_overlapping_predictions,
+                default_decision=default_decision,
+                iteration=iteration,
+                k=k,
+                exclude=exclude,
+                random_state=random_state,
+                sampling_func=sampling_func,
+                balance_sample_weights=balance_sample_weights,
+                encode_func=encode_func,
+                show_k_fold_progress=show_k_fold_progress,
+                show_progress=show_progress,
+                smoothing_func=smoothing_func,
             )
-            for category_idx in formatted_tqdm(
-                range(num_categories),
-                desc="thresholding categories",
-                disable=not show_progress,
-            ):
-                for threshold in formatted_tqdm(
-                    decision_thresholds[category_idx],
-                    desc="scoring thresholds",
-                    disable=not show_progress,
-                ):
-                    thresholds = np.zeros(num_categories)
-                    thresholds[category_idx] = threshold
-                    results[category_idx].append(
-                        {
-                            "iteration": iteration,
-                            f"threshold_{dataset.categories[category_idx]}": threshold,
-                            **classification_result.threshold(
-                                thresholds,
-                                default_decision=default_decision,
-                                remove_overlapping_predictions=remove_overlapping_predictions,
-                            ).score(encode_func=encode_func, macro=True),
-                        }
-                    )
+        ):
+            results[category_idx].append(category_results)
     results = [pd.DataFrame(category_results) for category_results in results]
+    if results_path is not None:
+        for category_results, category in zip(results, dataset.categories):
+            category_results.to_csv(
+                os.path.join(results_path, f"results_thresholding-{category}.csv")
+            )
     return tuple(
         _evaluate_results(
             category_results,

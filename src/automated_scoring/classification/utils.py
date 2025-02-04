@@ -216,14 +216,3 @@ class SamplingFunction(Protocol):
         random_state: Optional[np.random.Generator | int],
         **kwargs,
     ) -> tuple[pd.DataFrame | NDArray, NDArray]: ...
-
-
-class SmoothingFunction(Protocol):
-    __name__: str
-
-    def __call__(
-        self,
-        array: NDArray,
-        *args,
-        **kwargs,
-    ) -> NDArray: ...

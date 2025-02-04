@@ -6,7 +6,7 @@ from typing import Iterable, Protocol
 
 import numpy as np
 from numpy.typing import NDArray
-from tqdm.notebook import tqdm
+from tqdm.auto import tqdm
 
 Keypoint = int
 KeypointPair = tuple[Keypoint, Keypoint]
@@ -38,8 +38,6 @@ class To_NDArray(Protocol):
     Protocol for a function that takes any values and returns an NDArray.
     """
 
-    __name__: str
-
     def __call__(self, *args, **kwargs) -> NDArray: ...
 
 
@@ -48,7 +46,7 @@ class NDArray_to_NDArray(Protocol):
     Protocol for a function that takes an NDArray and returns an NDArray.
     """
 
-    __name__: str
+    __name__: str  # named for sliding window aggregation (alternatively, use a dictionary naming scheme as implemented for the fature extractor)
 
     def __call__(self, array: NDArray, *args, **kwargs) -> NDArray: ...
 
@@ -58,11 +56,17 @@ class PairedNDArrays_to_NDArray(Protocol):
     Protocol for a function that takes two NDArrays and returns an NDArray.
     """
 
-    __name__: str
-
     def __call__(
         self, array_1: NDArray, array_2: NDArray, /, *args, **kwargs
     ) -> NDArray: ...
+
+
+class SmoothingFunction(Protocol):
+    """
+    Protocol for a function that takes any positional arguments and a NDArray and returns an NDArray.
+    """
+
+    def __call__(self, *args, array: NDArray, **kwargs) -> NDArray: ...
 
 
 def flatten(array: NDArray, ensure_2d: bool = True) -> NDArray:
@@ -289,7 +293,7 @@ def formatted_tqdm(arg, description_width="15%", bar_width="30%", **kwargs):
         # not an ipywidget tqdm bar
         return bar
     if description_width is not None:
-        bar.container.children[0].layout.width = description_width
+        bar.container.children[0].layout.width = description_width  # type: ignore (see check above)
     if bar_width is not None:
-        bar.container.children[1].layout.width = bar_width
+        bar.container.children[1].layout.width = bar_width  # type: ignore (see check above)
     return bar
