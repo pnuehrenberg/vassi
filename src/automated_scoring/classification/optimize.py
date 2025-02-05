@@ -277,7 +277,7 @@ def optimize_decision_thresholds(
         num_iterations=num_iterations
     ).values():
         for category_idx, category_results in enumerate(iteration_results):
-            results[category_idx].append(category_results)
+            results[category_idx].extend(category_results)
     results = [pd.DataFrame(category_results) for category_results in results]
     if results_path is not None:
         for category_results, category in zip(results, dataset.categories):
