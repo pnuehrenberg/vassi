@@ -21,10 +21,10 @@ if __name__ == "__main__":
     )
 
     dataset_train = load_dataset(
-        "mice_train", directory="datasets/CALMS21/train", target="dyads"
+        "mice_train", directory="../../datasets/CALMS21/train", target="dyads"
     )
     dataset_test = load_dataset(
-        "mice_test", directory="datasets/CALMS21/test", target="dyads"
+        "mice_test", directory="../../datasets/CALMS21/test", target="dyads"
     )
 
     extractor = DataFrameFeatureExtractor(
@@ -32,7 +32,7 @@ if __name__ == "__main__":
     ).read_yaml("config_file.yaml")
 
     def smooth(*, array):
-        return medfilt(array, 51)  # results from smoothing_experiment-mice.py
+        return medfilt(array, 47)  # results from smoothing_experiment-mice.py
 
     best_parameters = optimize_decision_thresholds(
         dataset_train,

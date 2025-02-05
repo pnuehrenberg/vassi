@@ -21,10 +21,10 @@ if __name__ == "__main__":
     )
 
     dataset_train = load_dataset(
-        "mice_train", directory="datasets/CALMS21/train", target="dyads"
+        "mice_train", directory="../../datasets/CALMS21/train", target="dyads"
     )
     dataset_test = load_dataset(
-        "mice_test", directory="datasets/CALMS21/test", target="dyads"
+        "mice_test", directory="../../datasets/CALMS21/test", target="dyads"
     )
 
     extractor = DataFrameFeatureExtractor(
