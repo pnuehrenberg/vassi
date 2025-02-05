@@ -415,7 +415,7 @@ class AnnotatedSampleable(Sampleable):
         if self._label_encoder is None:
             categories = np.asarray(self.categories).reshape(-1, 1)
             self._label_encoder = OneHotEncoder(
-                categories=list(self.categories),  # type: ignore (is not typed completely)
+                categories=[list(self.categories)],  # type: ignore (is not typed completely)
                 sparse_output=False,
             ).fit(categories)
         return self._label_encoder

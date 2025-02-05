@@ -44,7 +44,6 @@ if __name__ == "__main__":
         k=5,
         exclude=[("intruder", "resident")],
         sampling_func=subsample_train,
-        show_k_fold_progress=False,
         decision_threshold_range=(0.0, 1.0),
         decision_threshold_step=0.01,
         tolerance=0.005,
