@@ -3,6 +3,8 @@ from helpers import subsample_train
 from scipy.signal import medfilt
 from xgboost import XGBClassifier
 
+from multiprocessing import cpu_count
+
 from automated_scoring.classification import (
     optimize_smoothing,
 )
@@ -34,23 +36,30 @@ if __name__ == "__main__":
     def smooth(parameters, *, array):
         return medfilt(array, parameters["median_filter_window"])
 
+    
+    n_jobs = cpu_count()
+    # n_jobs = min(n_jobs, 20)
+    print("cpu count:", n_jobs)
+
+
     best_parameters = optimize_smoothing(
         dataset_train,
         extractor,
-        XGBClassifier(n_estimators=100),
+        XGBClassifier(n_estimators=1000, n_jobs=n_jobs),
         smooth,
-        smoothing_parameters_grid={"median_filter_window": np.arange(3, 91, 10)},
+        smoothing_parameters_grid={"median_filter_window": np.arange(3, 91, 2)},
         remove_overlapping_predictions=False,
         num_iterations=20,
-        show_progress=True,
-        k=2,
+        show_progress=False,
+        k=5,
         exclude=[("intruder", "resident")],
         sampling_func=subsample_train,
-        show_k_fold_progress=True,
+        show_k_fold_progress=False,
         tolerance=0.005,
         random_state=ensure_generator(1),
         plot_results=False,
+        results_path=".",
     )
 
     if best_parameters is not None:
-        print(best_parameters)  # 47
+        print(best_parameters)
