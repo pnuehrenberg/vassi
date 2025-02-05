@@ -242,22 +242,24 @@ def evaluate_results(
             ha="center",
             va="center",
         )
+        ax.set_xlabel(parameter_name.capitalize().replace("_", " "))
+        ax.set_ylabel("Score")
+        ax.spines[["right", "top"]].set_visible(False)
         if tolerance <= 0:
             continue
         ax.axhspan(
             max_score - tolerance, max_score, color="r", lw=0, alpha=0.2, zorder=0
         )
-        ax.text(
-            1.01,
-            max_score - tolerance / 2,
-            "tolerance",
-            transform=transforms.blended_transform_factory(ax.transAxes, ax.transData),
-            ha="left",
-            va="center",
-        )
-        ax.set_xlabel(parameter_name.capitalize().replace("_", " "))
-        ax.set_ylabel("Score")
-        ax.spines[["right", "top"]].set_visible(False)
+        # ax.text(
+        #     1,
+        #     max_score,
+        #     "tolerance",
+        #     transform=transforms.blended_transform_factory(ax.transAxes, ax.transData),
+        #     ha="right",
+        #     va="bottom",
+        #     color="r",
+        #     alpha=0.2,
+        # )
     if show_on_return:
         plt.show()
     return best_parameters
