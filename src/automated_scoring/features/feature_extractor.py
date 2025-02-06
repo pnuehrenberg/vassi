@@ -1,15 +1,15 @@
 import os
-import warnings
 from typing import TYPE_CHECKING, Any, Literal, Optional, Self
 
 import numpy as np
 import pandas as pd
 import yaml
+from loguru import logger
 from numpy.typing import NDArray
 from sklearn.pipeline import Pipeline
 
 from ..data_structures import Trajectory
-from ..utils import hash_dict, warning_only
+from ..utils import hash_dict
 from . import decorators, features, temporal_features, utils
 from ._caching import cache
 
@@ -497,10 +497,9 @@ class BaseExtractor:
             raise ValueError(f"Invalid feature category {category}.")
 
         if trajectory_other is None and len(self._feature_funcs_dyadic) > 0:
-            with warning_only():
-                warnings.warn(
-                    "Extracting only non-dyadic features, although dyadic features are specified."
-                )
+            logger.warning(
+                "Extracting only non-dyadic features, although dyadic features are specified."
+            )
         if trajectory_other is None:
             return extract_category("individual")
         if len(self._feature_funcs_dyadic) == 0:

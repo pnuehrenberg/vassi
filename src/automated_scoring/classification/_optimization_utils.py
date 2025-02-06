@@ -3,7 +3,6 @@ from itertools import product
 from typing import TYPE_CHECKING, Any, Optional
 
 import matplotlib.pyplot as plt
-import matplotlib.transforms as transforms
 import numpy as np
 import pandas as pd
 from matplotlib.axes import Axes

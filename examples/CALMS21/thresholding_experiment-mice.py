@@ -1,4 +1,3 @@
-import numpy as np
 from helpers import subsample_train
 from scipy.signal import medfilt
 from xgboost import XGBClassifier
@@ -9,7 +8,6 @@ from automated_scoring.classification import (
 from automated_scoring.config import cfg
 from automated_scoring.features import DataFrameFeatureExtractor
 from automated_scoring.io import load_dataset
-from automated_scoring.utils import ensure_generator
 
 if __name__ == "__main__":
     cfg.key_keypoints = "keypoints"

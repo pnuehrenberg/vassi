@@ -1,13 +1,13 @@
-import warnings
 from typing import TYPE_CHECKING, Iterable, Optional, Self, overload
 
 import numpy as np
 import pandas as pd
+from loguru import logger
 from numpy.typing import NDArray
 from sklearn.base import BaseEstimator, TransformerMixin
 from sklearn.utils.validation import _check_feature_names_in, validate_data
 
-from ..utils import NDArray_to_NDArray, closest_odd_divisible, flatten, warning_only
+from ..utils import NDArray_to_NDArray, closest_odd_divisible, flatten
 from .sliding_metrics import apply_multiple_to_sliding_windows
 
 
@@ -50,10 +50,9 @@ def get_window_slices(
         closest_odd_divisible(scale, num_windows_per_scale) for scale in time_scales
     ]
     if set(time_scales) != set(time_scales_adjusted):
-        with warning_only():
-            warnings.warn(
-                f"Time scales adjusted to match num_windows_per_scale: {time_scales} -> {time_scales_adjusted}."
-            )
+        logger.warning(
+            f"Time scales adjusted to match num_windows_per_scale: {time_scales} -> {time_scales_adjusted}."
+        )
     time_scales = time_scales_adjusted
     window_slices = []
     max_time_scale = max(time_scales)

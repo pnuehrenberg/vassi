@@ -1,11 +1,11 @@
 import os
-import warnings
 from collections.abc import ItemsView
 from typing import TYPE_CHECKING, Literal, Mapping, Optional
 
 import h5py
 import numpy as np
 import pandas as pd
+from loguru import logger
 from numpy.dtypes import StringDType  # type: ignore
 from numpy.typing import NDArray
 
@@ -17,7 +17,6 @@ from .dataset import (
     GroupIdentifier,
     IndividualIdentifier,
 )
-from .utils import warning_only
 
 
 def _is_string_array(array: NDArray):
@@ -359,10 +358,9 @@ def load_dataset(
         raise ValueError(f"invalid dataset file with group keys of type {type(groups)}")
     if categories is None and observations is not None:
         categories = tuple(np.unique(observations["category"]))
-        with warning_only():
-            warnings.warn(
-                f"Loading categories ({", ".join(categories)}) from observations file, specify categories argument if incomplete."
-            )
+        logger.warning(
+            f"Loading categories ({", ".join(categories)}) from observations file, specify categories argument if incomplete."
+        )
     for group_key in group_keys.tolist():
         if observations is not None:
             if TYPE_CHECKING:

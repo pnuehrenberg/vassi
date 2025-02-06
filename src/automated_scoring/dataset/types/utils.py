@@ -1,12 +1,13 @@
-# import multiprocessing
-from typing import TYPE_CHECKING, Iterable, Literal, Optional, Sequence
+from collections.abc import Sequence
+from typing import TYPE_CHECKING, Iterable, Literal, Optional
 
 import numpy as np
 import pandas as pd
+from loguru import logger
 from numpy.typing import NDArray
 
 from ...features import DataFrameFeatureExtractor, FeatureExtractor
-from ...utils import formatted_tqdm
+from ...utils import class_name
 from ..utils import Identifier
 
 if TYPE_CHECKING:
@@ -41,27 +42,6 @@ def recursive_sampleables(sampleable, exclude: Optional[Iterable[Identifier]] = 
     raise ValueError(f"invalid input sampleable of type {type(sampleable)}")
 
 
-def _process(args):
-    sampleable, kwargs = args
-    if kwargs["sampling_type"] == "sample":
-        return sampleable.sample(
-            kwargs["feature_extractor"],
-        )
-    if kwargs["sampling_type"] == "subsample":
-        return sampleable.subsample(
-            kwargs["feature_extractor"],
-            kwargs["size"],
-            random_state=kwargs["random_state"],
-            stratify_by_groups=kwargs["stratify_by_groups"],
-            store_indices=kwargs["store_indices"],
-            exclude_stored_indices=kwargs["exclude_stored_indices"],
-            reset_stored_indices=kwargs["reset_stored_indices"],
-            categories=kwargs["categories"],
-            try_even_subsampling=kwargs["try_even_subsampling"],
-        )
-    raise ValueError("invalid samling type")
-
-
 def get_concatenated_dataset(
     sampleables: dict[Identifier, "Sampleable"]
     | Sequence["Group"]
@@ -79,33 +59,34 @@ def get_concatenated_dataset(
     try_even_subsampling: bool = True,
     # other kwargs
     sampling_type: Literal["sample", "subsample"],
-    show_progress: bool = True,
 ) -> tuple[NDArray | pd.DataFrame, NDArray | None]:
-    kwargs = dict(
-        feature_extractor=feature_extractor,
-        size=size,
-        random_state=random_state,
-        stratify_by_groups=stratify_by_groups,
-        store_indices=store_indices,
-        exclude_stored_indices=exclude_stored_indices,
-        reset_stored_indices=reset_stored_indices,
-        categories=categories,
-        try_even_subsampling=try_even_subsampling,
-        sampling_type=sampling_type,
-    )
-    X, y = zip(
-        *list(
-            formatted_tqdm(
-                map(
-                    _process,
-                    [(sampleable, kwargs) for sampleable in sampleables],
-                ),
-                total=len(sampleables),
-                desc="sampling",
-                disable=not show_progress,
-            ),
-        ),
-    )
+    X, y = [], []
+    if isinstance(sampleables, dict):
+        sampleables = list(sampleables.values())
+    elif not isinstance(sampleables, Sequence):
+        raise ValueError("sampleables must be a dict or a sequence")
+    for idx, sampleable in enumerate(sampleables):
+        if sampling_type == "sample":
+            sampled_data = sampleable.sample(feature_extractor)
+        elif sampling_type == "subsample":
+            sampled_data = sampleable.subsample(
+                feature_extractor,
+                size,
+                random_state=random_state,
+                stratify_by_groups=stratify_by_groups,
+                store_indices=store_indices,
+                exclude_stored_indices=exclude_stored_indices,
+                reset_stored_indices=reset_stored_indices,
+                categories=categories,
+                try_even_subsampling=try_even_subsampling,
+            )
+        else:
+            raise ValueError("invalid samling type")
+        X.append(sampled_data[0])
+        y.append(sampled_data[1])
+        logger.trace(
+            f"[{idx + 1}/{len(sampleables)}] {"sub" if sampling_type == 'subsample' else ''}sampled {class_name(sampleable)} with {len(sampled_data[0])} samples"
+        )
     if any([_y is None for _y in y]):
         y = []
     X = type(feature_extractor).concatenate(*X, axis=0)

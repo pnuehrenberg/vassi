@@ -14,7 +14,6 @@ def subsample_train(
         0.1,
         categories=("none", "investigation"),
         random_state=random_state,
-        show_progress=False,
         exclude=exclude,
     )
     X_subsample_all, y_subsample_all = dataset.subsample(
@@ -23,7 +22,6 @@ def subsample_train(
         try_even_subsampling=False,
         categories=("attack", "mount"),
         random_state=random_state,
-        show_progress=False,
         exclude=exclude,
     )
     return (

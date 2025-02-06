@@ -1,4 +1,3 @@
-import warnings
 from collections.abc import Iterable, Mapping
 from copy import deepcopy
 from dataclasses import dataclass
@@ -7,6 +6,7 @@ from typing import Callable, Literal, Optional, Self, overload
 
 import numpy as np
 import pandas as pd
+from loguru import logger
 from numpy.typing import NDArray
 from sklearn.metrics import f1_score
 
@@ -23,7 +23,7 @@ from ..dataset.observations import (
     remove_overlapping_observations,
 )
 from ..series_operations import smooth
-from ..utils import SmoothingFunction, warning_only
+from ..utils import SmoothingFunction
 from .utils import (
     _filter_recipient_bouts,
     score_category_counts,
@@ -486,8 +486,7 @@ class GroupClassificationResult(_NestedResult):
     ) -> Self:
         predictions = self.predictions
         if "recipient" not in predictions.columns:
-            with warning_only():
-                warnings.warn("individual predictions (not dyadic) do not overlap")
+            logger.warning("individual predictions (not dyadic) cannot overlap")
             return self
         predictions = predictions[predictions["category"] != "none"]
         for actor in self.trajectories:

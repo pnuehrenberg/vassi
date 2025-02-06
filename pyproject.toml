@@ -14,7 +14,7 @@ dependencies = [
     "scikit-learn",
     "xgboost",
     "networkx",
-    "tqdm",
+    "loguru",
     "observation-library @ git+ssh://git@github.com/pnuehrenberg/observation-library.git",
 ]
 requires-python = ">=3.12"

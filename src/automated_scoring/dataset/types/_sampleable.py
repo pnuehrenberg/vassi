@@ -1,16 +1,18 @@
-import warnings
+# import warnings
 from collections.abc import Iterable
 from typing import Optional, Self, overload
 
 import numpy as np
 import pandas as pd
+from loguru import logger
 from numpy.typing import NDArray
 from sklearn.preprocessing import OneHotEncoder
 
 from ...config import Config
 from ...data_structures import Trajectory
 from ...features import DataFrameFeatureExtractor, FeatureExtractor
-from ...utils import warning_only
+
+# from ...utils import warning_only
 from ..observations.utils import check_observations, infill_observations
 from ..sampling.split import split, test_stratify
 from ..utils import Identifier
@@ -68,8 +70,7 @@ class BaseSampleable(BaseDataset):
         exclude: Optional[Iterable[Identifier]] = None,
     ) -> tuple[NDArray | pd.DataFrame, NDArray | None]:
         if exclude is not None:
-            with warning_only():
-                warnings.warn("Ignoring exclude keyword argument.")
+            logger.warning("Ignoring exclude keyword argument.")
         X = self.extract_features(feature_extractor)
         y = self._sample_y()
         return X, y
@@ -121,8 +122,7 @@ class BaseSampleable(BaseDataset):
         exclude: Optional[Iterable[Identifier]] = None,
     ) -> tuple[NDArray | pd.DataFrame, NDArray | None]:
         if exclude is not None:
-            with warning_only():
-                warnings.warn("Ignoring exclude keyword argument.")
+            logger.warning("Ignoring exclude keyword argument.")
         if try_even_subsampling and isinstance(self, AnnotatedSampleable):
             return self.even_subsample(
                 feature_extractor,

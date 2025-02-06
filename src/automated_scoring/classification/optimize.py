@@ -1,15 +1,16 @@
 import os
 from collections.abc import Iterable
 from functools import partial
-from typing import TYPE_CHECKING, Any, Optional
+from typing import Any, Optional
 
 import numpy as np
 import pandas as pd
+from loguru import logger
 from numpy.typing import NDArray
 
 from ..dataset import Dataset, Identifier
 from ..features import DataFrameFeatureExtractor, FeatureExtractor
-from ..utils import SmoothingFunction, formatted_tqdm
+from ..utils import SmoothingFunction
 from . import _optimization_utils as utils
 from .predict import k_fold_predict
 from .utils import EncodingFunction, SamplingFunction
@@ -30,8 +31,6 @@ def score_smoothing(
     sampling_func: SamplingFunction,
     balance_sample_weights: bool,
     encode_func: EncodingFunction,
-    show_k_fold_progress: bool,
-    show_progress: bool,
 ) -> list[dict[str, Any]]:
     classification_result = k_fold_predict(
         dataset,
@@ -43,16 +42,10 @@ def score_smoothing(
         sampling_func=sampling_func,
         balance_sample_weights=balance_sample_weights,
         encode_func=encode_func,
-        show_progress=show_k_fold_progress,
     )
     results = []
-    for parameters in formatted_tqdm(
-        parameter_combinations,
-        desc="scoring combinations",
-        disable=not show_progress,
-    ):
-        if TYPE_CHECKING:
-            assert isinstance(parameters, dict)
+    logger.info(f"scoring smoothing parameters for iteration {iteration}")
+    for idx, parameters in enumerate(parameter_combinations):
         classification_result = classification_result.smooth(
             [partial(smoothing_func, parameters)],
             remove_overlapping_predictions=remove_overlapping_predictions,
@@ -64,6 +57,8 @@ def score_smoothing(
                 **classification_result.score(encode_func=encode_func, macro=True),
             }
         )
+        logger.trace(f"[{idx}/{len(parameter_combinations)}] scored paramters")
+    logger.success(f"scoring smoothing parameters for {iteration} finished")
     return results
 
 
@@ -82,8 +77,6 @@ def score_thresholds(
     sampling_func: SamplingFunction,
     balance_sample_weights: bool,
     encode_func: EncodingFunction,
-    show_k_fold_progress: bool,
-    show_progress: bool,
     smoothing_func: SmoothingFunction | None,
 ) -> list[list[dict[str, Any]]]:
     num_categories = len(decision_thresholds)
@@ -98,36 +91,35 @@ def score_thresholds(
         sampling_func=sampling_func,
         balance_sample_weights=balance_sample_weights,
         encode_func=encode_func,
-        show_progress=show_k_fold_progress,
     )
     results = [[] for _ in range(num_categories)]
+    logger.info(f"scoring thresholds for iteration {iteration}")
     if smoothing_func is not None:
         classification_result = classification_result.smooth(
             [smoothing_func], threshold=False
         )
-        for category_idx in formatted_tqdm(
-            range(num_categories),
-            desc="thresholding categories",
-            disable=not show_progress,
-        ):
-            for threshold in formatted_tqdm(
-                decision_thresholds[category_idx],
-                desc="scoring thresholds",
-                disable=not show_progress,
-            ):
-                thresholds = np.zeros(num_categories)
-                thresholds[category_idx] = threshold
-                results[category_idx].append(
-                    {
-                        "iteration": iteration,
-                        f"threshold_{dataset.categories[category_idx]}": threshold,
-                        **classification_result.threshold(
-                            thresholds,
-                            default_decision=default_decision,
-                            remove_overlapping_predictions=remove_overlapping_predictions,
-                        ).score(encode_func=encode_func, macro=True),
-                    }
-                )
+    for category_idx in range(num_categories):
+        for idx, threshold in enumerate(decision_thresholds[category_idx]):
+            thresholds = np.zeros(num_categories)
+            thresholds[category_idx] = threshold
+            results[category_idx].append(
+                {
+                    "iteration": iteration,
+                    f"threshold_{dataset.categories[category_idx]}": threshold,
+                    **classification_result.threshold(
+                        thresholds,
+                        default_decision=default_decision,
+                        remove_overlapping_predictions=remove_overlapping_predictions,
+                    ).score(encode_func=encode_func, macro=True),
+                }
+            )
+            logger.trace(
+                f"[{idx}/{len(decision_thresholds[category_idx])}] scored thresholds"
+            )
+        logger.debug(
+            f"finished scoring thresholds for iteration {iteration}, category {category_idx} / {num_categories}"
+        )
+    logger.success(f"scoring thresholds for {iteration} finished")
     return results
 
 
@@ -140,7 +132,6 @@ def optimize_smoothing(
     *,
     remove_overlapping_predictions: bool,
     num_iterations: int,
-    show_progress: bool = False,
     tolerance: float = 0.01,
     plot_results: bool = True,
     k: int,
@@ -149,7 +140,6 @@ def optimize_smoothing(
     sampling_func: SamplingFunction,
     balance_sample_weights: bool = True,
     encode_func: Optional[EncodingFunction] = None,
-    show_k_fold_progress: bool = False,
     results_path: Optional[str] = None,
 ) -> dict[str, Any] | None:
     mpi_context = utils.MPIContext(random_state)
@@ -161,11 +151,10 @@ def optimize_smoothing(
             encode_func = dataset.encode
         except ValueError:
             raise ValueError("specify encode_func for non-annotated datasets")
-    for iteration in formatted_tqdm(
-        range(num_iterations), desc="iterations", disable=not show_progress
-    ):
+    for iteration in range(num_iterations):
         if not mpi_context.do_iteration(iteration):
             continue
+        logger.info(f"starting iteration {iteration}")
         mpi_context.add(
             iteration,
             score_smoothing(
@@ -184,10 +173,9 @@ def optimize_smoothing(
                 sampling_func=sampling_func,
                 balance_sample_weights=balance_sample_weights,
                 encode_func=encode_func,
-                show_k_fold_progress=show_k_fold_progress,
-                show_progress=show_progress,
             ),
         )
+        logger.success(f"finished iteration {iteration}")
     if not mpi_context.is_root:
         return
     results = []
@@ -220,7 +208,6 @@ def optimize_decision_thresholds(
     decision_threshold_step: float | Iterable[float] = 0.01,
     default_decision: int | str = "none",
     smoothing_func: Optional[SmoothingFunction] = None,
-    show_progress: bool = False,
     tolerance: float = 0.01,
     plot_results: bool = True,
     k: int,
@@ -229,7 +216,6 @@ def optimize_decision_thresholds(
     sampling_func: SamplingFunction,
     balance_sample_weights: bool = True,
     encode_func: Optional[EncodingFunction] = None,
-    show_k_fold_progress: bool = False,
     results_path: Optional[str] = None,
 ):
     mpi_context = utils.MPIContext(random_state)
@@ -242,11 +228,10 @@ def optimize_decision_thresholds(
             encode_func = dataset.encode
         except ValueError:
             raise ValueError("specify encode_func for non-annotated datasets")
-    for iteration in formatted_tqdm(
-        range(num_iterations), desc="iterations", disable=not show_progress
-    ):
+    for iteration in range(num_iterations):
         if not mpi_context.do_iteration(iteration):
             continue
+        logger.info(f"starting iteration {iteration}")
         mpi_context.add(
             iteration,
             score_thresholds(
@@ -265,11 +250,10 @@ def optimize_decision_thresholds(
                 sampling_func=sampling_func,
                 balance_sample_weights=balance_sample_weights,
                 encode_func=encode_func,
-                show_k_fold_progress=show_k_fold_progress,
-                show_progress=show_progress,
                 smoothing_func=smoothing_func,
             ),
         )
+        logger.success(f"finished iteration {iteration}")
     if not mpi_context.is_root:
         return
     results = [[] for _ in range(num_categories)]

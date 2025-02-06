@@ -1,14 +1,13 @@
 import functools
-import warnings
 from collections.abc import Iterable
 from typing import Optional
 
 import numpy as np
 import pandas as pd
+from loguru import logger
 from numpy.typing import NDArray
 
 from .. import series_operations
-from ..utils import warning_only
 from .utils import (
     DataFrameFeature,
     Feature,
@@ -70,8 +69,9 @@ def _as_dataframe(
     **kwargs,
 ) -> pd.DataFrame:
     if "flat" in kwargs and not kwargs.pop("flat"):
-        with warning_only():
-            warnings.warn("Ignoring argument flat=False.")
+        logger.warning(
+            "Ignoring argument flat=False. Dataframe features are always flat."
+        )
     feature = _inner(func)
     prefix = _get_prefix(func)
     names = [f"{prefix}{name}" for name in get_feature_names(feature, **kwargs)]

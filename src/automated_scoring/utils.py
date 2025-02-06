@@ -1,17 +1,35 @@
 import hashlib
 import json
-import warnings
-from contextlib import contextmanager
+import sys
 from typing import Iterable, Protocol
 
 import numpy as np
+from loguru import logger
 from numpy.typing import NDArray
-from tqdm.auto import tqdm
 
 Keypoint = int
 KeypointPair = tuple[Keypoint, Keypoint]
 Keypoints = Iterable[Keypoint]
 KeypointPairs = Iterable[KeypointPair]
+
+
+def set_logging_level(
+    level: str | int = "DEBUG",
+    *,
+    sink=None,
+    format: str = "<green>{time:YYYY-MM-DD HH:mm:ss.SSS}</green> | <level>{level: <8}</level> | <level>{message}</level>",
+    enqueue: bool = True,
+):
+    """Set the logging level (and sink, format and enqueue paramters of the loguru logger."""
+    if sink is None:
+        sink = sys.stderr
+    logger.remove()
+    logger.add(sink=sink, level=level, format=format, enqueue=enqueue)
+
+
+def class_name(obj: object) -> str:
+    """Return the name of the class of an object."""
+    return obj.__class__.__name__
 
 
 def hash_dict(dictionary: dict) -> str:
@@ -266,34 +284,34 @@ def closest_odd_divisible(number: float, divisor: int) -> int:
     return int(closest_smaller_number)
 
 
-@contextmanager
-def warning_only():
-    """
-    Context manager to customize the warning format. Only the warning message is displayed, but not the stack trace.
-    """
+# @contextmanager
+# def warning_only():
+#     """
+#     Context manager to customize the warning format. Only the warning message is displayed, but not the stack trace.
+#     """
 
-    def custom_formatwarning(msg, *args, **kwargs):
-        # ignore everything except the message
-        return str(msg) + "\n"
+#     def custom_formatwarning(msg, *args, **kwargs):
+#         # ignore everything except the message
+#         return str(msg) + "\n"
 
-    formatwarning = warnings.formatwarning
-    warnings.formatwarning = custom_formatwarning
-    try:
-        yield
-    finally:
-        warnings.formatwarning = formatwarning
+#     formatwarning = warnings.formatwarning
+#     warnings.formatwarning = custom_formatwarning
+#     try:
+#         yield
+#     finally:
+#         warnings.formatwarning = formatwarning
 
 
-def formatted_tqdm(arg, description_width="15%", bar_width="30%", **kwargs):
-    """
-    A tqdm wrapper that formats the description and bar width in Jupyter notebooks.
-    """
-    bar = tqdm(arg, **kwargs)
-    if not hasattr(bar, "container"):
-        # not an ipywidget tqdm bar
-        return bar
-    if description_width is not None:
-        bar.container.children[0].layout.width = description_width  # type: ignore (see check above)
-    if bar_width is not None:
-        bar.container.children[1].layout.width = bar_width  # type: ignore (see check above)
-    return bar
+# def formatted_tqdm(arg, description_width="15%", bar_width="30%", **kwargs):
+#     """
+#     A tqdm wrapper that formats the description and bar width in Jupyter notebooks.
+#     """
+#     bar = tqdm(arg, **kwargs)
+#     if not hasattr(bar, "container"):
+#         # not an ipywidget tqdm bar
+#         return bar
+#     if description_width is not None:
+#         bar.container.children[0].layout.width = description_width  # type: ignore (see check above)
+#     if bar_width is not None:
+#         bar.container.children[1].layout.width = bar_width  # type: ignore (see check above)
+#     return bar

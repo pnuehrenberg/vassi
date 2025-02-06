@@ -41,6 +41,7 @@ def subsample_train(
         random_state=random_state,
     )
 
+    # sample close neighbors more frequently
     sampling_frequency = {0: 0.1, 1: 0.1, 2: 0.05, 3: 0.05, 4: 0.05}
     X_additional = pd.concat(
         [
@@ -57,11 +58,13 @@ def subsample_train(
                 ),
                 try_even_subsampling=False,
                 random_state=random_state,
-            )[0]
+            )[0]  # only keep samples (X) but not labels (y)
             for neighbor_rank in range(5)
         ]
     )
-    y_additional = np.repeat("none", len(X_additional))
+    y_additional = np.repeat(
+        "none", len(X_additional)
+    )  # all labels are "none" because of switched recipients
     X = pd.concat([X_train_none, X_frontal, X_minorities, X_additional])
     y = np.concat([y_train_none, y_frontal, y_minorities, y_additional])
     return X, y

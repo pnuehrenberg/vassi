@@ -17,8 +17,11 @@ from automated_scoring.sliding_metrics import (
     get_window_slices,
     metrics,
 )
+from automated_scoring.utils import set_logging_level
 
 if __name__ == "__main__":
+    set_logging_level("DEBUG")
+
     cfg.key_keypoints = "pose"
     cfg.key_timestamp = "time_stamp"
 
@@ -35,9 +38,7 @@ if __name__ == "__main__":
 
     observations = dataset_train.get_observations()
     observations = observations[observations["category"] != "none"]
-    time_scales, slices = get_window_slices(
-        3, time_scales=(91,), durations=observations["duration"]
-    )
+    time_scales, slices = get_window_slices(3, time_scales=(91,))
 
     aggregator = ColumnTransformer(
         [

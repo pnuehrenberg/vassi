@@ -28,9 +28,7 @@ if __name__ == "__main__":
 
     observations = dataset_train.get_observations()
     observations = observations[observations["category"] != "none"]
-    time_scales, slices = get_window_slices(
-        3, time_scales=(91,), durations=observations["duration"]
-    )
+    time_scales, slices = get_window_slices(3, time_scales=(91,))
 
     aggregator = ColumnTransformer(
         [
