@@ -332,6 +332,7 @@ class _NestedResult(_Result):
                         for classification_result in self.classification_results.values()
                     ],
                 )
+            return self
         for classification_result in self.classification_results.values():
             classification_result.smooth(
                 label_smoothing_funcs,
@@ -366,6 +367,7 @@ class _NestedResult(_Result):
                         for classification_result in self.classification_results.values()
                     ],
                 )
+            return self
         for classification_result in self.classification_results.values():
             classification_result.threshold(
                 decision_thresholds, default_decision=default_decision
