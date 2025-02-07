@@ -8,60 +8,7 @@ import pandas as pd
 from matplotlib.axes import Axes
 from numpy.typing import NDArray
 
-from ..utils import ensure_generator, to_int_seed
 from .visualization import Array
-
-try:
-    from mpi4py import MPI
-except ImportError:
-    MPI = None
-
-
-class MPIContext:
-    def __init__(self, random_state: Optional[np.random.Generator | int] = None):
-        self.seed = to_int_seed(ensure_generator(random_state))
-        self.data = {}
-        self.comm = None
-        self.rank = 0
-        self.size = 1
-        if MPI is None:
-            return
-        self.comm = MPI.COMM_WORLD
-        self.rank = self.comm.Get_rank()
-        self.size = self.comm.Get_size()
-
-    def do_iteration(self, iteration: int):
-        if self.comm is None:
-            return True
-        return iteration % self.size == self.rank
-
-    def get_random_state(
-        self, iteration: int, *, num_iterations: int
-    ) -> np.random.Generator:
-        random_state = ensure_generator(self.seed)
-        return random_state.spawn(num_iterations)[iteration]
-
-    @property
-    def is_root(self):
-        return self.rank == 0
-
-    def add(self, iteration, data):
-        if self.comm is None or self.is_root:
-            self.data[iteration] = data
-            return
-        self.comm.send(data, dest=0, tag=iteration)
-
-    def collect(self, *, num_iterations: int):
-        if self.comm is None:
-            return self.data
-        if not self.is_root:
-            raise RuntimeError("collect should only be called from root mpi process")
-        for iteration in range(1, num_iterations):
-            rank = iteration % self.size
-            if rank == self.rank:
-                continue
-            self.data[iteration] = self.comm.recv(source=rank, tag=iteration)
-        return {iteration: self.data[iteration] for iteration in sorted(self.data)}
 
 
 def parameter_grid_to_combinations(

@@ -8,6 +8,7 @@ def subsample_train(
     *,
     random_state=None,
     exclude=None,
+    log,
 ):
     X_subsample_even, y_subsample_even = dataset.subsample(
         extractor,
@@ -15,6 +16,7 @@ def subsample_train(
         categories=("none", "investigation"),
         random_state=random_state,
         exclude=exclude,
+        log=log,
     )
     X_subsample_all, y_subsample_all = dataset.subsample(
         extractor,
@@ -23,6 +25,7 @@ def subsample_train(
         categories=("attack", "mount"),
         random_state=random_state,
         exclude=exclude,
+        log=log,
     )
     return (
         pd.concat([X_subsample_even, X_subsample_all]),

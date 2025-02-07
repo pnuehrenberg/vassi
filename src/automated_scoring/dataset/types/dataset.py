@@ -1,6 +1,8 @@
+from __future__ import annotations
+
 import random
 from collections.abc import Generator, Iterable
-from typing import Any, Optional, Sequence, overload
+from typing import TYPE_CHECKING, Any, Optional, Sequence, overload
 
 import numpy as np
 import pandas as pd
@@ -23,6 +25,9 @@ from .utils import (
     get_concatenated_dataset,
     recursive_sampleables,
 )
+
+if TYPE_CHECKING:
+    from loguru import Logger
 
 
 class Dataset(BaseDataset):
@@ -55,16 +60,18 @@ class Dataset(BaseDataset):
     def sample(
         self,
         feature_extractor: FeatureExtractor,
-        *args,
-        **kwargs,
+        *,
+        exclude: Optional[Iterable[Identifier]] = None,
+        log: Optional[Logger],
     ) -> tuple[NDArray, NDArray | None]: ...
 
     @overload
     def sample(
         self,
         feature_extractor: DataFrameFeatureExtractor,
-        *args,
-        **kwargs,
+        *,
+        exclude: Optional[Iterable[Identifier]] = None,
+        log: Optional[Logger],
     ) -> tuple[pd.DataFrame, NDArray | None]: ...
 
     def sample(
@@ -72,21 +79,31 @@ class Dataset(BaseDataset):
         feature_extractor: FeatureExtractor | DataFrameFeatureExtractor,
         *,
         exclude: Optional[Iterable[Identifier]] = None,
+        log: Optional[Logger],
     ) -> tuple[NDArray | pd.DataFrame, NDArray | None]:
         return get_concatenated_dataset(
             recursive_sampleables(self, exclude=exclude),
             feature_extractor,
             sampling_type="sample",
+            log=log,
         )
 
     @overload
     def subsample(
-        self, feature_extractor: FeatureExtractor, *args, **kwargs
+        self,
+        feature_extractor: FeatureExtractor,
+        *args,
+        log: Optional[Logger],
+        **kwargs,
     ) -> tuple[NDArray, NDArray | None]: ...
 
     @overload
     def subsample(
-        self, feature_extractor: DataFrameFeatureExtractor, *args, **kwargs
+        self,
+        feature_extractor: DataFrameFeatureExtractor,
+        *args,
+        log: Optional[Logger],
+        **kwargs,
     ) -> tuple[pd.DataFrame, NDArray | None]: ...
 
     def subsample(
@@ -102,6 +119,7 @@ class Dataset(BaseDataset):
         reset_stored_indices: bool = False,
         try_even_subsampling: bool = True,
         exclude: Optional[Iterable[Identifier]] = None,
+        log: Optional[Logger],
     ) -> tuple[NDArray | pd.DataFrame, NDArray | None]:
         if exclude is None:
             exclude = []
@@ -117,6 +135,7 @@ class Dataset(BaseDataset):
             categories=categories,
             try_even_subsampling=try_even_subsampling,
             sampling_type="subsample",
+            log=log,
         )
 
     @property

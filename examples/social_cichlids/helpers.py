@@ -10,6 +10,7 @@ def subsample_train(
     *,
     random_state=None,
     exclude=None,
+    log,
 ):
     X_train_none, y_train_none = dataset.subsample(
         extractor,
@@ -17,6 +18,7 @@ def subsample_train(
         categories=("none",),
         try_even_subsampling=False,
         random_state=random_state,
+        log=log,
     )
 
     X_frontal, y_frontal = dataset.subsample(
@@ -25,6 +27,7 @@ def subsample_train(
         categories=("frontal_display",),
         try_even_subsampling=False,
         random_state=random_state,
+        log=log,
     )
 
     X_minorities, y_minorities = dataset.subsample(
@@ -39,6 +42,7 @@ def subsample_train(
         ),
         try_even_subsampling=False,
         random_state=random_state,
+        log=log,
     )
 
     # sample close neighbors more frequently
@@ -58,6 +62,7 @@ def subsample_train(
                 ),
                 try_even_subsampling=False,
                 random_state=random_state,
+                log=log,
             )[0]  # only keep samples (X) but not labels (y)
             for neighbor_rank in range(5)
         ]

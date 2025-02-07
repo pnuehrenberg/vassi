@@ -1,6 +1,7 @@
-# import warnings
+from __future__ import annotations
+
 from collections.abc import Iterable
-from typing import Optional, Self, overload
+from typing import TYPE_CHECKING, Optional, Self, overload
 
 import numpy as np
 import pandas as pd
@@ -11,12 +12,13 @@ from sklearn.preprocessing import OneHotEncoder
 from ...config import Config
 from ...data_structures import Trajectory
 from ...features import DataFrameFeatureExtractor, FeatureExtractor
-
-# from ...utils import warning_only
 from ..observations.utils import check_observations, infill_observations
 from ..sampling.split import split, test_stratify
 from ..utils import Identifier
 from ._dataset_base import BaseDataset
+
+if TYPE_CHECKING:
+    from loguru import Logger
 
 
 class BaseSampleable(BaseDataset):
@@ -55,12 +57,20 @@ class BaseSampleable(BaseDataset):
 
     @overload
     def sample(
-        self, feature_extractor: FeatureExtractor, *args, **kwargs
+        self,
+        feature_extractor: FeatureExtractor,
+        *args,
+        log: Optional[Logger],
+        **kwargs,
     ) -> tuple[NDArray, NDArray | None]: ...
 
     @overload
     def sample(
-        self, feature_extractor: DataFrameFeatureExtractor, *args, **kwargs
+        self,
+        feature_extractor: DataFrameFeatureExtractor,
+        *args,
+        log: Optional[Logger],
+        **kwargs,
     ) -> tuple[pd.DataFrame, NDArray | None]: ...
 
     def sample(
@@ -68,21 +78,48 @@ class BaseSampleable(BaseDataset):
         feature_extractor: FeatureExtractor | DataFrameFeatureExtractor,
         *,
         exclude: Optional[Iterable[Identifier]] = None,
+        log: Optional[Logger],
     ) -> tuple[NDArray | pd.DataFrame, NDArray | None]:
         if exclude is not None:
-            logger.warning("Ignoring exclude keyword argument.")
+            if log is None:
+                log = logger
+            log.warning("ignoring exclude keyword argument.")
         X = self.extract_features(feature_extractor)
         y = self._sample_y()
         return X, y
 
     @overload
     def subsample(
-        self, feature_extractor: FeatureExtractor, *args, **kwargs
+        self,
+        feature_extractor: FeatureExtractor,
+        size: int | float,
+        *,
+        random_state: Optional[np.random.Generator | int] = None,
+        stratify_by_groups: bool = True,
+        store_indices: bool = False,
+        exclude_stored_indices: bool = False,
+        reset_stored_indices: bool = False,
+        categories: Optional[list[str]] = None,
+        try_even_subsampling: bool = True,
+        exclude: Optional[Iterable[Identifier]] = None,
+        log: Optional[Logger],
     ) -> tuple[NDArray, NDArray | None]: ...
 
     @overload
     def subsample(
-        self, feature_extractor: DataFrameFeatureExtractor, *args, **kwargs
+        self,
+        feature_extractor: DataFrameFeatureExtractor,
+        size: int | float,
+        *,
+        random_state: Optional[np.random.Generator | int] = None,
+        stratify_by_groups: bool = True,
+        store_indices: bool = False,
+        exclude_stored_indices: bool = False,
+        reset_stored_indices: bool = False,
+        categories: Optional[list[str]] = None,
+        try_even_subsampling: bool = True,
+        exclude: Optional[Iterable[Identifier]] = None,
+        log: Optional[Logger],
     ) -> tuple[pd.DataFrame, NDArray | None]: ...
 
     def _stratified_subsample(
@@ -120,9 +157,12 @@ class BaseSampleable(BaseDataset):
         categories: Optional[list[str]] = None,
         try_even_subsampling: bool = True,
         exclude: Optional[Iterable[Identifier]] = None,
+        log: Optional[Logger],
     ) -> tuple[NDArray | pd.DataFrame, NDArray | None]:
         if exclude is not None:
-            logger.warning("Ignoring exclude keyword argument.")
+            if log is None:
+                log = logger
+            log.warning("Ignoring exclude keyword argument.")
         if try_even_subsampling and isinstance(self, AnnotatedSampleable):
             return self.even_subsample(
                 feature_extractor,
@@ -133,8 +173,9 @@ class BaseSampleable(BaseDataset):
                 exclude_stored_indices=exclude_stored_indices,
                 reset_stored_indices=reset_stored_indices,
                 categories=categories,
+                log=log,
             )
-        X, y = self.sample(feature_extractor)
+        X, y = self.sample(feature_extractor, log=log)
         mask = np.ones(len(X), dtype=bool)
         idx = np.arange(len(X), dtype=int)
         exclude_idx = np.isin(idx, self.get_sampled_idx(reset_stored_indices))
@@ -346,12 +387,20 @@ class AnnotatedSampleable(Sampleable):
 
     @overload
     def even_subsample(
-        self, feature_extractor: FeatureExtractor, *args, **kwargs
+        self,
+        feature_extractor: FeatureExtractor,
+        *args,
+        log: Optional[Logger],
+        **kwargs,
     ) -> tuple[NDArray, NDArray]: ...
 
     @overload
     def even_subsample(
-        self, feature_extractor: DataFrameFeatureExtractor, *args, **kwargs
+        self,
+        feature_extractor: DataFrameFeatureExtractor,
+        *args,
+        log: Optional[Logger],
+        **kwargs,
     ) -> tuple[pd.DataFrame, NDArray]: ...
 
     def even_subsample(
@@ -365,6 +414,7 @@ class AnnotatedSampleable(Sampleable):
         exclude_stored_indices: bool = False,
         reset_stored_indices: bool = False,
         categories: Optional[list[str]] = None,
+        log: Optional[Logger],
     ) -> tuple[NDArray | pd.DataFrame, NDArray]:
         if reset_stored_indices:
             self._sampled_idx = []
@@ -401,8 +451,10 @@ class AnnotatedSampleable(Sampleable):
                 stratify_by_groups=stratify_by_groups,
                 store_indices=store_indices,
                 exclude_stored_indices=exclude_stored_indices,
+                reset_stored_indices=reset_stored_indices,
                 categories=[category],
                 try_even_subsampling=False,
+                log=log,
             )
             X.append(_X)
             y.append(_y)

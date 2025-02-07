@@ -1,7 +1,9 @@
+from __future__ import annotations
+
 import os
 from collections.abc import Iterable
 from functools import partial
-from typing import Any, Optional
+from typing import TYPE_CHECKING, Any, Optional
 
 import numpy as np
 import pandas as pd
@@ -10,10 +12,13 @@ from numpy.typing import NDArray
 
 from ..dataset import Dataset, Identifier
 from ..features import DataFrameFeatureExtractor, FeatureExtractor
-from ..utils import SmoothingFunction
+from ..utils import MPIContext, SmoothingFunction
 from . import _optimization_utils as utils
 from .predict import k_fold_predict
 from .utils import EncodingFunction, SamplingFunction
+
+if TYPE_CHECKING:
+    from loguru import Logger
 
 
 def score_smoothing(
@@ -31,7 +36,10 @@ def score_smoothing(
     sampling_func: SamplingFunction,
     balance_sample_weights: bool,
     encode_func: EncodingFunction,
+    log: Logger | None,
 ) -> list[dict[str, Any]]:
+    if log is None:
+        log = logger.bind(iteration=iteration)
     classification_result = k_fold_predict(
         dataset,
         extractor,
@@ -42,9 +50,10 @@ def score_smoothing(
         sampling_func=sampling_func,
         balance_sample_weights=balance_sample_weights,
         encode_func=encode_func,
+        log=log,
     )
     results = []
-    logger.info(f"scoring smoothing parameters for iteration {iteration}")
+    log.info("scoring smoothing parameters")
     for idx, parameters in enumerate(parameter_combinations):
         classification_result = classification_result.smooth(
             [partial(smoothing_func, parameters)],
@@ -57,8 +66,10 @@ def score_smoothing(
                 **classification_result.score(encode_func=encode_func, macro=True),
             }
         )
-        logger.trace(f"[{idx}/{len(parameter_combinations)}] scored paramters")
-    logger.success(f"scoring smoothing parameters for {iteration} finished")
+        log.bind(level={"name": "", "step": idx + 1, "total": len(parameter_combinations)}).trace(
+            "scored parameters"
+        )
+    log.success("finished scoring smoothing parameters")
     return results
 
 
@@ -78,7 +89,10 @@ def score_thresholds(
     balance_sample_weights: bool,
     encode_func: EncodingFunction,
     smoothing_func: SmoothingFunction | None,
+    log: Logger | None,
 ) -> list[list[dict[str, Any]]]:
+    if log is None:
+        log = logger.bind(iteration=iteration)
     num_categories = len(decision_thresholds)
     assert num_categories == len(dataset.categories)
     classification_result = k_fold_predict(
@@ -91,14 +105,22 @@ def score_thresholds(
         sampling_func=sampling_func,
         balance_sample_weights=balance_sample_weights,
         encode_func=encode_func,
+        log=log,
     )
     results = [[] for _ in range(num_categories)]
-    logger.info(f"scoring thresholds for iteration {iteration}")
+    log.info("scoring decision thresholds")
     if smoothing_func is not None:
         classification_result = classification_result.smooth(
             [smoothing_func], threshold=False
         )
     for category_idx in range(num_categories):
+        _log = log.bind(
+            level={
+                "name": "category",
+                "step": category_idx + 1,
+                "total": num_categories,
+            }
+        )
         for idx, threshold in enumerate(decision_thresholds[category_idx]):
             thresholds = np.zeros(num_categories)
             thresholds[category_idx] = threshold
@@ -113,13 +135,16 @@ def score_thresholds(
                     ).score(encode_func=encode_func, macro=True),
                 }
             )
-            logger.trace(
-                f"[{idx}/{len(decision_thresholds[category_idx])}] scored thresholds"
-            )
-        logger.debug(
-            f"finished scoring thresholds for iteration {iteration}, category {category_idx} / {num_categories}"
+            _log.bind(
+                sublevel={
+                    "step": idx + 1,
+                    "total": len(decision_thresholds[category_idx]),
+                }
+            ).trace("scored thresholds")
+        _log.debug(
+            f"finished scoring thresholds for category {dataset.categories[category_idx]}"
         )
-    logger.success(f"scoring thresholds for {iteration} finished")
+    log.success("finished scoring thresholds")
     return results
 
 
@@ -141,8 +166,11 @@ def optimize_smoothing(
     balance_sample_weights: bool = True,
     encode_func: Optional[EncodingFunction] = None,
     results_path: Optional[str] = None,
+    log: Logger | None = None,
 ) -> dict[str, Any] | None:
-    mpi_context = utils.MPIContext(random_state)
+    mpi_context = MPIContext(random_state)
+    if log is None:
+        log = logger.bind(mpi=mpi_context.info)
     parameter_combinations = utils.parameter_grid_to_combinations(
         smoothing_parameters_grid
     )
@@ -154,7 +182,8 @@ def optimize_smoothing(
     for iteration in range(num_iterations):
         if not mpi_context.do_iteration(iteration):
             continue
-        logger.info(f"starting iteration {iteration}")
+        log = log.bind(iteration=iteration)
+        log.info("evaluating smoothing")
         mpi_context.add(
             iteration,
             score_smoothing(
@@ -173,9 +202,10 @@ def optimize_smoothing(
                 sampling_func=sampling_func,
                 balance_sample_weights=balance_sample_weights,
                 encode_func=encode_func,
+                log=log,
             ),
         )
-        logger.success(f"finished iteration {iteration}")
+        log.success("finished smoothing evaluation")
     if not mpi_context.is_root:
         return
     results = []
@@ -217,8 +247,11 @@ def optimize_decision_thresholds(
     balance_sample_weights: bool = True,
     encode_func: Optional[EncodingFunction] = None,
     results_path: Optional[str] = None,
+    log: Logger | None = None,
 ):
-    mpi_context = utils.MPIContext(random_state)
+    mpi_context = MPIContext(random_state)
+    if log is None:
+        log = logger.bind(mpi=mpi_context.info)
     num_categories = len(dataset.categories)
     decision_thresholds = utils.prepare_thresholds(
         decision_threshold_range, decision_threshold_step, num_categories
@@ -231,7 +264,8 @@ def optimize_decision_thresholds(
     for iteration in range(num_iterations):
         if not mpi_context.do_iteration(iteration):
             continue
-        logger.info(f"starting iteration {iteration}")
+        log = log.bind(iteration=iteration)
+        log.info("eveluating decision thresholds")
         mpi_context.add(
             iteration,
             score_thresholds(
@@ -251,9 +285,10 @@ def optimize_decision_thresholds(
                 balance_sample_weights=balance_sample_weights,
                 encode_func=encode_func,
                 smoothing_func=smoothing_func,
+                log=log,
             ),
         )
-        logger.success(f"finished iteration {iteration}")
+        log.success("finished decision threshold evaluation")
     if not mpi_context.is_root:
         return
     results = [[] for _ in range(num_categories)]

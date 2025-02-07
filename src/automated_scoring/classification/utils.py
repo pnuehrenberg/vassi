@@ -1,5 +1,7 @@
+from __future__ import annotations
+
 from collections.abc import Iterable
-from typing import Any, Callable, Literal, Optional, Protocol, Self
+from typing import TYPE_CHECKING, Any, Callable, Literal, Optional, Protocol, Self
 
 import numpy as np
 import pandas as pd
@@ -20,6 +22,9 @@ from ..dataset.observations.utils import (
 from ..dataset.utils import interval_contained, interval_overlap
 from ..features import DataFrameFeatureExtractor, FeatureExtractor
 from ..utils import ensure_generator, to_int_seed
+
+if TYPE_CHECKING:
+    from loguru import Logger
 
 
 class Classifier(Protocol):
@@ -214,5 +219,6 @@ class SamplingFunction(Protocol):
         extractor: FeatureExtractor | DataFrameFeatureExtractor,
         *args,
         random_state: Optional[np.random.Generator | int],
+        log: Optional[Logger],
         **kwargs,
     ) -> tuple[pd.DataFrame | NDArray, NDArray]: ...

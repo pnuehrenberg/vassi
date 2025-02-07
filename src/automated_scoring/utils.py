@@ -1,11 +1,17 @@
 import hashlib
 import json
 import sys
-from typing import Iterable, Protocol
+from typing import Callable, Iterable, Literal, Optional, Protocol
 
 import numpy as np
 from loguru import logger
 from numpy.typing import NDArray
+
+try:
+    from mpi4py import MPI
+except ImportError:
+    MPI = None
+
 
 Keypoint = int
 KeypointPair = tuple[Keypoint, Keypoint]
@@ -13,16 +19,44 @@ Keypoints = Iterable[Keypoint]
 KeypointPairs = Iterable[KeypointPair]
 
 
+def _formatter(record):
+    def get_level_fmt(level):
+        if level not in record["extra"]:
+            return ""
+        if "name" not in record["extra"][level]:
+            record["extra"]["level"]["name"] = ""
+        else:
+            name = record["extra"][level]["name"]
+            name = name.strip() + " "
+            record["extra"][level]["name"] = name
+        return "[{extra[level][name]}{extra[level][step]:02d}/{extra[level][total]:02d}]".replace(
+            "level", level
+        )
+
+    rank_fmt = ""
+    iteration_fmt = ""
+    if "mpi" in record["extra"] and record["extra"]["mpi"] is not None:
+        rank_fmt = " [MPI rank {extra[mpi][rank]:02d}/{extra[mpi][size]:02d}]"
+    if "iteration" in record["extra"]:
+        iteration_fmt = "[iteration {extra[iteration]:2d}] "
+    level_fmt = " ".join(
+        [get_level_fmt(level) for level in ["fold", "level", "sublevel"]]
+    ).strip()
+    if len(level_fmt) > 0:
+        level_fmt += " "
+    return f"<green>{{time:YYYY-MM-DD HH:mm:ss.SSS}}{rank_fmt}</green> <level>[{{level: <8}}] {iteration_fmt}{level_fmt}{{message}}</level>\n"
+
+
 def set_logging_level(
     level: str | int = "DEBUG",
     *,
     sink=None,
-    format: str = "<green>{time:YYYY-MM-DD HH:mm:ss.SSS}</green> | <level>{level: <8}</level> | <level>{message}</level>",
+    format: str | Callable[..., str] = _formatter,
     enqueue: bool = True,
 ):
     """Set the logging level (and sink, format and enqueue paramters of the loguru logger."""
     if sink is None:
-        sink = sys.stderr
+        sink = sys.stdout
     logger.remove()
     logger.add(sink=sink, level=level, format=format, enqueue=enqueue)
 
@@ -30,6 +64,62 @@ def set_logging_level(
 def class_name(obj: object) -> str:
     """Return the name of the class of an object."""
     return obj.__class__.__name__
+
+
+class MPIContext:
+    def __init__(self, random_state: Optional[np.random.Generator | int] = None):
+        self.seed = to_int_seed(ensure_generator(random_state))
+        self.data = {}
+        self.comm = None
+        self.rank = 0
+        self.size = 1
+        if MPI is None:
+            return
+        self.comm = MPI.COMM_WORLD
+        self.rank = self.comm.Get_rank()
+        self.size = self.comm.Get_size()
+
+    def do_iteration(self, iteration: int):
+        if self.comm is None:
+            return True
+        return iteration % self.size == self.rank
+
+    def get_random_state(
+        self, iteration: int, *, num_iterations: int
+    ) -> np.random.Generator:
+        random_state = ensure_generator(self.seed)
+        return random_state.spawn(num_iterations)[iteration]
+
+    @property
+    def info(self) -> dict[Literal["rank", "size"], int] | None:
+        if self.comm is None:
+            return None
+        return {
+            "rank": self.rank + 1,
+            "size": self.size,
+        }
+
+    @property
+    def is_root(self):
+        return self.rank == 0
+
+    def add(self, iteration, data):
+        if self.comm is None or self.is_root:
+            self.data[iteration] = data
+            return
+        self.comm.send(data, dest=0, tag=iteration)
+
+    def collect(self, *, num_iterations: int):
+        if self.comm is None:
+            return self.data
+        if not self.is_root:
+            raise RuntimeError("collect should only be called from root mpi process")
+        for iteration in range(1, num_iterations):
+            rank = iteration % self.size
+            if rank == self.rank:
+                continue
+            self.data[iteration] = self.comm.recv(source=rank, tag=iteration)
+        return {iteration: self.data[iteration] for iteration in sorted(self.data)}
 
 
 def hash_dict(dictionary: dict) -> str:

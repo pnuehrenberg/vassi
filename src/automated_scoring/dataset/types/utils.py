@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from collections.abc import Sequence
 from typing import TYPE_CHECKING, Iterable, Literal, Optional
 
@@ -11,6 +13,8 @@ from ...utils import class_name
 from ..utils import Identifier
 
 if TYPE_CHECKING:
+    from loguru import Logger
+
     from ._sampleable import Sampleable
     from .group import Group
 
@@ -48,7 +52,6 @@ def get_concatenated_dataset(
     | Sequence["Sampleable"],
     feature_extractor: FeatureExtractor | DataFrameFeatureExtractor,
     *,
-    # subsample kwargs
     size: Optional[int | float] = None,
     random_state: Optional[np.random.Generator | int] = None,
     stratify_by_groups: bool = True,
@@ -57,9 +60,11 @@ def get_concatenated_dataset(
     reset_stored_indices: bool = False,
     categories: Optional[list[str]] = None,
     try_even_subsampling: bool = True,
-    # other kwargs
     sampling_type: Literal["sample", "subsample"],
+    log: Optional[Logger],
 ) -> tuple[NDArray | pd.DataFrame, NDArray | None]:
+    if log is None:
+        log = logger
     X, y = [], []
     if isinstance(sampleables, dict):
         sampleables = list(sampleables.values())
@@ -67,8 +72,10 @@ def get_concatenated_dataset(
         raise ValueError("sampleables must be a dict or a sequence")
     for idx, sampleable in enumerate(sampleables):
         if sampling_type == "sample":
-            sampled_data = sampleable.sample(feature_extractor)
+            sampled_data = sampleable.sample(feature_extractor, log=log)
         elif sampling_type == "subsample":
+            if size is None:
+                raise ValueError("provide size for subsampling")
             sampled_data = sampleable.subsample(
                 feature_extractor,
                 size,
@@ -79,12 +86,13 @@ def get_concatenated_dataset(
                 reset_stored_indices=reset_stored_indices,
                 categories=categories,
                 try_even_subsampling=try_even_subsampling,
+                log=log,
             )
         else:
             raise ValueError("invalid samling type")
         X.append(sampled_data[0])
         y.append(sampled_data[1])
-        logger.trace(
+        log.trace(
             f"[{idx + 1}/{len(sampleables)}] {"sub" if sampling_type == 'subsample' else ''}sampled {class_name(sampleable)} with {len(sampled_data[0])} samples"
         )
     if any([_y is None for _y in y]):
