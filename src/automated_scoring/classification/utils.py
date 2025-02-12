@@ -16,7 +16,7 @@ from ..dataset.observations import (
     to_observations,
 )
 from ..dataset.observations.utils import (
-    ensure_matching_index_keys,
+    ensure_matching_index_columns,
     ensure_single_index,
 )
 from ..dataset.utils import interval_contained, interval_overlap
@@ -75,16 +75,16 @@ def validate_predictions(
     on: Literal["predictions", "annotations"] = "predictions",
     key_columns: Iterable[str] = ("group", "actor", "recipient"),
 ):
-    available_key_columns = []
+    available_index_columns = []
     for column_name in key_columns:
         if column_name not in predictions:
             continue
         if column_name not in annotations:
             raise ValueError("columns do not match")
-        available_key_columns.append(column_name)
-    if len(available_key_columns) > 0:
-        predictions, annotations = ensure_matching_index_keys(
-            predictions, annotations, available_key_columns
+        available_index_columns.append(column_name)
+    if len(available_index_columns) > 0:
+        predictions, annotations = ensure_matching_index_columns(
+            predictions, annotations, tuple(available_index_columns)
         )
     predictions = check_observations(predictions, ("start", "stop", "category"))
     annotations = check_observations(annotations, ("start", "stop", "category"))
@@ -151,7 +151,7 @@ def _filter_recipient_bouts(
         allow_unsorted=True,
     )
     observations = observations[observations["category"] != "none"]  # type: ignore
-    observations = ensure_single_index(observations, index_keys=["actor"], drop=False)
+    observations = ensure_single_index(observations, index_columns=("actor", ), drop=False)
     bouts = []
     for recipient, observations_recipient in observations.groupby("recipient"):
         if len(observations_recipient) == 0:
@@ -160,7 +160,7 @@ def _filter_recipient_bouts(
             aggregate_bouts(
                 observations_recipient,
                 max_bout_gap=max_bout_gap,
-                index_keys=[],
+                index_columns=(),
             )
         )
     if len(bouts) == 0:
@@ -168,7 +168,7 @@ def _filter_recipient_bouts(
     bouts = (
         remove_overlapping_observations(
             pd.concat(bouts, ignore_index=True),
-            index_keys=[],
+            index_columns=(),
             priority_func=priority_func,
             max_allowed_overlap=max_allowed_bout_overlap,
         )

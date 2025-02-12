@@ -37,9 +37,9 @@ def _bout_aggregator(bout_data: pd.DataFrame) -> pd.Series:
 
 @with_duration
 def aggregate_bouts(
-    observations: pd.DataFrame, *, max_bout_gap: float, index_keys: Iterable[str]
+    observations: pd.DataFrame, *, max_bout_gap: float, index_columns: tuple[str, ...]
 ) -> pd.DataFrame:
-    observations = ensure_single_index(observations, index_keys=index_keys)
+    observations = ensure_single_index(observations, index_columns=index_columns)
     observations = check_observations(
         observations, required_columns=["category", "start", "stop"]
     )

@@ -1,4 +1,4 @@
-from functools import wraps
+import functools
 from typing import Callable, Iterable, Optional, ParamSpec
 
 import networkx as nx
@@ -11,22 +11,62 @@ from ..utils import interval_contained, interval_overlap
 P = ParamSpec("P")
 
 
-def with_duration(
-    observations_func: Callable[P, pd.DataFrame],
-) -> Callable[P, pd.DataFrame]:
-    # TODO this is not pickleable, follow implementation structure of features.decorators
-    @wraps(observations_func)
-    def decorated(*args: P.args, **kwargs: P.kwargs) -> pd.DataFrame:
-        observations = observations_func(*args, **kwargs)
-        duration = observations["stop"] - observations["start"] + 1
-        if "duration" in observations.columns:
-            observations.loc[:, "duration"] = duration
-        else:
-            observations["duration"] = duration
-        return observations
+def _with_duration(*args, func: Callable[P, pd.DataFrame], **kwargs) -> pd.DataFrame:
+    observations = func(*args, **kwargs)
+    duration = observations["stop"] - observations["start"] + 1
+    if "duration" in observations.columns:
+        observations.loc[:, "duration"] = duration
+    else:
+        observations["duration"] = duration
+    return observations
 
-    decorated.__name__ = observations_func.__name__
+
+def with_duration(func: Callable[P, pd.DataFrame]) -> Callable[P, pd.DataFrame]:
+    result_func = functools.partial(_with_duration, func=func)
+    decorated = functools.wraps(func)(result_func)
     return decorated
+
+
+def ensure_single_index(
+    observations: pd.DataFrame,
+    *,
+    index_columns: tuple[str, ...],
+    drop: bool = True,
+) -> pd.DataFrame:
+    if len(index_columns) == 0:
+        return observations
+    observations = observations.set_index(list(index_columns))
+    if len(np.unique(observations.index)) > 1:
+        raise ValueError(
+            "observations contain more than one unique index key combination"
+        )
+    return observations.reset_index(drop=drop)
+
+
+def to_y(
+    observations: pd.DataFrame,
+    *,
+    start: float = 0,
+    stop: float = np.inf,
+    dtype: type = str,
+) -> NDArray:
+    observations = check_observations(
+        observations,
+        required_columns=("start", "stop", "category"),
+        allow_overlapping=False,
+        allow_unsorted=False,
+    ).copy()
+    observations = observations.loc[observations["stop"] >= start]
+    observations.loc[observations["start"] < start, "start"] = start
+    if stop < np.inf:
+        observations = observations.loc[observations["start"] <= stop]
+        observations.loc[observations["stop"] > stop, "stop"] = stop
+    intervals_float = np.array(observations[["start", "stop"]])
+    intervals = intervals_float.astype(int)
+    if not np.allclose(intervals, intervals_float, rtol=0):
+        raise ValueError("start and stop columns must be integers")
+    duration = intervals[:, 1] - intervals[:, 0] + 1
+    return np.repeat(np.array(observations["category"], dtype=dtype), duration)
 
 
 @with_duration
@@ -131,31 +171,14 @@ def check_observations(
     return observations
 
 
-def ensure_single_index(
-    observations: pd.DataFrame,
-    *,
-    index_keys: Iterable[str],
-    drop: bool = True,
-) -> pd.DataFrame:
-    index_keys = list(index_keys)
-    if len(index_keys) == 0:
-        return observations
-    observations = observations.set_index(index_keys)
-    if len(np.unique(observations.index)) > 1:
-        raise ValueError(
-            "observations contain more than one unique index key combination"
-        )
-    return observations.reset_index(drop=drop)
-
-
-def ensure_matching_index_keys(
+def ensure_matching_index_columns(
     observations: pd.DataFrame,
     reference_observations: pd.DataFrame,
-    index_keys: Iterable[str],
+    index_columns: tuple[str, ...],
 ) -> tuple[pd.DataFrame, pd.DataFrame]:
     return (
-        ensure_single_index(observations, index_keys=index_keys),
-        ensure_single_index(reference_observations, index_keys=index_keys),
+        ensure_single_index(observations, index_columns=index_columns),
+        ensure_single_index(reference_observations, index_columns=index_columns),
     )
 
 
@@ -163,13 +186,13 @@ def ensure_matching_index_keys(
 def remove_overlapping_observations(
     observations: pd.DataFrame,
     *,
-    index_keys: Iterable[str],
+    index_columns: tuple[str, ...],
     priority_func: Callable[[pd.DataFrame], Iterable[float]],
     max_allowed_overlap: float,
     drop_overlapping: bool = True,
     drop_overlapping_column: bool = True,
 ) -> pd.DataFrame:
-    observations = ensure_single_index(observations, index_keys=index_keys)
+    observations = ensure_single_index(observations, index_columns=index_columns)
     observations = check_observations(
         observations,
         required_columns=["start", "stop"],
@@ -210,7 +233,7 @@ def remove_overlapping_observations(
         if len(observations_temp) > 0:
             observations_temp = remove_overlapping_observations(
                 observations_temp,
-                index_keys=[],
+                index_columns=(),
                 priority_func=priority_func,
                 max_allowed_overlap=max_allowed_overlap,
                 drop_overlapping=False,
