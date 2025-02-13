@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Callable, Iterable, Literal, Optional, overload
+from typing import TYPE_CHECKING, Iterable, Literal, Optional, Sequence, overload
 
 import numpy as np
 from loguru import logger
@@ -18,6 +18,7 @@ from ..dataset import (
     Identifier,
     Individual,
 )
+from ..dataset.types._mixins import AnnotatedMixin
 from ..features import DataFrameFeatureExtractor, FeatureExtractor
 from ..utils import class_name, ensure_generator
 from .results import (
@@ -25,32 +26,39 @@ from .results import (
     DatasetClassificationResult,
     GroupClassificationResult,
 )
-from .utils import Classifier, SamplingFunction, init_new_classifier
+from .utils import Classifier, EncodingFunction, SamplingFunction, init_new_classifier
 
 if TYPE_CHECKING:
     from loguru import Logger
 
 
 def _predict_sampleable(
-    sampleable: Dyad | AnnotatedDyad | Individual | AnnotatedIndividual,
+    sampleable: Dyad
+    | AnnotatedDyad
+    | Individual
+    | AnnotatedIndividual,  # use base type instead
     classifier: Classifier,
     extractor: FeatureExtractor | DataFrameFeatureExtractor,
     *,
-    encode_func: Optional[Callable[[NDArray], NDArray[np.integer]]] = None,
+    encode_func: Optional[EncodingFunction] = None,
     categories: Optional[Iterable[str]] = None,
     log: Logger,
 ) -> ClassificationResult:
-    X, y = sampleable.sample(extractor, log=log)
+    X, y = sampleable.sample(extractor, exclude=None)
     y_pred_numeric: NDArray = classifier.predict(X)
     y_proba: NDArray = classifier.predict_proba(X).astype(float)
     y_true_numeric: Optional[NDArray] = None
-    if encode_func is None:
+    if encode_func is None and isinstance(sampleable, AnnotatedMixin):
         encode_func = sampleable.encode
+    elif encode_func is None:
+        raise ValueError("encode_func must be provided for non-annotated sampleables")
     if y is not None:
         y_true_numeric = encode_func(y)
     timestamps = sampleable.trajectory.timestamps
     annotations = None
-    if isinstance(sampleable, (AnnotatedDyad, AnnotatedIndividual)):
+    if isinstance(
+        sampleable, (AnnotatedDyad, AnnotatedIndividual)
+    ):  # use mixin instead
         annotations = sampleable.observations
         if categories is not None:
             log.warning(
@@ -75,7 +83,7 @@ def _predict_group(
     classifier: Classifier,
     extractor: FeatureExtractor | DataFrameFeatureExtractor,
     *,
-    encode_func: Optional[Callable[[NDArray], NDArray[np.integer]]] = None,
+    encode_func: Optional[EncodingFunction] = None,
     categories: Optional[Iterable[str]] = None,
     exclude: Optional[Iterable[Identifier]] = None,
     log: Logger,
@@ -101,7 +109,9 @@ def _predict_group(
                 )
         else:
             raise ValueError(f"unsupported sampleable of type {type(sampleable)}")
-        log = log.bind(sublevel={"name": "", "step": idx + 1, "total": len(group.identifiers)})
+        log = log.bind(
+            sublevel={"name": "", "step": idx + 1, "total": len(group.identifiers)}
+        )
         results[sampleable_key] = _predict_sampleable(
             sampleable,
             classifier,
@@ -116,7 +126,7 @@ def _predict_group(
     return GroupClassificationResult(
         classification_results=results,
         trajectories=group.trajectories,
-        target=target,
+        target=group.target,
     )
 
 
@@ -125,7 +135,7 @@ def _predict(
     classifier: Classifier,
     extractor: FeatureExtractor | DataFrameFeatureExtractor,
     *,
-    encode_func: Optional[Callable[[NDArray], NDArray[np.integer]]] = None,
+    encode_func: Optional[EncodingFunction] = None,
     categories: Optional[Iterable[str]] = None,
     exclude: Optional[Iterable[Identifier]] = None,
     log: Logger,
@@ -138,6 +148,9 @@ def _predict(
         if exclude is not None and group_id in exclude:
             continue
         group = dataset.select(group_id)
+        if TYPE_CHECKING:
+            assert isinstance(group, Group)
+            assert isinstance(group_id, GroupIdentifier)
         results[group_id] = _predict_group(
             group,
             classifier,
@@ -150,7 +163,7 @@ def _predict(
         log.trace(f"finished predictions on {class_name(group)} {group_id}")
     if len(results) == 0:
         raise ValueError("unsupported dataset with no groups")
-    targets: list[Literal["individuals", "dyads"]] = [
+    targets: list[Literal["individual", "dyad"]] = [
         result.target for result in results.values()
     ]
     target = targets[0]
@@ -170,7 +183,7 @@ def predict(
     classifier: Classifier,
     extractor: FeatureExtractor | DataFrameFeatureExtractor,
     *,
-    encode_func: Optional[Callable[[NDArray], NDArray[np.integer]]] = None,
+    encode_func: Optional[EncodingFunction] = None,
     categories: Optional[Iterable[str]] = None,
     exclude: Optional[Iterable[Identifier]] = None,
     log: Optional[Logger],
@@ -183,7 +196,7 @@ def predict(
     classifier: Classifier,
     extractor: FeatureExtractor | DataFrameFeatureExtractor,
     *,
-    encode_func: Optional[Callable[[NDArray], NDArray[np.integer]]] = None,
+    encode_func: Optional[EncodingFunction] = None,
     categories: Optional[Iterable[str]] = None,
     exclude: Optional[Iterable[Identifier]] = None,
     log: Optional[Logger],
@@ -196,7 +209,7 @@ def predict(
     classifier: Classifier,
     extractor: FeatureExtractor | DataFrameFeatureExtractor,
     *,
-    encode_func: Optional[Callable[[NDArray], NDArray[np.integer]]] = None,
+    encode_func: Optional[EncodingFunction] = None,
     categories: Optional[Iterable[str]] = None,
     exclude: Optional[Iterable[Identifier]] = None,
     log: Optional[Logger],
@@ -216,7 +229,7 @@ def predict(
     classifier: Classifier,
     extractor: FeatureExtractor | DataFrameFeatureExtractor,
     *,
-    encode_func: Optional[Callable[[NDArray], NDArray[np.integer]]] = None,
+    encode_func: Optional[EncodingFunction] = None,
     categories: Optional[Iterable[str]] = None,
     exclude: Optional[Iterable[Identifier]] = None,
     log: Optional[Logger],
@@ -265,16 +278,20 @@ def k_fold_predict(
     classifier: Classifier,
     *,
     k: int,
-    exclude: Optional[Iterable[Identifier]] = None,
+    exclude: Optional[Sequence[Identifier]] = None,
     random_state: Optional[np.random.Generator | int] = None,
     sampling_func: SamplingFunction,
     balance_sample_weights: bool = True,
-    encode_func: Optional[Callable[[NDArray], NDArray[np.integer]]] = None,
+    encode_func: Optional[EncodingFunction] = None,
     log: Optional[Logger],
 ) -> DatasetClassificationResult:
     if log is None:
         log = logger
     random_state = ensure_generator(random_state)
+    if encode_func is None and isinstance(dataset, AnnotatedMixin):
+        encode_func = dataset.encode
+    elif encode_func is None:
+        raise ValueError("encode_func must be provided for non-annotated datasets")
     if type(classifier) is type:
         classifier = init_new_classifier(classifier(), random_state)
     log.info(f"running {k}-fold predict with {class_name(classifier)}")
@@ -292,10 +309,10 @@ def k_fold_predict(
         _log.debug("finished sampling")
         sample_weight = None
         if balance_sample_weights:
-            sample_weight = compute_sample_weight("balanced", dataset.encode(y_train))
+            sample_weight = compute_sample_weight("balanced", encode_func(y_train))
         classifier = init_new_classifier(classifier, random_state).fit(
             np.asarray(X_train),
-            dataset.encode(y_train),
+            encode_func(y_train),
             sample_weight=sample_weight,
         )
         _log.debug(f"fitted {class_name(classifier)}")

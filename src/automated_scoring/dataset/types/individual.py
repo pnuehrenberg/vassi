@@ -1,36 +1,58 @@
+from collections.abc import Sequence
+from typing import (
+    Optional,
+)
+
 import pandas as pd
+from numpy.typing import NDArray
 
 from ...data_structures import Trajectory
-from ._sampleable import AnnotatedSampleable, Sampleable
+from ...features import DataFrameFeatureExtractor, FeatureExtractor
+from ..utils import Identifier
+from ._base_sampleable import BaseSampleable
+from ._mixins import (
+    AnnotatedMixin,
+    AnnotatedSampleableMixin,
+)
 
 
-class Individual(Sampleable):
-    trajectory_other: None
-
-    def __init__(self, trajectory: Trajectory) -> None:
-        super().__init__(trajectory)
-
-        def annotate(
-            self,
-            observations: pd.DataFrame,
-            *,
-            categories: tuple[str, ...],
-        ) -> "AnnotatedIndividual":
-            return AnnotatedIndividual(
-                self.trajectory,
-                observations=observations,
-                categories=categories,
-            )
-
-
-class AnnotatedIndividual(AnnotatedSampleable):
-    trajectory_other: None
-
-    def __init__(
+class Individual(BaseSampleable):
+    def _sample_X(
         self,
-        trajectory: Trajectory,
+        extractor: FeatureExtractor | DataFrameFeatureExtractor,
+        *,
+        exclude: Optional[Sequence[Identifier]],
+    ) -> pd.DataFrame | NDArray:
+        return extractor.extract(self.trajectory)
+
+    def annotate(
+        self,
         observations: pd.DataFrame,
         *,
         categories: tuple[str, ...],
-    ) -> None:
-        super().__init__(trajectory, observations=observations, categories=categories)
+        background_category: str,
+    ) -> "AnnotatedIndividual":
+        return AnnotatedIndividual(
+            trajectory=self.trajectory,
+            observations=observations,
+            categories=categories,
+            background_category=background_category,
+        )
+
+
+class AnnotatedIndividual(Individual, AnnotatedSampleableMixin):
+    def __init__(
+        self,
+        trajectory: Trajectory,
+        *,
+        observations: pd.DataFrame,
+        categories: tuple[str, ...],
+        background_category: str,
+    ):
+        AnnotatedMixin.__init__(
+            self,
+            categories=categories,
+            background_category=background_category,
+        )
+        Individual.__init__(self, trajectory)
+        self._finalize_init(observations)

@@ -284,10 +284,8 @@ class ClassificationResult(_Result):
 def _get_target(
     results: Iterable["GroupClassificationResult"]
     | Iterable["DatasetClassificationResult"],
-) -> Literal["individuals", "dyads"]:
-    targets: list[Literal["individuals", "dyads"]] = [
-        result.target for result in results
-    ]
+) -> Literal["individual", "dyad"]:
+    targets: list[Literal["individual", "dyad"]] = [result.target for result in results]
     target = targets[0]
     if any(target != result_target for result_target in targets):
         raise ValueError(
@@ -302,7 +300,7 @@ class _NestedResult(_Result):
         Identifier,
         "ClassificationResult | GroupClassificationResult",
     ]
-    target: Literal["individuals", "dyads"]
+    target: Literal["individual", "dyad"]
 
     def smooth(
         self,
@@ -506,7 +504,7 @@ class GroupClassificationResult(_NestedResult):
                 predictions_actor,
                 priority_func=priority_func,
                 max_allowed_overlap=0,
-                index_keys=[],
+                index_columns=(),
             )
             for recipient in self.trajectories:
                 if (actor, recipient) not in self.classification_results:
@@ -614,8 +612,10 @@ class DatasetClassificationResult(_NestedResult):
                 group_key: AnnotatedGroup(
                     group_result.trajectories,
                     target=self.target,
+                    exclude=None,
                     observations=group_result.predictions,
                     categories=categories,
+                    background_category="none",  # TODO: fix this
                 )
                 for group_key, group_result in self.classification_results.items()
             }

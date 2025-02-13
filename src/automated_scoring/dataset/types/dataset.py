@@ -1,297 +1,350 @@
-from __future__ import annotations
-
-import random
-from collections.abc import Generator, Iterable
-from typing import TYPE_CHECKING, Any, Optional, Sequence, overload
+from collections.abc import Generator, Mapping, Sequence
+from typing import (
+    TYPE_CHECKING,
+    Literal,
+    Optional,
+    Self,
+    overload,
+)
 
 import numpy as np
 import pandas as pd
-from numpy.typing import NDArray
-from sklearn.preprocessing import OneHotEncoder
+from sklearn.model_selection import KFold, StratifiedKFold, train_test_split
 
-from ...features import DataFrameFeatureExtractor, FeatureExtractor
-from ...utils import ensure_generator, to_int_seed
-from ..utils import (
+from automated_scoring.classification.results import IndividualIdentifier
+from automated_scoring.dataset import (
     GroupIdentifier,
-    Identifier,
-    IndividualIdentifier,
-    SubjectIdentifier,
-    get_actor,
 )
-from ._dataset_base import BaseDataset
-from ._sampleable import AnnotatedSampleable, Sampleable
-from .group import AnnotatedGroup, Group
-from .utils import (
-    get_concatenated_dataset,
-    recursive_sampleables,
+from automated_scoring.dataset.types.dataset import SubjectIdentifier
+from automated_scoring.utils import ensure_generator, to_int_seed
+
+from ._mixins import (
+    AnnotatedMixin,
+    AnnotatedSampleableMixin,
+    NestedSampleableMixin,
+    SampleableMixin,
 )
-
-if TYPE_CHECKING:
-    from loguru import Logger
+from .group import Group
 
 
-class Dataset(BaseDataset):
-    _groups_list: list[Group]
-    groups: list[Group] | dict[GroupIdentifier, Group]
+def include(
+    individual: SubjectIdentifier,
+    exclude: Sequence[GroupIdentifier | IndividualIdentifier | SubjectIdentifier],
+) -> bool:
+    exclude = list(exclude)
+    if individual in exclude:
+        return False
+    if individual[0] in exclude:
+        return False
+    if individual[1] in exclude:
+        return False
+    return True
 
-    def __init__(self, groups: Sequence[Group] | dict[GroupIdentifier, Group]) -> None:
-        super().__init__()
-        if len(groups) == 0:
-            raise ValueError("provide at least one group.")
-        if isinstance(groups, dict):
-            _groups_list = list(groups.values())
-        else:
-            _groups_list = list(groups)
-            groups = list(groups)
-        is_annotated = isinstance(_groups_list[0], AnnotatedGroup)
-        if any(
-            [
-                isinstance(group, AnnotatedGroup) != is_annotated
-                for group in _groups_list[1:]
-            ]
-        ):
-            raise ValueError(
-                "groups should be either all annotated, or all not annotated."
-            )
-        self._groups_list = _groups_list
-        self.groups = groups
 
-    @overload
-    def sample(
+class Dataset(NestedSampleableMixin, SampleableMixin):
+    def __init__(
         self,
-        feature_extractor: FeatureExtractor,
-        *,
-        exclude: Optional[Iterable[Identifier]] = None,
-        log: Optional[Logger],
-    ) -> tuple[NDArray, NDArray | None]: ...
-
-    @overload
-    def sample(
-        self,
-        feature_extractor: DataFrameFeatureExtractor,
-        *,
-        exclude: Optional[Iterable[Identifier]] = None,
-        log: Optional[Logger],
-    ) -> tuple[pd.DataFrame, NDArray | None]: ...
-
-    def sample(
-        self,
-        feature_extractor: FeatureExtractor | DataFrameFeatureExtractor,
-        *,
-        exclude: Optional[Iterable[Identifier]] = None,
-        log: Optional[Logger],
-    ) -> tuple[NDArray | pd.DataFrame, NDArray | None]:
-        return get_concatenated_dataset(
-            recursive_sampleables(self, exclude=exclude),
-            feature_extractor,
-            sampling_type="sample",
-            log=log,
-        )
-
-    @overload
-    def subsample(
-        self,
-        feature_extractor: FeatureExtractor,
-        *args,
-        log: Optional[Logger],
-        **kwargs,
-    ) -> tuple[NDArray, NDArray | None]: ...
-
-    @overload
-    def subsample(
-        self,
-        feature_extractor: DataFrameFeatureExtractor,
-        *args,
-        log: Optional[Logger],
-        **kwargs,
-    ) -> tuple[pd.DataFrame, NDArray | None]: ...
-
-    def subsample(
-        self,
-        feature_extractor: FeatureExtractor | DataFrameFeatureExtractor,
-        size: int | float,
-        *,
-        random_state: Optional[np.random.Generator | int] = None,
-        stratify_by_groups: bool = True,
-        categories: Optional[list[str]] = None,
-        store_indices: bool = False,
-        exclude_stored_indices: bool = False,
-        reset_stored_indices: bool = False,
-        try_even_subsampling: bool = True,
-        exclude: Optional[Iterable[Identifier]] = None,
-        log: Optional[Logger],
-    ) -> tuple[NDArray | pd.DataFrame, NDArray | None]:
-        if exclude is None:
-            exclude = []
-        return get_concatenated_dataset(
-            recursive_sampleables(self, exclude=exclude),
-            feature_extractor,
-            size=size,
-            random_state=random_state,
-            stratify_by_groups=stratify_by_groups,
-            store_indices=store_indices,
-            exclude_stored_indices=exclude_stored_indices,
-            reset_stored_indices=reset_stored_indices,
-            categories=categories,
-            try_even_subsampling=try_even_subsampling,
-            sampling_type="subsample",
-            log=log,
-        )
-
-    @property
-    def identifiers(self) -> list[GroupIdentifier]:
-        # use for select
-        return (
-            sorted(list(self.groups.keys()))
-            if isinstance(self.groups, dict)
-            else list(range(len(self.groups)))
-        )
-
-    def get_subjects(
-        self, *, exclude: Optional[Iterable[Identifier]] = None
-    ) -> list[SubjectIdentifier]:
-        exclude = list(exclude) if exclude is not None else []
-        subjects: list[SubjectIdentifier] = []
-        for group_id in self.identifiers:
-            if group_id in exclude:
-                continue
-            group = self.select(group_id)
-            for sampleable_id in group.identifiers:
-                if sampleable_id in exclude:
-                    continue
-                identifier = group_id, get_actor(sampleable_id)
-                if identifier in subjects:
-                    continue
-                subjects.append(identifier)
-        return sorted(subjects)
-
-    @property
-    def sampling_targets(self) -> list[Sampleable] | list[AnnotatedSampleable]:
-        return [
-            sampling_target
-            for group in self._groups_list
-            for sampling_target in group.sampling_targets
-        ]
-
-    def select(self, key: GroupIdentifier) -> AnnotatedGroup | Group:
-        if isinstance(self.groups, dict):
-            return self.groups[key]
-        if not isinstance(key, int):
-            raise ValueError("provide integer type index to select from groups as list")
-        return self.groups[key]
-
-    @property
-    def label_encoder(self) -> OneHotEncoder:
-        if self._label_encoder is None:
-            self._label_encoder = self._groups_list[0].label_encoder
-        return self._label_encoder
-
-    def get_observations(
-        self,
-        *,
-        exclude: Optional[Iterable[Identifier]] = None,
-    ) -> pd.DataFrame:
-        if isinstance(self.groups, list) and not all(
-            [isinstance(group, AnnotatedGroup) for group in self.groups]
-        ):
-            raise ValueError("dataset contains non-annotated groups")
-        elif isinstance(self.groups, dict) and not all(
-            [isinstance(group, AnnotatedGroup) for group in self.groups.values()]
-        ):
-            raise ValueError("dataset contains non-annotated groups")
-        from ..observations.concatenate import (
-            concatenate_observations,
-        )  # local import here to avoid circular import
-
-        return concatenate_observations(self.groups, exclude=exclude)  # type: ignore (see type checking above)
-
-    def _split(
-        self,
-        selected_actors: Iterable[SubjectIdentifier],
-        remaining_actors: Iterable[SubjectIdentifier],
-        *,
-        exclude: Optional[Iterable[Identifier]] = None,
+        groups: Mapping[GroupIdentifier, Group],
     ):
-        exclude = list(exclude) if exclude is not None else []
-        selected_actors_by_groups: dict[
-            GroupIdentifier, list[IndividualIdentifier]
-        ] = {}
-        remaining_actors_by_groups: dict[
-            GroupIdentifier, list[IndividualIdentifier]
-        ] = {}
-        for group_id, identity in selected_actors:
-            if group_id not in selected_actors_by_groups:
-                selected_actors_by_groups[group_id] = []
-            selected_actors_by_groups[group_id].append(identity)
-        for group_id, identity in remaining_actors:
-            if group_id not in remaining_actors_by_groups:
-                remaining_actors_by_groups[group_id] = []
-            remaining_actors_by_groups[group_id].append(identity)
-        selected_groups = {
-            group_id: self.select(group_id).get_subgroup(
-                selected_actors, exclude=exclude
+        self._sampleables = {identifier: group for identifier, group in groups.items()}
+
+    @overload
+    @classmethod
+    def REQUIRED_COLUMNS(
+        cls, target: Literal["individual"]
+    ) -> tuple[
+        Literal["group"],
+        Literal["actor"],
+        Literal["category"],
+        Literal["start"],
+        Literal["stop"],
+    ]: ...
+
+    @overload
+    @classmethod
+    def REQUIRED_COLUMNS(
+        cls, target: Literal["dyad"]
+    ) -> tuple[
+        Literal["group"],
+        Literal["actor"],
+        Literal["recipient"],
+        Literal["category"],
+        Literal["start"],
+        Literal["stop"],
+    ]: ...
+
+    @classmethod
+    def REQUIRED_COLUMNS(
+        cls, target=None
+    ) -> (
+        tuple[
+            Literal["group"],
+            Literal["actor"],
+            Literal["category"],
+            Literal["start"],
+            Literal["stop"],
+        ]
+        | tuple[
+            Literal["group"],
+            Literal["actor"],
+            Literal["recipient"],
+            Literal["category"],
+            Literal["start"],
+            Literal["stop"],
+        ]
+    ):
+        if target == "individual":
+            return ("group", "actor", "category", "start", "stop")
+        elif target == "dyad":
+            return ("group", "actor", "recipient", "category", "start", "stop")
+        else:
+            raise ValueError("target argument must be either 'individual' or 'dyad'")
+
+    def __next__(self) -> tuple[GroupIdentifier, Group]:
+        identifier, group = super().__next__()
+        if TYPE_CHECKING:
+            assert isinstance(group, Group)
+            assert isinstance(identifier, GroupIdentifier)
+        return identifier, group
+
+    @property
+    def individuals(self) -> tuple[SubjectIdentifier, ...]:
+        individuals: list[SubjectIdentifier] = []
+        for identifier, group in self:
+            individuals.extend(
+                [(identifier, individual) for individual in group.individuals]
             )
-            for group_id, selected_actors in selected_actors_by_groups.items()
-        }
-        remaining_groups = {
-            group_id: self.select(group_id).get_subgroup(
-                remaining_actors, exclude=exclude
+        return tuple(sorted(individuals))
+
+    def _get_identifiers(self) -> tuple[GroupIdentifier, ...]:
+        identifiers = []
+        for identifier in self._sampleables.keys():
+            if TYPE_CHECKING:
+                assert isinstance(identifier, GroupIdentifier)
+            identifiers.append(identifier)
+        return tuple(sorted(identifiers))
+
+    def annotate(
+        self,
+        observations: pd.DataFrame,
+        *,
+        categories: tuple[str, ...],
+        background_category: str,
+    ) -> "AnnotatedDataset":
+        groups: dict[GroupIdentifier, Group] = {}
+        for identifier, group in self:
+            groups[identifier] = group
+        return AnnotatedDataset(
+            groups,
+            observations=observations,
+            categories=categories,
+            background_category=background_category,
+        )
+
+    def _finalize_init(self, observations: pd.DataFrame) -> None:
+        if not isinstance(self, AnnotatedMixin):
+            return
+        observations = observations.loc[
+            np.isin(observations["category"], self.categories)
+        ]
+        for identifier, group in self:
+            observations_group = observations.loc[observations["group"] == identifier]
+            self._sampleables[identifier] = group.annotate(
+                observations=observations_group,
+                categories=self.categories,
+                background_category=self.background_category,
             )
-            for group_id, remaining_actors in remaining_actors_by_groups.items()
-        }
-        return Dataset(selected_groups), Dataset(remaining_groups)
+
+    def _get_observations(self) -> pd.DataFrame:
+        observations = []
+        for identifier, group in self:
+            group = self.select(identifier)
+            if not isinstance(group, AnnotatedMixin):
+                raise ValueError("unannotated groups do not have observations")
+            observations_group = group._get_observations()
+            observations_group["group"] = identifier
+            observations.append(observations_group)
+        observations = pd.concat(observations, axis=0, ignore_index=True)[
+            list(self.REQUIRED_COLUMNS(self.target))
+        ]
+        if TYPE_CHECKING:
+            assert isinstance(observations, pd.DataFrame)
+        return observations
+
+    @classmethod
+    def _empty_like(cls, group: Group) -> Self:
+        return cls({})
+
+    @classmethod
+    def from_groups(
+        cls,
+        groups: Mapping[GroupIdentifier, Group],
+    ) -> Self:
+        if len(groups) < 1:
+            raise ValueError("groups must contain at least one group")
+        new = cls._empty_like(list(groups.values())[0])
+        for identifier, group in groups.items():
+            new._sampleables[identifier] = groups[identifier]
+        return new
+
+    def _make_split(
+        self,
+        *,
+        individuals_selected: tuple[SubjectIdentifier, ...],
+        individuals_remaining: tuple[SubjectIdentifier, ...],
+        subset_actors_only: bool,
+    ) -> tuple[Self, Self]:
+        groups_selected = {}
+        groups_remaining = {}
+        for identifier, group in self:
+            selected = tuple(
+                individual[1]
+                for individual in individuals_selected
+                if individual[0] == identifier
+            )
+            if len(selected) > 0:
+                groups_selected[identifier] = type(group).from_group(
+                    group,
+                    individuals=selected,
+                    subset_actors_only=subset_actors_only,
+                )
+            remaining = tuple(
+                individual[1]
+                for individual in individuals_remaining
+                if individual[0] == identifier
+            )
+            if len(remaining) > 0:
+                groups_remaining[identifier] = type(group).from_group(
+                    group,
+                    individuals=remaining,
+                    subset_actors_only=subset_actors_only,
+                )
+        return (
+            type(self).from_groups(groups_selected),
+            type(self).from_groups(groups_remaining),
+        )
 
     def split(
         self,
-        size: float,
+        size: int | float,
         *,
-        exclude: Optional[Iterable[Identifier]] = None,
-        random_state: Optional[np.random.Generator | int] = None,
-    ) -> tuple["Dataset", "Dataset"]:
-        random.seed(to_int_seed(ensure_generator(random_state)))
-        if size < 0 or size > 1:
-            raise ValueError("size should be between 0 and 1")
-        exclude = list(exclude) if exclude is not None else []
-        actors = self.get_subjects(exclude=exclude)
-        num_selected = int(len(actors) * size)
-        num_remaining = len(actors) - num_selected
-        if num_selected < 1:
+        random_state: int | None | np.random.Generator,
+        subset_actors_only: bool = True,
+        exclude: Optional[
+            Sequence[GroupIdentifier | IndividualIdentifier | SubjectIdentifier]
+        ],
+    ) -> tuple[Self, Self]:
+        if exclude is None:
+            exclude = ()
+        random_state = ensure_generator(random_state)
+        individuals = [
+            individual
+            for individual in self.individuals
+            if include(individual, exclude)
+        ]
+        if isinstance(size, float) and (size < 0 or size > 1):
             raise ValueError(
-                "specified size too small. each split should contain at least one actor"
+                "size should be within (0.0, 1.0) interval (exclusive) if float"
             )
-        if num_remaining < 1:
+        if isinstance(size, float):
+            size = int(size * len(individuals))
+        if isinstance(size, int) and (size < 1 or size > len(individuals) - 1):
             raise ValueError(
-                "specified size too large. each split should contain at least one actor"
+                f"size should be within [1, {len(individuals)}] (inclusive) if int"
             )
-        actors_selected = random.sample(actors, num_selected)
-        actors_remaining = [actor for actor in actors if actor not in actors_selected]
-        return self._split(actors_selected, actors_remaining, exclude=exclude)
+        individuals_selected: Sequence[SubjectIdentifier] = []
+        try:
+            split_selected, _ = train_test_split(
+                individuals,
+                train_size=size,
+                random_state=to_int_seed(random_state),
+                stratify=[individual[0] for individual in individuals],
+            )
+        except ValueError:
+            split_selected, _ = train_test_split(
+                individuals,
+                train_size=size,
+                random_state=to_int_seed(random_state),
+            )
+        for individual in sorted(np.asarray(split_selected).tolist()):
+            individuals_selected.append(tuple(individual))
+        individuals_selected = tuple(individuals_selected)
+        individuals_remaining = tuple(
+            sorted(set(individuals) - set(individuals_selected))
+        )
+        return self._make_split(
+            individuals_selected=individuals_selected,
+            individuals_remaining=individuals_remaining,
+            subset_actors_only=subset_actors_only,
+        )
 
     def k_fold(
         self,
         k: int,
         *,
-        exclude: Optional[Iterable[Identifier]] = None,
-        random_state: Optional[np.random.Generator | int] = None,
-    ) -> Generator[tuple["Dataset", "Dataset"], Any, None]:
-        random.seed(to_int_seed(ensure_generator(random_state)))
-        actors = set(self.get_subjects(exclude=exclude))
-        num_holdout_per_fold = len(actors) // k
-        if num_holdout_per_fold < 1:
-            raise ValueError(
-                "specified k is too large. each fold should contain at least one actor"
+        random_state: int | None | np.random.Generator,
+        subset_actors_only: bool = True,
+        exclude: Optional[
+            Sequence[GroupIdentifier | IndividualIdentifier | SubjectIdentifier]
+        ],
+    ) -> Generator[tuple[Self, Self], None, None]:
+        if exclude is None:
+            exclude = ()
+        random_state = ensure_generator(random_state)
+        individuals = [
+            individual
+            for individual in self.individuals
+            if include(individual, exclude)
+        ]
+        try:
+            kf = StratifiedKFold(
+                n_splits=k, shuffle=True, random_state=to_int_seed(random_state)
             )
-        folds: list[tuple[list[SubjectIdentifier], list[SubjectIdentifier]]] = []
-        actors_remaining = actors.copy()
-        for idx in range(k):
-            if idx == k - 1:
-                holdout = actors_remaining
-            else:
-                holdout = set(
-                    random.sample(sorted(actors_remaining), num_holdout_per_fold)
+            for selected, remaining in kf.split(
+                individuals, [individual[0] for individual in individuals]
+            ):
+                yield self._make_split(
+                    individuals_selected=tuple(individuals[idx] for idx in selected),
+                    individuals_remaining=tuple(individuals[idx] for idx in remaining),
+                    subset_actors_only=subset_actors_only,
                 )
-            train = actors - holdout
-            folds.append((list(sorted(train)), list(sorted(holdout))))
-            actors_remaining -= holdout
-        for train, holdout in folds:
-            yield self._split(train, holdout, exclude=exclude)
+        except ValueError:
+            kf = KFold(n_splits=k, shuffle=True, random_state=to_int_seed(random_state))
+            for selected, remaining in kf.split(individuals):
+                yield self._make_split(
+                    individuals_selected=tuple(individuals[idx] for idx in selected),
+                    individuals_remaining=tuple(individuals[idx] for idx in remaining),
+                    subset_actors_only=subset_actors_only,
+                )
+
+
+class AnnotatedDataset(Dataset, AnnotatedSampleableMixin):
+    def __init__(
+        self,
+        groups: Mapping[GroupIdentifier, Group],
+        *,
+        observations: pd.DataFrame,
+        categories: tuple[str, ...],
+        background_category: str,
+    ):
+        AnnotatedMixin.__init__(
+            self,
+            categories=categories,
+            background_category=background_category,
+        )
+        Dataset.__init__(self, groups)
+        self._finalize_init(observations)
+
+    @classmethod
+    def _empty_like(cls, group: Group) -> Self:
+        if not isinstance(group, AnnotatedMixin):
+            raise ValueError("groups must be annotated")
+        observations = pd.DataFrame(
+            columns=pd.Index(cls.REQUIRED_COLUMNS(group.target))
+        )
+        return cls(
+            {},
+            observations=observations,
+            categories=group.categories,
+            background_category=group.background_category,
+        )

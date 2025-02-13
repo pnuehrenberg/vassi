@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import os
-from collections.abc import Iterable
+from collections.abc import Iterable, Sequence
 from functools import partial
 from typing import TYPE_CHECKING, Any, Optional
 
@@ -10,7 +10,7 @@ import pandas as pd
 from loguru import logger
 from numpy.typing import NDArray
 
-from ..dataset import Dataset, Identifier
+from ..dataset import AnnotatedDataset, Identifier
 from ..features import DataFrameFeatureExtractor, FeatureExtractor
 from ..utils import MPIContext, SmoothingFunction
 from . import _optimization_utils as utils
@@ -24,18 +24,17 @@ if TYPE_CHECKING:
 def score_smoothing(
     smoothing_func: SmoothingFunction,
     parameter_combinations: list[dict[str, Any]],
-    dataset: Dataset,
+    dataset: AnnotatedDataset,
     extractor: FeatureExtractor | DataFrameFeatureExtractor,
     classifier: Any,
     *,
     remove_overlapping_predictions: bool,
     iteration: int,
     k: int,
-    exclude: Iterable[Identifier] | None,
+    exclude: Sequence[Identifier] | None,
     random_state: np.random.Generator | int,
     sampling_func: SamplingFunction,
     balance_sample_weights: bool,
-    encode_func: EncodingFunction,
     log: Logger | None,
 ) -> list[dict[str, Any]]:
     if log is None:
@@ -49,7 +48,7 @@ def score_smoothing(
         random_state=random_state,
         sampling_func=sampling_func,
         balance_sample_weights=balance_sample_weights,
-        encode_func=encode_func,
+        encode_func=dataset.encode,
         log=log,
     )
     results = []
@@ -63,19 +62,19 @@ def score_smoothing(
             {
                 "iteration": iteration,
                 **parameters,
-                **classification_result.score(encode_func=encode_func, macro=True),
+                **classification_result.score(encode_func=dataset.encode, macro=True),
             }
         )
-        log.bind(level={"name": "", "step": idx + 1, "total": len(parameter_combinations)}).trace(
-            "scored parameters"
-        )
+        log.bind(
+            level={"name": "", "step": idx + 1, "total": len(parameter_combinations)}
+        ).trace("scored parameters")
     log.success("finished scoring smoothing parameters")
     return results
 
 
 def score_thresholds(
     decision_thresholds: list[NDArray],
-    dataset: Dataset,
+    dataset: AnnotatedDataset,
     extractor: FeatureExtractor | DataFrameFeatureExtractor,
     classifier: Any,
     *,
@@ -83,11 +82,10 @@ def score_thresholds(
     default_decision: int | str,
     iteration: int,
     k: int,
-    exclude: Iterable[Identifier] | None,
+    exclude: Sequence[Identifier] | None,
     random_state: np.random.Generator | int,
     sampling_func: SamplingFunction,
     balance_sample_weights: bool,
-    encode_func: EncodingFunction,
     smoothing_func: SmoothingFunction | None,
     log: Logger | None,
 ) -> list[list[dict[str, Any]]]:
@@ -104,7 +102,7 @@ def score_thresholds(
         random_state=random_state,
         sampling_func=sampling_func,
         balance_sample_weights=balance_sample_weights,
-        encode_func=encode_func,
+        encode_func=dataset.encode,
         log=log,
     )
     results = [[] for _ in range(num_categories)]
@@ -132,7 +130,7 @@ def score_thresholds(
                         thresholds,
                         default_decision=default_decision,
                         remove_overlapping_predictions=remove_overlapping_predictions,
-                    ).score(encode_func=encode_func, macro=True),
+                    ).score(encode_func=dataset.encode, macro=True),
                 }
             )
             _log.bind(
@@ -149,7 +147,7 @@ def score_thresholds(
 
 
 def optimize_smoothing(
-    dataset: Dataset,
+    dataset: AnnotatedDataset,
     extractor: FeatureExtractor | DataFrameFeatureExtractor,
     classifier: Any,
     smoothing_func: SmoothingFunction,
@@ -160,11 +158,10 @@ def optimize_smoothing(
     tolerance: float = 0.01,
     plot_results: bool = True,
     k: int,
-    exclude: Optional[Iterable[Identifier]] = None,
+    exclude: Optional[Sequence[Identifier]] = None,
     random_state: Optional[np.random.Generator | int] = None,
     sampling_func: SamplingFunction,
     balance_sample_weights: bool = True,
-    encode_func: Optional[EncodingFunction] = None,
     results_path: Optional[str] = None,
     log: Logger | None = None,
 ) -> dict[str, Any] | None:
@@ -174,11 +171,6 @@ def optimize_smoothing(
     parameter_combinations = utils.parameter_grid_to_combinations(
         smoothing_parameters_grid
     )
-    if encode_func is None:
-        try:
-            encode_func = dataset.encode
-        except ValueError:
-            raise ValueError("specify encode_func for non-annotated datasets")
     for iteration in range(num_iterations):
         if not mpi_context.do_iteration(iteration):
             continue
@@ -201,7 +193,6 @@ def optimize_smoothing(
                 ),
                 sampling_func=sampling_func,
                 balance_sample_weights=balance_sample_weights,
-                encode_func=encode_func,
                 log=log,
             ),
         )
@@ -225,7 +216,7 @@ def optimize_smoothing(
 
 
 def optimize_decision_thresholds(
-    dataset: Dataset,
+    dataset: AnnotatedDataset,
     extractor: FeatureExtractor | DataFrameFeatureExtractor,
     classifier: Any,
     *,
@@ -241,7 +232,7 @@ def optimize_decision_thresholds(
     tolerance: float = 0.01,
     plot_results: bool = True,
     k: int,
-    exclude: Optional[Iterable[Identifier]] = None,
+    exclude: Optional[Sequence[Identifier]] = None,
     random_state: Optional[np.random.Generator | int] = None,
     sampling_func: SamplingFunction,
     balance_sample_weights: bool = True,
@@ -283,7 +274,6 @@ def optimize_decision_thresholds(
                 ),
                 sampling_func=sampling_func,
                 balance_sample_weights=balance_sample_weights,
-                encode_func=encode_func,
                 smoothing_func=smoothing_func,
                 log=log,
             ),

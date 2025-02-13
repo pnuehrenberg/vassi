@@ -151,7 +151,9 @@ def _filter_recipient_bouts(
         allow_unsorted=True,
     )
     observations = observations[observations["category"] != "none"]  # type: ignore
-    observations = ensure_single_index(observations, index_columns=("actor", ), drop=False)
+    observations = ensure_single_index(
+        observations, index_columns=("actor",), drop=False
+    )
     bouts = []
     for recipient, observations_recipient in observations.groupby("recipient"):
         if len(observations_recipient) == 0:

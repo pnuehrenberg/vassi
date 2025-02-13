@@ -1,14 +1,15 @@
-from .dataset import Dataset
+from .dataset import AnnotatedDataset, Dataset
 from .dyad import AnnotatedDyad, Dyad
 from .group import AnnotatedGroup, Group
 from .individual import AnnotatedIndividual, Individual
 
 __all__ = [
-    "Individual",
-    "AnnotatedIndividual",
-    "Dyad",
+    "AnnotatedDataset",
     "AnnotatedDyad",
-    "Group",
     "AnnotatedGroup",
+    "AnnotatedIndividual",
     "Dataset",
+    "Dyad",
+    "Group",
+    "Individual",
 ]

@@ -34,7 +34,7 @@ def get_proximitry_matrix(group: Group | AnnotatedGroup) -> tuple[NDArray, NDArr
         ):
             if identity == identity_other:
                 continue
-            dyad = Dyad(*Dyad.prepare_trajectories(trajectory, trajectory_other))
+            dyad = Dyad(*Dyad.prepare_paired_trajectories(trajectory, trajectory_other))
             distances = keypoint_distances(
                 dyad.trajectory,
                 trajectory_other=dyad.trajectory_other,
@@ -104,7 +104,11 @@ def _permute_recipients_in_group(
     )
     if TYPE_CHECKING:
         assert isinstance(annotations_group, pd.DataFrame)
-    return group.annotate(annotations_group, categories=group.categories)
+    return group.annotate(
+        annotations_group,
+        categories=group.categories,
+        background_category=group.background_category,
+    )
 
 
 def _permute_recipients(dataset: Dataset, *, neighbor_rank: int) -> Dataset:

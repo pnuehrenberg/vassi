@@ -1,316 +1,287 @@
-from __future__ import annotations
-
+from collections.abc import Iterable, Mapping, Sequence
 from itertools import permutations
-from typing import TYPE_CHECKING, Iterable, Literal, Optional, Self, overload
+from typing import (
+    TYPE_CHECKING,
+    Literal,
+    Optional,
+    Self,
+    cast,
+    overload,
+)
 
 import numpy as np
 import pandas as pd
-from numpy.typing import NDArray
-from sklearn.preprocessing import OneHotEncoder
 
 from ...data_structures import Trajectory
-from ...features import DataFrameFeatureExtractor, FeatureExtractor
-from ..observations.utils import check_observations
-from ..utils import Identifier, IndividualIdentifier, get_actor
-from ._dataset_base import BaseDataset
-from ._sampleable import AnnotatedSampleable, Sampleable
+from ..utils import DyadIdentifier, Identifier, IndividualIdentifier
+from ._base_sampleable import BaseSampleable
+from ._mixins import (
+    AnnotatedMixin,
+    AnnotatedSampleableMixin,
+    NestedSampleableMixin,
+    SampleableMixin,
+)
 from .dyad import Dyad
 from .individual import Individual
-from .utils import (
-    get_concatenated_dataset,
-    recursive_sampleables,
-)
-
-if TYPE_CHECKING:
-    from loguru import Logger
 
 
-class Group(BaseDataset):
+class Group(NestedSampleableMixin, SampleableMixin):
     def __init__(
         self,
-        trajectories: dict[IndividualIdentifier, Trajectory],
+        trajectories: Iterable[Trajectory] | Mapping[IndividualIdentifier, Trajectory],
         *,
-        target: Literal["individuals", "dyads"],
-        exclude: Optional[Iterable[Identifier]] = None,
-    ) -> None:
-        super().__init__()
-        self.exclude = [] if exclude is None else list(exclude)
-        if len(trajectories) == 0:
-            raise ValueError("provide at least one trajectory.")
-        self.trajectories = trajectories
-        self._sampling_target = target
-        self._sampleables: dict[Identifier, Sampleable] = {}
-        if target == "individuals":
-            for identity in self.individuals:
-                if identity in self.exclude:
+        target: Literal["individual", "dyad"],
+        exclude: Optional[Sequence[IndividualIdentifier] | Sequence[DyadIdentifier]],
+    ):
+        if exclude is None:
+            exclude = ()
+        _trajectories: list[Trajectory] = (
+            list(trajectories.values())
+            if isinstance(trajectories, Mapping)
+            else list(trajectories)
+        )
+        _individuals: list[IndividualIdentifier] = (
+            list(range(len(_trajectories)))
+            if not isinstance(trajectories, Mapping)
+            else list(
+                cast(Mapping[IndividualIdentifier, Trajectory], trajectories).keys()
+            )  # cast seems necessary here for pyright, as keys is inferred incorrectly
+        )
+        self.trajectories = {
+            individual: trajectory
+            for individual, trajectory in zip(_individuals, _trajectories)
+        }
+        self._target = target
+        self._sampleables = {}
+        for identifier in self.potential_identifiers:
+            if self.target == "individual":
+                if identifier in exclude:
                     continue
-                self._sampleables[identity] = Individual(self.trajectories[identity])
-        elif target == "dyads":
-            for identifier in self.potential_identifieres:
+                if TYPE_CHECKING:
+                    assert isinstance(identifier, IndividualIdentifier)
+                self._sampleables[identifier] = Individual(
+                    self.trajectories[identifier]
+                )
+            elif self.target == "dyad":
+                if identifier in exclude:
+                    continue
                 if TYPE_CHECKING:
                     assert isinstance(identifier, tuple)
-                actor, recipient = identifier
-                if (actor, recipient) in self.exclude:
-                    continue
-                trajectory, trajectory_other = Sampleable.prepare_trajectories(
-                    self.trajectories[actor],
-                    self.trajectories[recipient],
+                self._sampleables[identifier] = Dyad(
+                    *Dyad.prepare_paired_trajectories(
+                        self.trajectories[identifier[0]],
+                        self.trajectories[identifier[1]],
+                    )
                 )
-                self._sampleables[(actor, recipient)] = Dyad(
-                    trajectory=trajectory,
-                    trajectory_other=trajectory_other,
-                )
-        else:
-            raise ValueError(
-                "sampling target should be one of 'individuals' or 'dyads'"
-            )
+            else:
+                raise ValueError("target must be either 'individual' or 'dyad'")
 
-    @property
-    def target(self) -> Literal["individuals", "dyads"]:
-        assert (
-            self._sampling_target == "individuals" or self._sampling_target == "dyads"
-        )
-        return self._sampling_target
+    @classmethod
+    def _empty_like(cls, group: Self) -> Self:
+        return cls([], target=group.target, exclude=None)
+
+    @classmethod
+    def from_group(
+        cls,
+        group: Self,
+        *,
+        individuals: Sequence[IndividualIdentifier],
+        subset_actors_only: bool,
+    ) -> Self:
+        def get_actor(
+            identifier: IndividualIdentifier | DyadIdentifier,
+        ) -> IndividualIdentifier:
+            if isinstance(identifier, IndividualIdentifier):
+                return identifier
+            return identifier[0]
+
+        new = cls._empty_like(group)
+        if subset_actors_only:
+            new.trajectories = group.trajectories
+        else:
+            new.trajectories = {
+                individual: group.trajectories[individual]
+                for individual in group.individuals
+                if individual in individuals
+            }
+        for identifier in new.potential_identifiers:
+            if get_actor(identifier) not in individuals:
+                continue
+            if identifier not in group.identifiers:
+                # was excluded on group init
+                continue
+            new._sampleables[identifier] = group.select(identifier)
+        return new
+
+    @overload
+    @classmethod
+    def REQUIRED_COLUMNS(
+        cls, target: Literal["individual"]
+    ) -> tuple[
+        Literal["actor"], Literal["category"], Literal["start"], Literal["stop"]
+    ]: ...
+
+    @overload
+    @classmethod
+    def REQUIRED_COLUMNS(
+        cls, target: Literal["dyad"]
+    ) -> tuple[
+        Literal["actor"],
+        Literal["recipient"],
+        Literal["category"],
+        Literal["start"],
+        Literal["stop"],
+    ]: ...
+
+    @classmethod
+    def REQUIRED_COLUMNS(
+        cls, target=None
+    ) -> (
+        tuple[Literal["actor"], Literal["category"], Literal["start"], Literal["stop"]]
+        | tuple[
+            Literal["actor"],
+            Literal["recipient"],
+            Literal["category"],
+            Literal["start"],
+            Literal["stop"],
+        ]
+    ):
+        if target == "individual":
+            return ("actor", "category", "start", "stop")
+        elif target == "dyad":
+            return ("actor", "recipient", "category", "start", "stop")
+        else:
+            raise ValueError("target argument must be either 'individual' or 'dyad'")
 
     @property
     def individuals(self) -> tuple[IndividualIdentifier, ...]:
-        return tuple(sorted(self.trajectories.keys()))
+        return tuple(sorted(self.trajectories))
+
+    @property
+    def potential_identifiers(
+        self,
+    ) -> tuple[IndividualIdentifier, ...] | tuple[DyadIdentifier, ...]:
+        if self.target == "individuals":
+            return self.individuals
+        return tuple(permutations(self.individuals, 2))
+
+    def _get_identifiers(
+        self,
+    ) -> tuple[IndividualIdentifier, ...] | tuple[DyadIdentifier, ...]:
+        individual_identifiers: list[IndividualIdentifier] = []
+        dyad_identifiers: list[DyadIdentifier] = []
+        for identifier in tuple(self._sampleables):
+            if self.target == "individual":
+                if TYPE_CHECKING:
+                    assert isinstance(identifier, str | int)
+                individual_identifiers.append(identifier)
+            else:
+                if TYPE_CHECKING:
+                    assert isinstance(identifier, tuple)
+                dyad_identifiers.append(identifier)
+        return (
+            tuple(individual_identifiers)
+            if self.target == "individual"
+            else tuple(dyad_identifiers)
+        )
 
     def annotate(
-        self, observations: pd.DataFrame, *, categories: tuple[str, ...]
+        self,
+        observations: pd.DataFrame,
+        *,
+        categories: tuple[str, ...],
+        background_category: str,
     ) -> "AnnotatedGroup":
         return AnnotatedGroup(
             self.trajectories,
             target=self.target,
+            exclude=(),
             observations=observations,
             categories=categories,
-            exclude=self.exclude,
+            background_category=background_category,
         )
 
-    @overload
-    def sample(
-        self,
-        feature_extractor: FeatureExtractor,
-        *,
-        exclude: Optional[Iterable[Identifier]] = None,
-        log: Optional[Logger],
-    ) -> tuple[NDArray, NDArray | None]: ...
+    def __next__(self) -> tuple[Identifier, BaseSampleable]:
+        identifier, sampleable = super().__next__()
+        if TYPE_CHECKING:
+            assert isinstance(sampleable, BaseSampleable)
+        return identifier, sampleable
 
-    @overload
-    def sample(
-        self,
-        feature_extractor: DataFrameFeatureExtractor,
-        *,
-        exclude: Optional[Iterable[Identifier]] = None,
-        log: Optional[Logger],
-    ) -> tuple[pd.DataFrame, NDArray | None]: ...
-
-    def sample(
-        self,
-        feature_extractor: FeatureExtractor | DataFrameFeatureExtractor,
-        *,
-        exclude: Optional[Iterable[Identifier]] = None,
-        log: Optional[Logger],
-    ) -> tuple[NDArray | pd.DataFrame, NDArray | None]:
-        return get_concatenated_dataset(
-            recursive_sampleables(self, exclude=exclude),
-            feature_extractor,
-            sampling_type="sample",
-            log=log,
+    def _finalize_init(self, observations: pd.DataFrame) -> None:
+        if not isinstance(self, AnnotatedMixin):
+            return
+        identifier_columns = (
+            ["actor", "recipient"] if self.target == "dyad" else ["actor"]
         )
-
-    @overload
-    def subsample(
-        self,
-        feature_extractor: FeatureExtractor,
-        size: int | float,
-        *,
-        random_state: Optional[np.random.Generator | int] = None,
-        stratify_by_groups: bool = True,
-        store_indices: bool = False,
-        exclude_stored_indices: bool = False,
-        reset_stored_indices: bool = False,
-        categories: Optional[list[str]] = None,
-        try_even_subsampling: bool = True,
-        exclude: Optional[Iterable[Identifier]] = None,
-        log: Optional[Logger],
-    ) -> tuple[NDArray, NDArray | None]: ...
-
-    @overload
-    def subsample(
-        self,
-        feature_extractor: DataFrameFeatureExtractor,
-        size: int | float,
-        *,
-        random_state: Optional[np.random.Generator | int] = None,
-        stratify_by_groups: bool = True,
-        store_indices: bool = False,
-        exclude_stored_indices: bool = False,
-        reset_stored_indices: bool = False,
-        categories: Optional[list[str]] = None,
-        try_even_subsampling: bool = True,
-        exclude: Optional[Iterable[Identifier]] = None,
-        log: Optional[Logger],
-    ) -> tuple[pd.DataFrame, NDArray | None]: ...
-
-    def subsample(
-        self,
-        feature_extractor: FeatureExtractor | DataFrameFeatureExtractor,
-        size: int | float,
-        *,
-        random_state: Optional[np.random.Generator | int] = None,
-        stratify_by_groups: bool = True,
-        store_indices: bool = False,
-        exclude_stored_indices: bool = False,
-        reset_stored_indices: bool = False,
-        categories: Optional[list[str]] = None,
-        try_even_subsampling: bool = True,
-        exclude: Optional[Iterable[Identifier]] = None,
-        log: Optional[Logger],
-    ) -> tuple[NDArray | pd.DataFrame, NDArray | None]:
-        if exclude is None:
-            exclude = []
-        return get_concatenated_dataset(
-            recursive_sampleables(self, exclude=exclude),
-            feature_extractor,
-            size=size,
-            random_state=random_state,
-            stratify_by_groups=stratify_by_groups,
-            store_indices=store_indices,
-            exclude_stored_indices=exclude_stored_indices,
-            reset_stored_indices=reset_stored_indices,
-            categories=categories,
-            try_even_subsampling=try_even_subsampling,
-            sampling_type="subsample",
-            log=log,
-        )
-
-    @property
-    def sampling_targets(self) -> list[Sampleable]:
-        return list(self._sampleables.values())
-
-    @property
-    def potential_identifieres(self) -> list[Identifier]:
-        if self.target == "individuals":
-            identifiers = self.individuals
-        else:
-            identifiers = list(permutations(self.individuals, 2))
-        return sorted(identifiers)
-
-    @property
-    def identifiers(self) -> list[Identifier]:
-        # use for select
-        return sorted(list(self._sampleables.keys()))
-
-    def select(self, key: Identifier) -> Sampleable:
-        return self._sampleables[key]
-
-    @property
-    def label_encoder(self) -> OneHotEncoder:
-        raise ValueError("non annotated group can not encode labels")
-
-    def _copy(self, *, exclude: Iterable[Identifier]) -> Self:
-        return type(self)(
-            self.trajectories,
-            target=self.target,
-            exclude=exclude,
-        )
-
-    def get_subgroup(
-        self,
-        selected_individuals: Iterable[IndividualIdentifier],
-        *,
-        exclude: Iterable[Identifier],
-    ) -> Self:
-        remaining = [
-            sampleable_id
-            for sampleable_id in self.potential_identifieres
-            if (sampleable_id in exclude)
-            or (get_actor(sampleable_id) not in selected_individuals)
+        observations = observations.loc[
+            np.isin(observations["category"], self.categories)
         ]
-        return self._copy(exclude=remaining)
+        for identifier, sampleable in self:
+            observations_sample = observations.loc[
+                (
+                    observations[identifier_columns]
+                    == (identifier if isinstance(identifier, tuple) else (identifier,))
+                ).all(axis=1)
+            ]
+            self._sampleables[identifier] = sampleable.annotate(
+                observations=observations_sample,
+                categories=self.categories,
+                background_category=self.background_category,
+            )
+
+    def _get_observations(self) -> pd.DataFrame:
+        observations = []
+        identifier_columns = (
+            ["actor", "recipient"] if self.target == "dyad" else ["actor"]
+        )
+        for identifier, sampleable in self:
+            if not isinstance(sampleable, AnnotatedMixin):
+                raise ValueError("unannotated sampleables do not have observations")
+            observations_sampleable = sampleable._get_observations()
+            if not isinstance(identifier, tuple):
+                identifier = (identifier,)
+            for column, value in zip(identifier_columns, identifier):
+                observations_sampleable[column] = value
+            observations.append(observations_sampleable)
+        observations = pd.concat(observations, axis=0, ignore_index=True)[
+            list(self.REQUIRED_COLUMNS(self.target))
+        ]
+        if TYPE_CHECKING:
+            assert isinstance(observations, pd.DataFrame)
+        return observations
 
 
-class AnnotatedGroup(Group):
+class AnnotatedGroup(Group, AnnotatedSampleableMixin):
     def __init__(
         self,
-        trajectories: dict[IndividualIdentifier, Trajectory],
+        trajectories: Iterable[Trajectory] | Mapping[IndividualIdentifier, Trajectory],
         *,
-        target: Literal["individuals", "dyads"],
-        exclude: Optional[Iterable[Identifier]] = None,
+        target: Literal["individual", "dyad"],
+        exclude: Optional[Sequence[IndividualIdentifier] | Sequence[DyadIdentifier]],
         observations: pd.DataFrame,
         categories: tuple[str, ...],
-    ) -> None:
-        self._sampleables: dict[  # type: ignore
-            Identifier, AnnotatedSampleable
-        ] = {}
-        super().__init__(trajectories, target=target, exclude=exclude)
-        required_columns = [*AnnotatedSampleable.required_columns, "actor"]
-        if self.target == "dyads":
-            required_columns.append("recipient")
-        observations = check_observations(
-            observations,
-            required_columns=required_columns,
-            allow_overlapping=True,
-            allow_unsorted=True,
+        background_category: str,
+    ):
+        AnnotatedMixin.__init__(
+            self,
+            categories=categories,
+            background_category=background_category,
         )
-        if "group" in observations.columns:
-            observations = observations.drop(columns=["group"])
-        self._observations = observations
-        self._categories: tuple[str, ...] = tuple()
-        for key, sampleable in self._sampleables.items():
-            if self.target == "dyads":
-                assert isinstance(key, tuple)
-                observations = self.get_observations(*key)
-            else:
-                assert isinstance(key, str | int)
-                observations = self.get_observations(key, None)
-            annotated_sampleable = self._sampleables[key].annotate(
-                observations, categories=categories
-            )
-            self._sampleables[key] = annotated_sampleable
-            if len(self._categories) == 0:
-                self._categories = annotated_sampleable.categories
+        Group.__init__(self, trajectories, target=target, exclude=exclude)
+        self._finalize_init(observations)
 
-    def _copy(self, *, exclude: Iterable[Identifier]) -> Self:
-        return type(self)(
-            self.trajectories,
-            target=self.target,
-            observations=self._observations,
-            categories=self._categories,
-            exclude=exclude,
+    @classmethod
+    def _empty_like(cls, group: Self) -> Self:
+        if not isinstance(group, cls):
+            raise ValueError("group must be of type {}".format(cls.__name__))
+        observations = pd.DataFrame(
+            columns=pd.Index(cls.REQUIRED_COLUMNS(group.target))
         )
-
-    @property
-    def observations(self) -> pd.DataFrame:
-        return self._observations.copy()
-
-    @property
-    def categories(self) -> tuple[str, ...]:
-        return self._categories
-
-    def get_observations(
-        self, actor: IndividualIdentifier, recipient: Optional[IndividualIdentifier]
-    ) -> pd.DataFrame:
-        if self.target == "dyads" and recipient is None:
-            raise ValueError("provide recipient for sampling target 'dyads'")
-        elif self.target == "dyads":
-            observations = self.observations.set_index(["actor", "recipient"])
-            try:
-                observations = observations.loc[[(actor, recipient)]]
-            except KeyError:
-                observations = observations.iloc[:0]
-        else:
-            observations = self.observations.set_index(["actor"])
-            try:
-                observations = observations.loc[[actor]]
-            except KeyError:
-                observations = observations.iloc[:0]
-        return observations.reset_index(drop=True).sort_values("start")
-
-    @property
-    def label_encoder(self) -> OneHotEncoder:
-        if self._label_encoder is None:
-            categories = np.asarray(self.categories).reshape(-1, 1)
-            self._label_encoder = OneHotEncoder(sparse_output=False).fit(categories)
-        return self._label_encoder
+        return cls(
+            [],
+            target=group.target,
+            exclude=None,
+            observations=observations,
+            categories=group.categories,
+            background_category=group.background_category,
+        )

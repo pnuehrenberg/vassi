@@ -1,4 +1,5 @@
 from .types import (
+    AnnotatedDataset,
     AnnotatedDyad,
     AnnotatedGroup,
     AnnotatedIndividual,
@@ -16,16 +17,17 @@ from .utils import (
 )
 
 __all__ = [
-    "Individual",
-    "AnnotatedIndividual",
-    "Dyad",
+    "AnnotatedDataset",
     "AnnotatedDyad",
-    "Group",
     "AnnotatedGroup",
+    "AnnotatedIndividual",
     "Dataset",
-    "IndividualIdentifier",
-    "DyadIdentifier",
+    "Dyad",
+    "Group",
+    "Individual",
     "Identifier",
+    "DyadIdentifier",
     "GroupIdentifier",
+    "IndividualIdentifier",
     "SubjectIdentifier",
 ]
