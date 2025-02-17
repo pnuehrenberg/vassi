@@ -64,7 +64,6 @@ if __name__ == "__main__":
                 target="dyad",
                 observations=annotations,
                 categories=("attack", "investigation", "mount"),
-                exclude=None,
                 background_category="none",
             )
             for idx, (trajectories, annotations) in enumerate(
@@ -82,7 +81,6 @@ if __name__ == "__main__":
                 target="dyad",
                 observations=annotations,
                 categories=("attack", "investigation", "mount"),
-                exclude=None,
                 background_category="none",
             )
             for idx, (trajectories, annotations) in enumerate(

@@ -20,7 +20,8 @@ KeypointPairs = Iterable[KeypointPair]
 
 
 def class_name(obj: object) -> str:
-    """Return the name of the class of an object."""
+    if isinstance(obj, type):
+        return obj.__name__
     return obj.__class__.__name__
 
 

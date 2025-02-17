@@ -246,7 +246,6 @@ def load_dataset(
         group = Group(
             load_trajectories(trajectory_file, str(identifier)),
             target=target,
-            exclude=None,
         )
         groups[identifier] = group
     if observations is not None:

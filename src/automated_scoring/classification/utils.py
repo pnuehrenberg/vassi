@@ -47,6 +47,19 @@ def init_new_classifier(
     return type(classifier)(**params)
 
 
+def fit_classifier(
+    classifier: Classifier,
+    X: NDArray,
+    y: NDArray,
+    *,
+    sample_weight: Optional[NDArray] = None,
+    log: Optional[Logger] = None,
+):
+    if sample_weight is None:
+        return classifier.fit(X, y)
+    return classifier.fit(X, y, sample_weight=sample_weight)
+
+
 def to_predictions(
     y: NDArray[np.integer],
     y_proba: NDArray[np.floating],

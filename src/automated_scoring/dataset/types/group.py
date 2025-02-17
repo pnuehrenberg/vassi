@@ -3,7 +3,6 @@ from itertools import permutations
 from typing import (
     TYPE_CHECKING,
     Literal,
-    Optional,
     Self,
     cast,
     overload,
@@ -13,7 +12,7 @@ import numpy as np
 import pandas as pd
 
 from ...data_structures import Trajectory
-from ..utils import DyadIdentifier, Identifier, IndividualIdentifier
+from ..utils import DyadIdentifier, Identifier, IndividualIdentifier, get_actor
 from ._base_sampleable import BaseSampleable
 from ._mixins import (
     AnnotatedMixin,
@@ -31,10 +30,7 @@ class Group(NestedSampleableMixin, SampleableMixin):
         trajectories: Iterable[Trajectory] | Mapping[IndividualIdentifier, Trajectory],
         *,
         target: Literal["individual", "dyad"],
-        exclude: Optional[Sequence[IndividualIdentifier] | Sequence[DyadIdentifier]],
     ):
-        if exclude is None:
-            exclude = ()
         _trajectories: list[Trajectory] = (
             list(trajectories.values())
             if isinstance(trajectories, Mapping)
@@ -55,16 +51,12 @@ class Group(NestedSampleableMixin, SampleableMixin):
         self._sampleables = {}
         for identifier in self.potential_identifiers:
             if self.target == "individual":
-                if identifier in exclude:
-                    continue
                 if TYPE_CHECKING:
                     assert isinstance(identifier, IndividualIdentifier)
                 self._sampleables[identifier] = Individual(
                     self.trajectories[identifier]
                 )
             elif self.target == "dyad":
-                if identifier in exclude:
-                    continue
                 if TYPE_CHECKING:
                     assert isinstance(identifier, tuple)
                 self._sampleables[identifier] = Dyad(
@@ -78,7 +70,7 @@ class Group(NestedSampleableMixin, SampleableMixin):
 
     @classmethod
     def _empty_like(cls, group: Self) -> Self:
-        return cls([], target=group.target, exclude=None)
+        return cls([], target=group.target)
 
     @classmethod
     def from_group(
@@ -155,15 +147,25 @@ class Group(NestedSampleableMixin, SampleableMixin):
 
     @property
     def individuals(self) -> tuple[IndividualIdentifier, ...]:
-        return tuple(sorted(self.trajectories))
+        individuals = tuple(sorted(self.trajectories))
+        return tuple(
+            individual for individual in individuals
+            if any(
+                [
+                    individual == get_actor(identifier)
+                    for identifier in self.identifiers
+                ]
+            )
+        )
 
     @property
     def potential_identifiers(
         self,
     ) -> tuple[IndividualIdentifier, ...] | tuple[DyadIdentifier, ...]:
+        individuals = tuple(sorted(self.trajectories))
         if self.target == "individuals":
-            return self.individuals
-        return tuple(permutations(self.individuals, 2))
+            return individuals
+        return tuple(permutations(individuals, 2))
 
     def _get_identifiers(
         self,
@@ -195,7 +197,6 @@ class Group(NestedSampleableMixin, SampleableMixin):
         return AnnotatedGroup(
             self.trajectories,
             target=self.target,
-            exclude=(),
             observations=observations,
             categories=categories,
             background_category=background_category,
@@ -257,7 +258,6 @@ class AnnotatedGroup(Group, AnnotatedSampleableMixin):
         trajectories: Iterable[Trajectory] | Mapping[IndividualIdentifier, Trajectory],
         *,
         target: Literal["individual", "dyad"],
-        exclude: Optional[Sequence[IndividualIdentifier] | Sequence[DyadIdentifier]],
         observations: pd.DataFrame,
         categories: tuple[str, ...],
         background_category: str,
@@ -267,7 +267,7 @@ class AnnotatedGroup(Group, AnnotatedSampleableMixin):
             categories=categories,
             background_category=background_category,
         )
-        Group.__init__(self, trajectories, target=target, exclude=exclude)
+        Group.__init__(self, trajectories, target=target)
         self._finalize_init(observations)
 
     @classmethod
@@ -280,7 +280,6 @@ class AnnotatedGroup(Group, AnnotatedSampleableMixin):
         return cls(
             [],
             target=group.target,
-            exclude=None,
             observations=observations,
             categories=group.categories,
             background_category=group.background_category,

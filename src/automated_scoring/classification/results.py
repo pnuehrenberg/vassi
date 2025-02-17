@@ -621,7 +621,6 @@ class DatasetClassificationResult(_NestedResult):
                 identifier: AnnotatedGroup(
                     trajectories[identifier],
                     target=self.target,
-                    exclude=None,
                     observations=group_result.predictions,
                     categories=categories,
                     background_category=background_category,  # TODO: fix this

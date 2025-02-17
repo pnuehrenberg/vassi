@@ -59,12 +59,12 @@ def set_logging_level(
     format: str | Callable[..., str] = _formatter,
     enqueue: bool = True,
 ) -> "Logger":
-    """Set the logging level (and sink, format and enqueue paramters of the loguru logger."""
+    """Set the logging level (and sink, format and enqueue parameters of the loguru logger."""
     global logger
     if sink is None:
         sink = sys.stdout
     logger.remove()
-    logger.add(sink=sink, level=level, format=format, enqueue=enqueue)
+    logger.add(sink=sink, level=level.upper(), format=format, enqueue=enqueue)
     return logger
 
 

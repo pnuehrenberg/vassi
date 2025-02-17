@@ -22,7 +22,13 @@ from .results import (
     DatasetClassificationResult,
     GroupClassificationResult,
 )
-from .utils import Classifier, EncodingFunction, SamplingFunction, init_new_classifier
+from .utils import (
+    Classifier,
+    EncodingFunction,
+    SamplingFunction,
+    fit_classifier,
+    init_new_classifier,
+)
 
 if TYPE_CHECKING:
     from loguru import Logger
@@ -279,13 +285,15 @@ def k_fold_predict(
         if balance_sample_weights:
             sample_weight = compute_sample_weight("balanced", encode_func(y_train))
         classifier = log_time(
-            init_new_classifier(classifier, random_state).fit,
+            fit_classifier,
             level_finish="success",
             description=f"fitting {class_name(classifier)}",
         )(
+            init_new_classifier(classifier, random_state),
             np.asarray(X_train),
             encode_func(y_train),
             sample_weight=sample_weight,
+            log=log,
         )
         fold_results.append(
             predict(
