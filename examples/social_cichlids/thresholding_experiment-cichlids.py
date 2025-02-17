@@ -76,7 +76,6 @@ if __name__ == "__main__":
         smoothing_func=smooth,
         num_iterations=20,
         k=5,
-        exclude_individuals=None,
         sampling_func=subsample_train,
         decision_threshold_range=(0.0, 1.0),
         decision_threshold_step=0.01,
