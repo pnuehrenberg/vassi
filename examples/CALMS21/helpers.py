@@ -19,13 +19,12 @@ def subsample_train(
         extractor,
         {
             ("attack", "mount"): 1.0,
-            ("none", "investigation"): 0.1,
+            ("none", "investigation"): 30000,
         },
         random_state=random_state,
         stratify=True,
         reset_previous_indices=False,
         exclude_previous_indices=False,
         store_indices=False,
-        exclude=None,
         log=log,
     )

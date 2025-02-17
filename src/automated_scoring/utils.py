@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
-from typing import TYPE_CHECKING, Iterable, Literal, Optional, Protocol
+from typing import Iterable, Literal, Optional, Protocol
 
 import numpy as np
 from numpy.typing import NDArray
@@ -11,9 +11,6 @@ try:
     from mpi4py import MPI
 except ImportError:
     MPI = None
-
-if TYPE_CHECKING:
-    pass
 
 
 Keypoint = int

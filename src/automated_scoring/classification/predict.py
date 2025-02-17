@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Iterable, Optional, Sequence, overload
+from typing import TYPE_CHECKING, Iterable, Optional, overload
 
 import numpy as np
 from numpy.typing import NDArray
@@ -37,7 +37,7 @@ def _predict_sampleable(
     categories: Optional[Iterable[str]] = None,
     log: Logger,
 ) -> ClassificationResult:
-    X, y = sampleable.sample(extractor, exclude=None)
+    X, y = sampleable.sample(extractor)
     y_pred_numeric: NDArray = classifier.predict(X)
     y_proba: NDArray = classifier.predict_proba(X).astype(float)
     y_true_numeric: Optional[NDArray] = None
@@ -245,7 +245,6 @@ def k_fold_predict(
     classifier: Classifier,
     *,
     k: int,
-    exclude_individuals: Optional[Sequence[Identifier]],
     random_state: Optional[np.random.Generator | int] = None,
     sampling_func: SamplingFunction,
     balance_sample_weights: bool = True,
@@ -261,9 +260,7 @@ def k_fold_predict(
         classifier = init_new_classifier(classifier(), random_state)
     fold_results = []
     for log, (fold_train, fold_holdout) in log_loop(
-        dataset.k_fold(
-            k, exclude_individuals=exclude_individuals, random_state=random_state
-        ),
+        dataset.k_fold(k, random_state=random_state),
         level="info",
         message="finished",
         name="fold",

@@ -1,12 +1,13 @@
+from __future__ import annotations
+
 from collections.abc import Mapping
-from typing import TYPE_CHECKING, Optional, Sequence
+from typing import TYPE_CHECKING, Optional
 
 import numpy as np
 import pandas as pd
 from numpy.typing import NDArray
 
 from ....features import DataFrameFeatureExtractor, FeatureExtractor
-from ...utils import Identifier
 from .annotated import AnnotatedMixin
 from .sampleable import SampleableMixin
 
@@ -20,8 +21,6 @@ class AnnotatedSampleableMixin(SampleableMixin, AnnotatedMixin):
         def sample(
             self,
             extractor: FeatureExtractor | DataFrameFeatureExtractor,
-            *,
-            exclude: Sequence[Identifier] | None,
         ) -> tuple[pd.DataFrame | NDArray, NDArray]: ...
 
         def subsample(
@@ -34,6 +33,5 @@ class AnnotatedSampleableMixin(SampleableMixin, AnnotatedMixin):
             reset_previous_indices: bool,
             exclude_previous_indices: bool,
             store_indices: bool,
-            exclude: Sequence[Identifier] | None,
-            log: Optional["Logger"],
+            log: Optional[Logger],
         ) -> tuple[pd.DataFrame | NDArray, NDArray]: ...

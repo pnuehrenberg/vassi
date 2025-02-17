@@ -10,7 +10,6 @@ from sklearn.model_selection import train_test_split
 
 from ..logging import set_logging_level
 from ..utils import ensure_generator, to_int_seed
-from .utils import Identifier
 
 if TYPE_CHECKING:
     from loguru import Logger
@@ -116,12 +115,9 @@ def select_indices(
     stratify: bool,
     stratification_levels: Sequence[NDArray | None],
     categories: Optional[tuple[str, ...]],
-    exclude: Optional[Sequence[Identifier]],
     log: Optional["Logger"],
 ) -> NDArray:
     random_state = ensure_generator(random_state)
-    if exclude is None:
-        exclude = ()
     if log is None:
         log = set_logging_level()
     if isinstance(size, float | int):

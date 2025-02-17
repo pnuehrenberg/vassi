@@ -17,7 +17,6 @@ from ..observations.utils import (
     infill_observations,
     to_y,
 )
-from ..utils import Identifier
 from ._mixins import (
     AnnotatedMixin,
     SampleableMixin,
@@ -76,7 +75,7 @@ class BaseSampleable(SampleableMixin):
             raise ValueError("not AnnotatedMixin, _finalize_init must be called first")
         return self._observations
 
-    def _sample_y(self, *, exclude: Optional[Sequence[Identifier]]) -> NDArray:
+    def _sample_y(self) -> NDArray:
         if not isinstance(self, AnnotatedMixin):
             raise ValueError(
                 "only implemented for AnnotatedMixin objects inheriting from AnnotatedMixin"
@@ -92,7 +91,6 @@ class BaseSampleable(SampleableMixin):
         *,
         reset_previous_indices: bool,
         exclude_previous_indices: bool,
-        exclude: Optional[Sequence[Identifier]],
     ) -> tuple[
         NDArray,
         NDArray | None,
@@ -103,7 +101,7 @@ class BaseSampleable(SampleableMixin):
         y = None
         intervals = None
         if isinstance(self, AnnotatedMixin):
-            y = self.sample_y(exclude=exclude)
+            y = self.sample_y()
             intervals = self.observations.copy()
             intervals["category"] = np.arange(len(intervals), dtype=int)
             intervals = to_y(
@@ -133,7 +131,6 @@ class BaseSampleable(SampleableMixin):
         splits: Optional[dict],
         *,
         store_indices: bool,
-        exclude: Optional[Sequence[Identifier]],
     ) -> tuple[pd.DataFrame | NDArray, NDArray | None]:
         if splits is not None:
             if not all([key in splits for key in ["min", "max", "offset"]]):
@@ -153,10 +150,10 @@ class BaseSampleable(SampleableMixin):
             else:
                 X = np.array([])
             return X, y
-        X = self.sample_X(extractor, exclude=exclude)
+        X = self.sample_X(extractor)
         y = None
         if isinstance(self, AnnotatedMixin):
-            y = self.sample_y(exclude=exclude)
+            y = self.sample_y()
         if store_indices:
             self._previous_indices.append(indices)
         if isinstance(X, pd.DataFrame):

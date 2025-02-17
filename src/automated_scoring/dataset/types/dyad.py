@@ -1,14 +1,8 @@
-from collections.abc import Sequence
-from typing import (
-    Optional,
-)
-
 import pandas as pd
 from numpy.typing import NDArray
 
 from ...data_structures import Trajectory
 from ...features import DataFrameFeatureExtractor, FeatureExtractor
-from ..utils import Identifier
 from ._base_sampleable import BaseSampleable
 from ._mixins import (
     AnnotatedMixin,
@@ -57,8 +51,6 @@ class Dyad(BaseSampleable):
     def _sample_X(
         self,
         extractor: FeatureExtractor | DataFrameFeatureExtractor,
-        *,
-        exclude: Optional[Sequence[Identifier]],
     ) -> pd.DataFrame | NDArray:
         return extractor.extract(self.trajectory, self.trajectory_other)
 

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import os
-from collections.abc import Iterable, Sequence
+from collections.abc import Iterable
 from functools import partial
 from typing import TYPE_CHECKING, Any, Optional
 
@@ -9,7 +9,7 @@ import numpy as np
 import pandas as pd
 from numpy.typing import NDArray
 
-from ..dataset import AnnotatedDataset, Identifier
+from ..dataset import AnnotatedDataset
 from ..features import DataFrameFeatureExtractor, FeatureExtractor
 from ..logging import log_loop, log_time, set_logging_level
 from ..utils import MPIContext, SmoothingFunction
@@ -68,7 +68,6 @@ def score_smoothing(
     remove_overlapping_predictions: bool,
     iteration: int,
     k: int,
-    exclude_individuals: Optional[Sequence[Identifier]],
     random_state: np.random.Generator | int,
     sampling_func: SamplingFunction,
     balance_sample_weights: bool,
@@ -79,7 +78,6 @@ def score_smoothing(
         extractor,
         classifier,
         k=k,
-        exclude_individuals=exclude_individuals,
         random_state=random_state,
         sampling_func=sampling_func,
         balance_sample_weights=balance_sample_weights,
@@ -160,7 +158,6 @@ def score_thresholds(
     default_decision: int | str,
     iteration: int,
     k: int,
-    exclude_individuals: Optional[Sequence[Identifier]],
     random_state: np.random.Generator | int,
     sampling_func: SamplingFunction,
     balance_sample_weights: bool,
@@ -172,7 +169,6 @@ def score_thresholds(
         extractor,
         classifier,
         k=k,
-        exclude_individuals=exclude_individuals,
         random_state=random_state,
         sampling_func=sampling_func,
         balance_sample_weights=balance_sample_weights,
@@ -211,7 +207,6 @@ def optimize_smoothing(
     tolerance: float = 0.01,
     plot_results: bool = True,
     k: int,
-    exclude_individuals: Optional[Sequence[Identifier]],
     random_state: Optional[np.random.Generator | int] = None,
     sampling_func: SamplingFunction,
     balance_sample_weights: bool = True,
@@ -239,7 +234,6 @@ def optimize_smoothing(
                 remove_overlapping_predictions=remove_overlapping_predictions,
                 iteration=iteration,
                 k=k,
-                exclude_individuals=exclude_individuals,
                 random_state=mpi_context.get_random_state(
                     iteration, num_iterations=num_iterations
                 ),
@@ -288,7 +282,6 @@ def optimize_decision_thresholds(
     tolerance: float = 0.01,
     plot_results: bool = True,
     k: int,
-    exclude_individuals: Optional[Sequence[Identifier]],
     random_state: Optional[np.random.Generator | int] = None,
     sampling_func: SamplingFunction,
     balance_sample_weights: bool = True,
@@ -323,7 +316,6 @@ def optimize_decision_thresholds(
                 default_decision=default_decision,
                 iteration=iteration,
                 k=k,
-                exclude_individuals=exclude_individuals,
                 random_state=mpi_context.get_random_state(
                     iteration, num_iterations=num_iterations
                 ),

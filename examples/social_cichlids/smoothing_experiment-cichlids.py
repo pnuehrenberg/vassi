@@ -17,11 +17,8 @@ from automated_scoring.sliding_metrics import (
     get_window_slices,
     metrics,
 )
-from automated_scoring.utils import set_logging_level
 
 if __name__ == "__main__":
-    set_logging_level("DEBUG")
-
     cfg.key_keypoints = "pose"
     cfg.key_timestamp = "time_stamp"
 
@@ -31,12 +28,18 @@ if __name__ == "__main__":
     )
 
     dataset_full = load_dataset(
-        "cichlids", directory="../../datasets/social_cichlids", target="dyads"
+        "cichlids",
+        directory="../../datasets/social_cichlids",
+        target="dyad",
+        background_category="none",
     )
 
-    dataset_train, dataset_test = dataset_full.split(0.8, random_state=1)
+    dataset_train, dataset_test = dataset_full.split(
+        0.8,
+        random_state=1,
+    )
 
-    observations = dataset_train.get_observations()
+    observations = dataset_train.observations
     observations = observations[observations["category"] != "none"]
     time_scales, slices = get_window_slices(3, time_scales=(91,))
 

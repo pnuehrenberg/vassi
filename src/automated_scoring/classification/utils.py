@@ -207,7 +207,7 @@ class EncodingFunction(Protocol):
         y: NDArray,
         *args,
         **kwargs,
-    ) -> NDArray[np.integer]: ...
+    ) -> NDArray[np.int64]: ...
 
 
 class SamplingFunction(Protocol):

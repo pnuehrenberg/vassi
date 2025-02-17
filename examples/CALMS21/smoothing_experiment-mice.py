@@ -40,7 +40,7 @@ if __name__ == "__main__":
         return medfilt(array, parameters["median_filter_window"])
 
     best_parameters = optimize_smoothing(
-        dataset_train,
+        dataset_train.exclude_individuals(["intruder"]),
         extractor,
         XGBClassifier(n_estimators=1000),
         smooth,
@@ -48,7 +48,6 @@ if __name__ == "__main__":
         remove_overlapping_predictions=False,
         num_iterations=20,
         k=5,
-        exclude_individuals=["intruder"],
         sampling_func=subsample_train,
         tolerance=0.005,
         random_state=1,

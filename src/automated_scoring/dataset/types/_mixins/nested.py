@@ -46,18 +46,14 @@ class NestedSampleableMixin(ABC):
     @abstractmethod
     def _get_identifiers(self) -> tuple[Identifier, ...]: ...
 
-    def _sample_y(self, *, exclude: Optional[Sequence[Identifier]]) -> NDArray:
+    def _sample_y(self) -> NDArray:
         if not isinstance(self, AnnotatedMixin):
             raise ValueError("can only sample y for annotated sampleables")
-        if exclude is None:
-            exclude = ()
         y = []
         for identifier, sampleable in self:
-            if identifier in exclude:
-                continue
             if TYPE_CHECKING:
                 assert isinstance(sampleable, AnnotatedMixin)
-            y.append(sampleable._sample_y(exclude=exclude))
+            y.append(sampleable._sample_y())
         return np.concatenate(y)
 
     def __iter__(self) -> Self:
@@ -74,16 +70,10 @@ class NestedSampleableMixin(ABC):
     def _sample_X(
         self,
         extractor: FeatureExtractor | DataFrameFeatureExtractor,
-        *,
-        exclude: Optional[Sequence[Identifier]],
     ) -> pd.DataFrame | NDArray:
-        if exclude is None:
-            exclude = ()
         X = []
         for identifier, sampleable in self:
-            if identifier in exclude:
-                continue
-            X.append(sampleable.sample_X(extractor, exclude=exclude))
+            X.append(sampleable.sample_X(extractor))
         if isinstance(extractor, DataFrameFeatureExtractor):
             return pd.concat(X, axis=0, ignore_index=True)
         return np.concatenate(X, axis=0)
@@ -93,7 +83,6 @@ class NestedSampleableMixin(ABC):
         *,
         reset_previous_indices: bool,
         exclude_previous_indices: bool,
-        exclude: Optional[Sequence[Identifier]],
     ) -> tuple[NDArray, NDArray | None, Sequence[NDArray | None], dict]:
         def update_splits(splits: dict, offset: int) -> dict:
             if all([key in splits for key in ["min", "max", "offset"]]):
@@ -105,15 +94,11 @@ class NestedSampleableMixin(ABC):
                 splits[key] = update_splits(_splits, offset)
             return splits
 
-        if exclude is None:
-            exclude = ()
         indices: list[NDArray] = []
         y: list[NDArray] = []
         stratification_levels: list[list[NDArray | None]] = []
         splits = []
         for identifier, sampleable in self:
-            if identifier in exclude:
-                continue
             (
                 indices_sampleable,
                 y_sampleable,
@@ -122,7 +107,6 @@ class NestedSampleableMixin(ABC):
             ) = sampleable._get_available_indices(
                 reset_previous_indices=reset_previous_indices,
                 exclude_previous_indices=exclude_previous_indices,
-                exclude=exclude,
             )
             indices.append(indices_sampleable)
             if y_sampleable is not None:
@@ -151,9 +135,7 @@ class NestedSampleableMixin(ABC):
                 "stratification levels must be the same for all sampleables"
             )
         num_stratification_levels = len(stratification_levels[0])
-        for idx, identifier in enumerate(
-            [identifier for identifier in self.identifiers if identifier not in exclude]
-        ):
+        for idx, identifier in enumerate(self.identifiers):
             offset = 0
             if idx > 0:
                 offset = int(max(indices[idx - 1])) + 1
@@ -211,23 +193,17 @@ class NestedSampleableMixin(ABC):
         splits: Optional[dict],
         *,
         store_indices: bool,
-        exclude: Optional[Sequence[Identifier]],
     ) -> tuple[pd.DataFrame | NDArray, NDArray | None]:
         if splits is None:
             raise ValueError("splits must be specified for nested sampleables")
-        if exclude is None:
-            exclude = ()
         X, y = [], []
         num_features = None
         for identifier, sampleable in self:
-            if identifier in exclude:
-                continue
             _X, _y = sampleable._select_samples(
                 extractor,
                 indices,
                 splits[identifier],
                 store_indices=store_indices,
-                exclude=exclude,
             )
             if num_features is None and _X.shape[1] != 0:
                 num_features = _X.shape[1]

@@ -9,8 +9,6 @@ import pandas as pd
 from numpy.typing import NDArray
 from sklearn.metrics import f1_score
 
-from build.lib.automated_scoring.utils import set_logging_level
-
 from ..data_structures import Trajectory
 from ..dataset import (
     AnnotatedDataset,
@@ -23,6 +21,7 @@ from ..dataset.observations import (
     infill_observations,
     remove_overlapping_observations,
 )
+from ..logging import set_logging_level
 from ..series_operations import smooth
 from ..utils import SmoothingFunction
 from .utils import (

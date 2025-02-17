@@ -2,7 +2,6 @@ from collections.abc import Generator, Mapping, Sequence
 from typing import (
     TYPE_CHECKING,
     Literal,
-    Optional,
     Self,
     overload,
 )
@@ -261,22 +260,13 @@ class Dataset(NestedSampleableMixin, SampleableMixin):
         *,
         random_state: int | None | np.random.Generator,
         subset_actors_only: bool = True,
-        exclude_individuals: Optional[
-            Sequence[GroupIdentifier | IndividualIdentifier | SubjectIdentifier]
-        ],
     ) -> tuple[Self, Self]:
-        if exclude_individuals is None:
-            exclude_individuals = ()
         random_state = ensure_generator(random_state)
-        individuals = [
-            individual
-            for individual in self.individuals
-            if include(individual, exclude_individuals)
-        ]
         if isinstance(size, float) and (size < 0 or size > 1):
             raise ValueError(
                 "size should be within (0.0, 1.0) interval (exclusive) if float"
             )
+        individuals = self.individuals
         if isinstance(size, float):
             size = int(size * len(individuals))
         if isinstance(size, int) and (size < 1 or size > len(individuals) - 1):
@@ -315,18 +305,9 @@ class Dataset(NestedSampleableMixin, SampleableMixin):
         *,
         random_state: int | None | np.random.Generator,
         subset_actors_only: bool = True,
-        exclude_individuals: Optional[
-            Sequence[GroupIdentifier | IndividualIdentifier | SubjectIdentifier]
-        ],
     ) -> Generator[tuple[Self, Self], None, None]:
-        if exclude_individuals is None:
-            exclude_individuals = ()
         random_state = ensure_generator(random_state)
-        individuals = [
-            individual
-            for individual in self.individuals
-            if include(individual, exclude_individuals)
-        ]
+        individuals = self.individuals
         try:
             kf = StratifiedKFold(
                 n_splits=k, shuffle=True, random_state=to_int_seed(random_state)

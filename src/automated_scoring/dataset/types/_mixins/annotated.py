@@ -1,14 +1,8 @@
 from abc import ABC, abstractmethod
-from collections.abc import Sequence
-from typing import (
-    Optional,
-)
 
 import numpy as np
 import pandas as pd
 from numpy.typing import NDArray
-
-from ...utils import Identifier
 
 
 class AnnotatedMixin(ABC):
@@ -33,11 +27,11 @@ class AnnotatedMixin(ABC):
 
     @property
     def category_counts(self) -> dict[str, int]:
-        y = self.sample_y(exclude=None)
+        y = self.sample_y()
         return {category: int((y == category).sum()) for category in self.categories}
 
-    def sample_y(self, *, exclude: Optional[Sequence[Identifier]]) -> NDArray:
-        return self._sample_y(exclude=exclude)
+    def sample_y(self) -> NDArray:
+        return self._sample_y()
 
     @property
     def observations(self) -> pd.DataFrame:
@@ -50,4 +44,4 @@ class AnnotatedMixin(ABC):
     def _get_observations(self) -> pd.DataFrame: ...
 
     @abstractmethod
-    def _sample_y(self, *, exclude: Optional[Sequence[Identifier]]) -> NDArray: ...
+    def _sample_y(self) -> NDArray: ...
