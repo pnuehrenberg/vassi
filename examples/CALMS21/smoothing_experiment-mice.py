@@ -1,5 +1,6 @@
 import numpy as np
 from helpers import subsample_train
+from numba import config
 from scipy.signal import medfilt
 from xgboost import XGBClassifier
 
@@ -11,6 +12,9 @@ from automated_scoring.features import DataFrameFeatureExtractor
 from automated_scoring.io import load_dataset
 
 if __name__ == "__main__":
+    # set the threading layer before any parallel target compilation
+    config.THREADING_LAYER = "safe"  # type: ignore
+
     cfg.key_keypoints = "keypoints"
     cfg.key_timestamp = "timestamps"
 
