@@ -7,6 +7,7 @@ import numpy as np
 import pandas as pd
 from numpy.typing import NDArray
 
+from ..data_structures.utils import get_interval_slice
 from ..dataset import Dataset
 from ..dataset.observations import (
     aggregate_bouts,
@@ -53,18 +54,15 @@ def to_predictions(
     timestamps: NDArray[np.integer | np.floating],
 ) -> pd.DataFrame:
     predictions = to_observations(y, category_names, timestamps=timestamps)
-    probabilities = [
-        y_proba[
-            (timestamps >= prediction["start"]) & (timestamps <= prediction["stop"])
-        ]
-        for _, prediction in predictions.iterrows()
-    ]
-    predictions["mean_probability"] = [
-        proba[:, proba.argmax(axis=1)].mean() for proba in probabilities
-    ]
-    predictions["max_probability"] = [
-        proba[:, proba.argmax(axis=1)].max() for proba in probabilities
-    ]
+    y_max_proba = y_proba.max(axis=1)
+    mean_probability = []
+    max_probability = []
+    for start, stop in np.asarray(predictions[["start", "stop"]]):
+        y_max_proba_interval = y_max_proba[get_interval_slice(timestamps, start, stop)]
+        mean_probability.append(np.mean(y_max_proba_interval))
+        max_probability.append(np.max(y_max_proba_interval))
+    predictions["mean_probability"] = np.array(mean_probability, dtype=float)
+    predictions["max_probability"] = np.array(max_probability, dtype=float)
     return predictions
 
 

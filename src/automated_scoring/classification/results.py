@@ -6,14 +6,15 @@ from typing import Callable, Literal, Optional, Self, overload
 
 import numpy as np
 import pandas as pd
-from loguru import logger
 from numpy.typing import NDArray
 from sklearn.metrics import f1_score
 
+from build.lib.automated_scoring.utils import set_logging_level
+
 from ..data_structures import Trajectory
 from ..dataset import (
+    AnnotatedDataset,
     AnnotatedGroup,
-    Dataset,
     GroupIdentifier,
     Identifier,
     IndividualIdentifier,
@@ -152,6 +153,7 @@ def _smooth_probabilities(
         threshold=threshold,
         decision_thresholds=decision_thresholds,
         default_decision=default_decision,
+        remove_overlapping_predictions=False,
     )
 
 
@@ -302,6 +304,29 @@ class _NestedResult(_Result):
     ]
     target: Literal["individual", "dyad"]
 
+    def _flat_classification_results(self) -> list["ClassificationResult"]:
+        classification_results = []
+        for classification_result in self.classification_results.values():
+            if not isinstance(classification_result, _NestedResult):
+                classification_results.append(classification_result)
+                continue
+            classification_results.extend(
+                classification_result._flat_classification_results()
+            )
+        return classification_results
+
+    def _set_classification_results(
+        self, flat_classification_results: list["ClassificationResult"]
+    ):
+        for key in self.classification_results.keys():
+            classification_result = self.classification_results[key]
+            if not isinstance(classification_result, _NestedResult):
+                self.classification_results[key] = flat_classification_results.pop(0)
+                continue
+            classification_result._set_classification_results(
+                flat_classification_results
+            )
+
     def smooth(
         self,
         label_smoothing_funcs: list[SmoothingFunction],
@@ -311,34 +336,24 @@ class _NestedResult(_Result):
         default_decision: int | str = "none",
         remove_overlapping_predictions: bool = False,
     ) -> Self:
+        classification_results = self._flat_classification_results()
         num_cpus = cpu_count()
-        if (
-            isinstance(self, GroupClassificationResult)
-            and len(self.classification_results) >= num_cpus
-        ):
-            with Pool(processes=num_cpus) as pool:
-                pool.map(
-                    _smooth_probabilities,
-                    [
-                        (
-                            classification_result,
-                            label_smoothing_funcs,
-                            threshold,
-                            decision_thresholds,
-                            default_decision,
-                        )
-                        for classification_result in self.classification_results.values()
-                    ],
-                )
-            return self
-        for classification_result in self.classification_results.values():
-            classification_result.smooth(
-                label_smoothing_funcs,
-                threshold=threshold,
-                decision_thresholds=decision_thresholds,
-                default_decision=default_decision,
-                remove_overlapping_predictions=remove_overlapping_predictions,
+        with Pool(processes=num_cpus) as pool:
+            classification_results = pool.map(
+                _smooth_probabilities,
+                [
+                    (
+                        classification_result,
+                        label_smoothing_funcs,
+                        threshold,
+                        decision_thresholds,
+                        default_decision,
+                    )
+                    for classification_result in classification_results
+                ],
             )
+        self._set_classification_results(classification_results)
+        # TODO remove_overlapping_predictions must be handled after parallel processing
         return self
 
     def threshold(
@@ -348,28 +363,22 @@ class _NestedResult(_Result):
         default_decision: int | str = "none",
         remove_overlapping_predictions: bool = False,
     ) -> Self:
+        classification_results = self._flat_classification_results()
         num_cpus = cpu_count()
-        if (
-            isinstance(self, GroupClassificationResult)
-            and len(self.classification_results) >= num_cpus
-        ):
-            with Pool(processes=num_cpus) as pool:
-                pool.map(
-                    _threshold_probabilities,
-                    [
-                        (
-                            classification_result,
-                            decision_thresholds,
-                            default_decision,
-                        )
-                        for classification_result in self.classification_results.values()
-                    ],
-                )
-            return self
-        for classification_result in self.classification_results.values():
-            classification_result.threshold(
-                decision_thresholds, default_decision=default_decision
+        with Pool(processes=num_cpus) as pool:
+            classification_results = pool.map(
+                _threshold_probabilities,
+                [
+                    (
+                        classification_result,
+                        decision_thresholds,
+                        default_decision,
+                    )
+                    for classification_result in classification_results
+                ],
             )
+        self._set_classification_results(classification_results)
+        # TODO remove_overlapping_predictions must be handled after parallel processing
         return self
 
     @property
@@ -450,7 +459,8 @@ class GroupClassificationResult(_NestedResult):
     classification_results: dict[  # type: ignore
         Identifier, ClassificationResult
     ]
-    trajectories: dict[IndividualIdentifier, Trajectory]
+    # trajectories: dict[IndividualIdentifier, Trajectory]
+    individuals: tuple[IndividualIdentifier, ...]
 
     @property
     def predictions(self) -> pd.DataFrame:
@@ -486,10 +496,12 @@ class GroupClassificationResult(_NestedResult):
     ) -> Self:
         predictions = self.predictions
         if "recipient" not in predictions.columns:
-            logger.warning("individual predictions (not dyadic) cannot overlap")
+            set_logging_level().warning(
+                "individual predictions (not dyadic) cannot overlap"
+            )
             return self
         predictions = predictions[predictions["category"] != "none"]
-        for actor in self.trajectories:
+        for actor in self.individuals:
             predictions_actor: pd.DataFrame = predictions[
                 predictions["actor"] == actor
             ].reset_index(drop=True)  # type: ignore
@@ -506,7 +518,7 @@ class GroupClassificationResult(_NestedResult):
                 max_allowed_overlap=0,
                 index_columns=(),
             )
-            for recipient in self.trajectories:
+            for recipient in self.individuals:
                 if (actor, recipient) not in self.classification_results:
                     continue
                 classification_result = self.classification_results[(actor, recipient)]
@@ -553,14 +565,9 @@ class GroupClassificationResult(_NestedResult):
         cls, results: Iterable["GroupClassificationResult"]
     ) -> "GroupClassificationResult":
         target = _get_target(results)
-        trajectories = {}
-        for result in results:
-            for identity, trajectory in result.trajectories.items():
-                if identity in trajectories and trajectories[identity] != trajectory:
-                    raise ValueError(
-                        "cannot combine GroupClassificationResults with mismatching trajectories"
-                    )
-                trajectories[identity] = trajectory
+        individuals: tuple[IndividualIdentifier, ...] = tuple(
+            sorted(set.union(*[set(result.individuals) for result in results]))
+        )
         classification_results = {}
         for result in results:
             for key, classification_result in result.classification_results.items():
@@ -574,9 +581,7 @@ class GroupClassificationResult(_NestedResult):
                 key: classification_results[key]
                 for key in sorted(classification_results)
             },
-            trajectories={
-                identity: trajectories[identity] for identity in sorted(trajectories)
-            },
+            individuals=individuals,
             target=target,
         )
 
@@ -605,19 +610,24 @@ class DatasetClassificationResult(_NestedResult):
 
     def to_dataset(
         self,
-    ) -> Dataset:
+        *,
+        trajectories: Mapping[
+            GroupIdentifier, Mapping[IndividualIdentifier, Trajectory]
+        ],
+        background_category: str,
+    ) -> AnnotatedDataset:
         categories = tuple(np.unique(list(self.predictions["category"])))
-        return Dataset(
+        return AnnotatedDataset.from_groups(
             {
-                group_key: AnnotatedGroup(
-                    group_result.trajectories,
+                identifier: AnnotatedGroup(
+                    trajectories[identifier],
                     target=self.target,
                     exclude=None,
                     observations=group_result.predictions,
                     categories=categories,
-                    background_category="none",  # TODO: fix this
+                    background_category=background_category,  # TODO: fix this
                 )
-                for group_key, group_result in self.classification_results.items()
+                for identifier, group_result in self.classification_results.items()
             }
         )
 

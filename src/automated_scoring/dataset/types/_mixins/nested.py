@@ -18,14 +18,12 @@ from ...utils import (
     SubjectIdentifier,
 )
 from .annotated import AnnotatedMixin
-
-if TYPE_CHECKING:
-    from .sampleable import SampleableMixin
+from .sampleable import SampleableMixin
 
 
 class NestedSampleableMixin(ABC):
     _target: Literal["individual", "dyad"]
-    _sampleables: dict[Identifier, "SampleableMixin"]
+    _sampleables: dict[Identifier, SampleableMixin]
     _iter_current: int
 
     def _size(self) -> int:
@@ -153,7 +151,9 @@ class NestedSampleableMixin(ABC):
                 "stratification levels must be the same for all sampleables"
             )
         num_stratification_levels = len(stratification_levels[0])
-        for idx, identifier in enumerate(self.identifiers):
+        for idx, identifier in enumerate(
+            [identifier for identifier in self.identifiers if identifier not in exclude]
+        ):
             offset = 0
             if idx > 0:
                 offset = int(max(indices[idx - 1])) + 1

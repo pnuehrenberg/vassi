@@ -13,6 +13,8 @@ def apply_multiple_to_sliding_windows(
     funcs: Iterable[Callable],
     slices: Optional[Iterable[slice]] = None,
 ) -> NDArray:
+    if (ndim := series.ndim) == 1:
+        series = series[:, np.newaxis]
     sliding_window_view = np.lib.stride_tricks.sliding_window_view(
         series, window_size, axis=0
     )
@@ -43,6 +45,8 @@ def apply_multiple_to_sliding_windows(
         result = result[..., 0, :]
     if not sliced and result.shape[-1] == 1:
         result = result[..., 0]
+    if ndim == 1:
+        return result.ravel()
     return result
 
 

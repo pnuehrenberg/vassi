@@ -1,11 +1,10 @@
 import os
-from collections.abc import ItemsView
-from typing import Literal, Mapping, Optional
+from collections.abc import ItemsView, Mapping
+from typing import Literal, Optional, overload
 
 import h5py
 import numpy as np
 import pandas as pd
-from loguru import logger
 from numpy.dtypes import StringDType  # type: ignore
 from numpy.typing import NDArray
 
@@ -17,6 +16,7 @@ from .dataset import (
     GroupIdentifier,
     IndividualIdentifier,
 )
+from .logging import set_logging_level
 
 
 def _is_string_array(array: NDArray):
@@ -122,7 +122,7 @@ def save_trajectories(
     )
     for identity in identities:
         if str(identity) == "_identity":
-            raise ValueError(f"invalid use of reserved key {identity}")
+            raise ValueError("invalid use of reserved identifier '_identity'")
         save_data(
             trajectory_file,
             trajectories[identity].data,
@@ -153,14 +153,14 @@ def load_trajectories(
         # fall back to h5_data keys as identities
         pass
     trajectories = {}
-    for identity in identities.tolist():  # type: ignore  # see check above
+    for identity in np.asarray(identities).tolist():
         data = load_data(
             trajectory_file, os.path.join(data_path, str(identity)), exclude=exclude
         )
-        if isinstance(data, dict) and all(
-            [isinstance(value, np.ndarray) for value in data.values()]
-        ):
-            trajectories[identity] = Trajectory(data=data)  # type: ignore  # see above
+        if isinstance(data, dict):
+            trajectories[identity] = Trajectory(
+                data={key: np.asarray(value) for key, value in data.items()}
+            )
             continue
         raise ValueError(f"invalid trajectory data for trajectory {identity}")
     return trajectories
@@ -191,6 +191,32 @@ def save_dataset(
         save_trajectories(trajectory_file, group.trajectories, prefix=str(identifier))
 
 
+@overload
+def load_dataset(
+    dataset_name: str,
+    *,
+    directory: str = ".",
+    target: Literal["individual", "dyad"],
+    load_observations: Literal[True] = True,
+    categories: Optional[tuple[str, ...]] = None,
+    background_category: str,
+    observation_suffix: str = "annotations",
+) -> AnnotatedDataset: ...
+
+
+@overload
+def load_dataset(
+    dataset_name: str,
+    *,
+    directory: str = ".",
+    target: Literal["individual", "dyad"],
+    load_observations: Literal[False],
+    categories: Optional[tuple[str, ...]] = None,
+    background_category: str,
+    observation_suffix: str = "annotations",
+) -> Dataset: ...
+
+
 def load_dataset(
     dataset_name: str,
     *,
@@ -200,20 +226,22 @@ def load_dataset(
     categories: Optional[tuple[str, ...]] = None,
     background_category: str,
     observation_suffix: str = "annotations",
-) -> Dataset:
+) -> AnnotatedDataset | Dataset:
     observation_file = os.path.join(
         directory, f"{dataset_name}_{observation_suffix}.csv"
     )
     trajectory_file = os.path.join(directory, f"{dataset_name}_trajectories.h5")
     observations = None
     if load_observations and os.path.exists(observation_file):
-        observations = pd.read_csv(observation_file).set_index("group")
+        observations = pd.read_csv(observation_file)
     elif load_observations:
         raise FileNotFoundError(f"{observation_file} does not exist.")
     groups: dict[GroupIdentifier, Group] = {}
     identifiers = load_data(trajectory_file, "_groups")
     if not isinstance(identifiers, np.ndarray):
-        raise ValueError(f"invalid dataset file with group keys of type {type(groups)}")
+        raise ValueError(
+            f"invalid dataset file with group identifiers of type {type(groups)}"
+        )
     for identifier in identifiers.tolist():
         group = Group(
             load_trajectories(trajectory_file, str(identifier)),
@@ -226,13 +254,14 @@ def load_dataset(
             categories = tuple(
                 sorted(set([*np.unique(observations["category"]), background_category]))
             )
-            logger.warning(
+            set_logging_level().warning(
                 f"Loading categories ({", ".join(categories)}) from observations file, specify categories argument if incomplete."
             )
         return AnnotatedDataset(
             groups,
+            target=target,
             observations=observations,
             categories=categories,
             background_category=background_category,
         )
-    return Dataset(groups)
+    return Dataset(groups, target=target)

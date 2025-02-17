@@ -19,10 +19,16 @@ if __name__ == "__main__":
     )
 
     dataset_train = load_dataset(
-        "mice_train", directory="../../datasets/CALMS21/train", target="dyads"
+        "mice_train",
+        directory="../../datasets/CALMS21/train",
+        target="dyad",
+        background_category="none",
     )
     dataset_test = load_dataset(
-        "mice_test", directory="../../datasets/CALMS21/test", target="dyads"
+        "mice_test",
+        directory="../../datasets/CALMS21/test",
+        target="dyad",
+        background_category="none",
     )
 
     extractor = DataFrameFeatureExtractor(
@@ -40,7 +46,7 @@ if __name__ == "__main__":
         smoothing_func=smooth,
         num_iterations=20,
         k=5,
-        exclude=[("intruder", "resident")],
+        exclude_individuals=["intruder"],
         sampling_func=subsample_train,
         decision_threshold_range=(0.0, 1.0),
         decision_threshold_step=0.01,

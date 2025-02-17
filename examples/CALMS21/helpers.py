@@ -1,5 +1,7 @@
-import numpy as np
-import pandas as pd
+from typing import TYPE_CHECKING
+
+from automated_scoring.dataset import AnnotatedDataset
+from automated_scoring.features import DataFrameFeatureExtractor
 
 
 def subsample_train(
@@ -7,27 +9,23 @@ def subsample_train(
     extractor,
     *,
     random_state=None,
-    exclude=None,
     log,
 ):
-    X_subsample_even, y_subsample_even = dataset.subsample(
+    if TYPE_CHECKING:
+        assert isinstance(dataset, AnnotatedDataset)
+        assert isinstance(extractor, DataFrameFeatureExtractor)
+
+    return dataset.subsample(
         extractor,
-        0.1,
-        categories=("none", "investigation"),
+        {
+            ("attack", "mount"): 1.0,
+            ("none", "investigation"): 0.1,
+        },
         random_state=random_state,
-        exclude=exclude,
+        stratify=True,
+        reset_previous_indices=False,
+        exclude_previous_indices=False,
+        store_indices=False,
+        exclude=None,
         log=log,
-    )
-    X_subsample_all, y_subsample_all = dataset.subsample(
-        extractor,
-        1.0,
-        try_even_subsampling=False,
-        categories=("attack", "mount"),
-        random_state=random_state,
-        exclude=exclude,
-        log=log,
-    )
-    return (
-        pd.concat([X_subsample_even, X_subsample_all]),
-        np.concatenate([y_subsample_even, y_subsample_all]),
     )

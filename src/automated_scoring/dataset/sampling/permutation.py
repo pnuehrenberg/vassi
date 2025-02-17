@@ -8,7 +8,7 @@ from numpy.typing import NDArray
 from ...data_structures.utils import get_interval_slice
 from ...features import keypoint_distances
 from .. import IndividualIdentifier
-from ..types import AnnotatedGroup, Dataset, Dyad, Group
+from ..types import AnnotatedDataset, AnnotatedGroup, Dyad, Group
 
 
 def get_proximitry_matrix(group: Group | AnnotatedGroup) -> tuple[NDArray, NDArray]:
@@ -111,7 +111,9 @@ def _permute_recipients_in_group(
     )
 
 
-def _permute_recipients(dataset: Dataset, *, neighbor_rank: int) -> Dataset:
+def _permute_recipients(
+    dataset: AnnotatedDataset, *, neighbor_rank: int
+) -> AnnotatedDataset:
     groups = {}
     for group_id in dataset.identifiers:
         group = dataset.select(group_id)
@@ -120,11 +122,13 @@ def _permute_recipients(dataset: Dataset, *, neighbor_rank: int) -> Dataset:
         groups[group_id] = _permute_recipients_in_group(
             group, neighbor_rank=neighbor_rank
         )
-    return Dataset(groups)
+    return AnnotatedDataset.from_groups(groups)
 
 
 @overload
-def permute_recipients(dataset: Dataset, *, neighbor_rank: int) -> Dataset: ...
+def permute_recipients(
+    dataset: AnnotatedDataset, *, neighbor_rank: int
+) -> AnnotatedDataset: ...
 
 
 @overload
@@ -134,9 +138,9 @@ def permute_recipients(
 
 
 def permute_recipients(
-    dataset: Dataset | AnnotatedGroup, *, neighbor_rank: int
-) -> Dataset | AnnotatedGroup:
-    if isinstance(dataset, Dataset):
+    dataset: AnnotatedDataset | AnnotatedGroup, *, neighbor_rank: int
+) -> AnnotatedDataset | AnnotatedGroup:
+    if isinstance(dataset, AnnotatedDataset):
         return _permute_recipients(dataset, neighbor_rank=neighbor_rank)
     if isinstance(dataset, AnnotatedGroup):
         return _permute_recipients_in_group(dataset, neighbor_rank=neighbor_rank)

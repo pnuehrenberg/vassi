@@ -11,13 +11,9 @@ import numpy as np
 import pandas as pd
 from sklearn.model_selection import KFold, StratifiedKFold, train_test_split
 
-from automated_scoring.classification.results import IndividualIdentifier
-from automated_scoring.dataset import (
-    GroupIdentifier,
-)
-from automated_scoring.dataset.types.dataset import SubjectIdentifier
-from automated_scoring.utils import ensure_generator, to_int_seed
-
+from ...utils import ensure_generator, to_int_seed
+from ..observations.utils import check_observations
+from ..utils import GroupIdentifier, IndividualIdentifier, SubjectIdentifier
 from ._mixins import (
     AnnotatedMixin,
     AnnotatedSampleableMixin,
@@ -45,7 +41,15 @@ class Dataset(NestedSampleableMixin, SampleableMixin):
     def __init__(
         self,
         groups: Mapping[GroupIdentifier, Group],
+        *,
+        target: Literal["individual", "dyad"],
     ):
+        self._target = target
+        for group in groups.values():
+            if group.target != target:
+                raise ValueError(
+                    f"Groups must all be of the same target type '{target}' (got '{group.target}')"
+                )
         self._sampleables = {identifier: group for identifier, group in groups.items()}
 
     @overload
@@ -136,6 +140,7 @@ class Dataset(NestedSampleableMixin, SampleableMixin):
             groups[identifier] = group
         return AnnotatedDataset(
             groups,
+            target=self.target,
             observations=observations,
             categories=categories,
             background_category=background_category,
@@ -147,6 +152,12 @@ class Dataset(NestedSampleableMixin, SampleableMixin):
         observations = observations.loc[
             np.isin(observations["category"], self.categories)
         ]
+        observations = check_observations(
+            observations,
+            required_columns=self.REQUIRED_COLUMNS(self.target),
+            allow_overlapping=True,
+            allow_unsorted=True,
+        )
         for identifier, group in self:
             observations_group = observations.loc[observations["group"] == identifier]
             self._sampleables[identifier] = group.annotate(
@@ -173,7 +184,7 @@ class Dataset(NestedSampleableMixin, SampleableMixin):
 
     @classmethod
     def _empty_like(cls, group: Group) -> Self:
-        return cls({})
+        return cls({}, target=group.target)
 
     @classmethod
     def from_groups(
@@ -224,23 +235,43 @@ class Dataset(NestedSampleableMixin, SampleableMixin):
             type(self).from_groups(groups_remaining),
         )
 
+    def exclude_individuals(
+        self,
+        individuals: Sequence[IndividualIdentifier | SubjectIdentifier],
+        *,
+        subset_actors_only: bool = True,
+    ) -> Self:
+        individuals_selected = tuple(
+            individual
+            for individual in self.individuals
+            if include(individual, individuals)
+        )
+        individuals_remaining = tuple(
+            sorted(set(self.individuals) - set(individuals_selected))
+        )
+        return self._make_split(
+            individuals_selected=individuals_selected,
+            individuals_remaining=individuals_remaining,
+            subset_actors_only=subset_actors_only,
+        )[0]
+
     def split(
         self,
         size: int | float,
         *,
         random_state: int | None | np.random.Generator,
         subset_actors_only: bool = True,
-        exclude: Optional[
+        exclude_individuals: Optional[
             Sequence[GroupIdentifier | IndividualIdentifier | SubjectIdentifier]
         ],
     ) -> tuple[Self, Self]:
-        if exclude is None:
-            exclude = ()
+        if exclude_individuals is None:
+            exclude_individuals = ()
         random_state = ensure_generator(random_state)
         individuals = [
             individual
             for individual in self.individuals
-            if include(individual, exclude)
+            if include(individual, exclude_individuals)
         ]
         if isinstance(size, float) and (size < 0 or size > 1):
             raise ValueError(
@@ -284,17 +315,17 @@ class Dataset(NestedSampleableMixin, SampleableMixin):
         *,
         random_state: int | None | np.random.Generator,
         subset_actors_only: bool = True,
-        exclude: Optional[
+        exclude_individuals: Optional[
             Sequence[GroupIdentifier | IndividualIdentifier | SubjectIdentifier]
         ],
     ) -> Generator[tuple[Self, Self], None, None]:
-        if exclude is None:
-            exclude = ()
+        if exclude_individuals is None:
+            exclude_individuals = ()
         random_state = ensure_generator(random_state)
         individuals = [
             individual
             for individual in self.individuals
-            if include(individual, exclude)
+            if include(individual, exclude_individuals)
         ]
         try:
             kf = StratifiedKFold(
@@ -323,6 +354,7 @@ class AnnotatedDataset(Dataset, AnnotatedSampleableMixin):
         self,
         groups: Mapping[GroupIdentifier, Group],
         *,
+        target: Literal["individual", "dyad"],
         observations: pd.DataFrame,
         categories: tuple[str, ...],
         background_category: str,
@@ -332,7 +364,7 @@ class AnnotatedDataset(Dataset, AnnotatedSampleableMixin):
             categories=categories,
             background_category=background_category,
         )
-        Dataset.__init__(self, groups)
+        Dataset.__init__(self, groups, target=target)
         self._finalize_init(observations)
 
     @classmethod
@@ -344,6 +376,7 @@ class AnnotatedDataset(Dataset, AnnotatedSampleableMixin):
         )
         return cls(
             {},
+            target=group.target,
             observations=observations,
             categories=group.categories,
             background_category=group.background_category,

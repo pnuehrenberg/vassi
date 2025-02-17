@@ -20,10 +20,16 @@ if __name__ == "__main__":
     )
 
     dataset_train = load_dataset(
-        "mice_train", directory="../../datasets/CALMS21/train", target="dyads"
+        "mice_train",
+        directory="../../datasets/CALMS21/train",
+        target="dyad",
+        background_category="none",
     )
     dataset_test = load_dataset(
-        "mice_test", directory="../../datasets/CALMS21/test", target="dyads"
+        "mice_test",
+        directory="../../datasets/CALMS21/test",
+        target="dyad",
+        background_category="none",
     )
 
     extractor = DataFrameFeatureExtractor(
@@ -42,7 +48,7 @@ if __name__ == "__main__":
         remove_overlapping_predictions=False,
         num_iterations=20,
         k=5,
-        exclude=[("intruder", "resident")],
+        exclude_individuals=["intruder"],
         sampling_func=subsample_train,
         tolerance=0.005,
         random_state=1,

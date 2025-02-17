@@ -1,6 +1,11 @@
+from __future__ import annotations
+
+import functools
 from collections.abc import Iterable
+from contextlib import contextmanager
 from itertools import product
-from typing import TYPE_CHECKING, Any, Optional
+from time import perf_counter
+from typing import TYPE_CHECKING, Any, Callable, Generator, Literal, Optional
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -8,7 +13,46 @@ import pandas as pd
 from matplotlib.axes import Axes
 from numpy.typing import NDArray
 
+from ..logging import set_logging_level
 from .visualization import Array
+
+if TYPE_CHECKING:
+    from loguru import Logger
+
+
+@contextmanager
+def catch_time() -> Generator[Callable[[], float], None, None]:
+    # https://stackoverflow.com/questions/33987060/python-context-manager-that-measures-time
+    start = perf_counter()
+    yield lambda: perf_counter() - start
+
+
+def _log_time[T, **P](
+    *args,
+    func: Callable[P, T],
+    level: Literal["trace", "debug", "info", "success", "warning", "error"],
+    description: str,
+    **kwargs,
+) -> T:
+    if "log" not in kwargs:
+        raise ValueError("missing keyword-only argument log: loguru.Logger | None")
+    log = kwargs.pop("log")
+    if log is None:
+        log = set_logging_level()
+    if TYPE_CHECKING:
+        assert isinstance(log, Logger)
+    kwargs["log"] = log
+    getattr(log, level)(f"started {description}")
+    with catch_time() as get_time:
+        result = func(*args, **kwargs)
+    getattr(log, level)(f"finished {description} in {get_time():.2f} seconds")
+    return result
+
+
+def log_time[T, **P](func: Callable[P, T]) -> Callable[P, T]:
+    result_func = functools.partial(_log_time, func=func)
+    decorated = functools.wraps(func)(result_func)
+    return decorated
 
 
 def parameter_grid_to_combinations(
@@ -72,41 +116,6 @@ def evaluate_results(
         "f1_per_prediction",
     ),
 ) -> dict[str, Any]:
-    """
-    Find the best parameter combination from a dataframe of results.
-
-    Parameters
-    ----------
-    results : pd.DataFrame
-        The results dataframe.
-    parameter_names : Iterable[str]
-        The names of the parameters to evaluate.
-    parameter_weight : Iterable[float] | float, optional
-        The cost of each parameter when choosing the best combination within the tolerance interval. Defaults to 1.0.
-    tolerance : float
-        The tolerance for the best parameter combination.
-    plot_results : bool
-        Whether to plot the results.
-    figsize : tuple[float, float], optional
-        The size of the figure if axes is not specified. Defaults to None.
-    dpi : float, optional
-        The DPI of the figure if axes is not specified. Defaults to 100.
-    axes : Array[Axes], optional
-        The axes to plot the results on. Defaults to None, which creates a new figure.
-    score_names : Iterable[str], optional
-        The names of the scores to evaluate, by default
-        ("category_count_score", "f1_per_timestamp", "f1_per_annotation", "f1_per_prediction")
-
-    Raises
-    ------
-    ValueError
-        If any of the parameter names or score names are not in the results dataframe.
-
-    Returns
-    -------
-    dict[str, Any]
-        The best parameter combination.
-    """
     parameter_names = list(parameter_names)
     score_names = list(score_names)
     if not np.isin(parameter_names, results.columns).all():

@@ -3,7 +3,7 @@ import json
 import numpy as np
 
 from automated_scoring.data_structures import Trajectory
-from automated_scoring.dataset import AnnotatedGroup, Dataset
+from automated_scoring.dataset import AnnotatedDataset, AnnotatedGroup
 from automated_scoring.dataset.observations import to_observations
 from automated_scoring.io import save_dataset
 
@@ -57,13 +57,15 @@ def load_calms21_sequences(calms21_json_file):
 
 
 if __name__ == "__main__":
-    dataset_train = Dataset(
+    dataset_train = AnnotatedDataset.from_groups(
         {
             idx: AnnotatedGroup(
                 trajectories,
-                target="dyads",
+                target="dyad",
                 observations=annotations,
                 categories=("attack", "investigation", "mount"),
+                exclude=None,
+                background_category="none",
             )
             for idx, (trajectories, annotations) in enumerate(
                 load_calms21_sequences(
@@ -73,13 +75,15 @@ if __name__ == "__main__":
         }
     )
 
-    dataset_test = Dataset(
+    dataset_test = AnnotatedDataset.from_groups(
         {
             idx: AnnotatedGroup(
                 trajectories,
-                target="dyads",
+                target="dyad",
                 observations=annotations,
                 categories=("attack", "investigation", "mount"),
+                exclude=None,
+                background_category="none",
             )
             for idx, (trajectories, annotations) in enumerate(
                 load_calms21_sequences(

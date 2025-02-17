@@ -4,10 +4,10 @@ from typing import Optional
 
 import numpy as np
 import pandas as pd
-from loguru import logger
 from numpy.typing import NDArray
 
 from .. import series_operations
+from ..logging import set_logging_level
 from .utils import (
     DataFrameFeature,
     Feature,
@@ -69,7 +69,7 @@ def _as_dataframe(
     **kwargs,
 ) -> pd.DataFrame:
     if "flat" in kwargs and not kwargs.pop("flat"):
-        logger.warning(
+        set_logging_level().warning(
             "Ignoring argument flat=False. Dataframe features are always flat."
         )
     feature = _inner(func)

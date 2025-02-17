@@ -1,10 +1,10 @@
+from __future__ import annotations
+
 import hashlib
 import json
-import sys
-from typing import Callable, Iterable, Literal, Optional, Protocol
+from typing import TYPE_CHECKING, Iterable, Literal, Optional, Protocol
 
 import numpy as np
-from loguru import logger
 from numpy.typing import NDArray
 
 try:
@@ -12,53 +12,14 @@ try:
 except ImportError:
     MPI = None
 
+if TYPE_CHECKING:
+    pass
+
 
 Keypoint = int
 KeypointPair = tuple[Keypoint, Keypoint]
 Keypoints = Iterable[Keypoint]
 KeypointPairs = Iterable[KeypointPair]
-
-
-def _formatter(record):
-    def get_level_fmt(level):
-        if level not in record["extra"]:
-            return ""
-        if "name" not in record["extra"][level]:
-            record["extra"]["level"]["name"] = ""
-        else:
-            name = record["extra"][level]["name"]
-            name = name.strip() + " "
-            record["extra"][level]["name"] = name
-        return "[{extra[level][name]}{extra[level][step]:02d}/{extra[level][total]:02d}]".replace(
-            "level", level
-        )
-
-    rank_fmt = ""
-    iteration_fmt = ""
-    if "mpi" in record["extra"] and record["extra"]["mpi"] is not None:
-        rank_fmt = " [MPI rank {extra[mpi][rank]:02d}/{extra[mpi][size]:02d}]"
-    if "iteration" in record["extra"]:
-        iteration_fmt = "[iteration {extra[iteration]:2d}] "
-    level_fmt = " ".join(
-        [get_level_fmt(level) for level in ["fold", "level", "sublevel"]]
-    ).strip()
-    if len(level_fmt) > 0:
-        level_fmt += " "
-    return f"<green>{{time:YYYY-MM-DD HH:mm:ss.SSS}}{rank_fmt}</green> <level>[{{level: <8}}] {iteration_fmt}{level_fmt}{{message}}</level>\n"
-
-
-def set_logging_level(
-    level: str | int = "DEBUG",
-    *,
-    sink=None,
-    format: str | Callable[..., str] = _formatter,
-    enqueue: bool = True,
-):
-    """Set the logging level (and sink, format and enqueue paramters of the loguru logger."""
-    if sink is None:
-        sink = sys.stdout
-    logger.remove()
-    logger.add(sink=sink, level=level, format=format, enqueue=enqueue)
 
 
 def class_name(obj: object) -> str:

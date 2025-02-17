@@ -5,14 +5,12 @@ from typing import (
 )
 
 import numpy as np
-from loguru import logger
 from numpy.typing import NDArray
 from sklearn.model_selection import train_test_split
 
-from automated_scoring.dataset import (
-    Identifier,
-)
-from automated_scoring.utils import ensure_generator, to_int_seed
+from ..logging import set_logging_level
+from ..utils import ensure_generator, to_int_seed
+from .utils import Identifier
 
 if TYPE_CHECKING:
     from loguru import Logger
@@ -125,7 +123,7 @@ def select_indices(
     if exclude is None:
         exclude = ()
     if log is None:
-        log = logger
+        log = set_logging_level()
     if isinstance(size, float | int):
         return _subselect_indices(
             indices,

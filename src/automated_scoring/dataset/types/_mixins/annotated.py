@@ -8,9 +8,7 @@ import numpy as np
 import pandas as pd
 from numpy.typing import NDArray
 
-from automated_scoring.dataset import (
-    Identifier,
-)
+from ...utils import Identifier
 
 
 class AnnotatedMixin(ABC):
