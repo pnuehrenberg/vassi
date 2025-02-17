@@ -3,7 +3,7 @@ from __future__ import annotations
 import os
 from collections.abc import Iterable
 from functools import partial
-from typing import TYPE_CHECKING, Any, Optional
+from typing import TYPE_CHECKING, Any, Callable, Optional, TypedDict
 
 import numpy as np
 import pandas as pd
@@ -11,7 +11,7 @@ from numpy.typing import NDArray
 
 from ..dataset import AnnotatedDataset
 from ..features import DataFrameFeatureExtractor, FeatureExtractor
-from ..logging import log_loop, log_time, set_logging_level
+from ..logging import log_loop, log_time, set_logging_level, with_loop
 from ..utils import MPIContext, SmoothingFunction
 from . import _optimization_utils as utils
 from .predict import k_fold_predict
@@ -20,6 +20,13 @@ from .utils import EncodingFunction, SamplingFunction
 
 if TYPE_CHECKING:
     from loguru import Logger
+
+
+class OverlappingPredictionsKwargs(TypedDict):
+    priority_func: Callable[[pd.DataFrame], Iterable[float]]
+    prefilter_recipient_bouts: bool
+    max_bout_gap: float
+    max_allowed_bout_overlap: float
 
 
 @log_time(
@@ -34,6 +41,7 @@ def _score_smoothed_results(
     encode_func: EncodingFunction,
     *,
     remove_overlapping_predictions: bool,
+    overlapping_predictions_kwargs: Optional[OverlappingPredictionsKwargs],
     iteration: int,
     log: Logger,
 ) -> list[dict[str, Any]]:
@@ -46,8 +54,13 @@ def _score_smoothed_results(
     ):
         classification_result = classification_result.smooth(
             [partial(smoothing_func, parameters)],
-            remove_overlapping_predictions=remove_overlapping_predictions,
         )
+        if remove_overlapping_predictions:
+            if overlapping_predictions_kwargs is None:
+                raise ValueError("overlapping_predictions_kwargs must be provided when remove_overlapping_predictions is True")
+            classification_result = classification_result.remove_overlapping_predictions(
+                **overlapping_predictions_kwargs
+            )
         results.append(
             {
                 "iteration": iteration,
@@ -66,6 +79,7 @@ def score_smoothing(
     classifier: Any,
     *,
     remove_overlapping_predictions: bool,
+    overlapping_predictions_kwargs: Optional[OverlappingPredictionsKwargs],
     iteration: int,
     k: int,
     random_state: np.random.Generator | int,
@@ -90,6 +104,7 @@ def score_smoothing(
         classification_result,
         dataset.encode,
         remove_overlapping_predictions=remove_overlapping_predictions,
+        overlapping_predictions_kwargs=overlapping_predictions_kwargs,
         iteration=iteration,
         log=log,
     )
@@ -106,6 +121,7 @@ def _score_thresholds(
     encode_func: EncodingFunction,
     *,
     remove_overlapping_predictions: bool,
+    overlapping_predictions_kwargs: Optional[OverlappingPredictionsKwargs],
     default_decision: int | str,
     iteration: int,
     log: Logger,
@@ -134,15 +150,21 @@ def _score_thresholds(
         ):
             thresholds = np.zeros(num_categories)
             thresholds[category_idx] = threshold
+            classification_result = classification_result.threshold(
+                thresholds,
+                default_decision=default_decision,
+            )
+            if remove_overlapping_predictions:
+                if overlapping_predictions_kwargs is None:
+                    raise ValueError("overlapping_predictions_kwargs must be provided if remove_overlapping_predictions is True")
+                classification_result = classification_result.remove_overlapping_predictions(
+                    **overlapping_predictions_kwargs
+                )
             results[category_idx].append(
                 {
                     "iteration": iteration,
                     f"threshold_{categories[category_idx]}": threshold,
-                    **classification_result.threshold(
-                        thresholds,
-                        default_decision=default_decision,
-                        remove_overlapping_predictions=remove_overlapping_predictions,
-                    ).score(encode_func=encode_func, macro=True),
+                    **classification_result.score(encode_func=encode_func, macro=True),
                 }
             )
     return results
@@ -155,6 +177,7 @@ def score_thresholds(
     classifier: Any,
     *,
     remove_overlapping_predictions: bool,
+    overlapping_predictions_kwargs: Optional[OverlappingPredictionsKwargs],
     default_decision: int | str,
     iteration: int,
     k: int,
@@ -184,6 +207,7 @@ def score_thresholds(
         classification_result,
         dataset.encode,
         remove_overlapping_predictions=remove_overlapping_predictions,
+        overlapping_predictions_kwargs=overlapping_predictions_kwargs,
         default_decision=default_decision,
         iteration=iteration,
         log=log,
@@ -203,6 +227,7 @@ def optimize_smoothing(
     smoothing_parameters_grid: dict[str, Iterable],
     *,
     remove_overlapping_predictions: bool,
+    overlapping_predictions_kwargs: Optional[OverlappingPredictionsKwargs] = None,
     num_iterations: int,
     tolerance: float = 0.01,
     plot_results: bool = True,
@@ -222,7 +247,7 @@ def optimize_smoothing(
     for iteration in range(num_iterations):
         if not mpi_context.do_iteration(iteration):
             continue
-        log = log.bind(iteration=iteration)
+        log = with_loop(log, name="iteration", step=iteration)[0]
         mpi_context.add(
             iteration,
             score_smoothing(
@@ -232,6 +257,7 @@ def optimize_smoothing(
                 extractor,
                 classifier,
                 remove_overlapping_predictions=remove_overlapping_predictions,
+                overlapping_predictions_kwargs=overlapping_predictions_kwargs,
                 iteration=iteration,
                 k=k,
                 random_state=mpi_context.get_random_state(
@@ -271,6 +297,7 @@ def optimize_decision_thresholds(
     classifier: Any,
     *,
     remove_overlapping_predictions: bool,
+    overlapping_predictions_kwargs: Optional[OverlappingPredictionsKwargs] = None,
     num_iterations: int,
     decision_threshold_range: tuple[float, float] | Iterable[tuple[float, float]] = (
         0.0,
@@ -304,7 +331,7 @@ def optimize_decision_thresholds(
     for iteration in range(num_iterations):
         if not mpi_context.do_iteration(iteration):
             continue
-        log = log.bind(iteration=iteration)
+        log = with_loop(log, name="iteration", step=iteration)[0]
         mpi_context.add(
             iteration,
             score_thresholds(
@@ -313,6 +340,7 @@ def optimize_decision_thresholds(
                 extractor,
                 classifier,
                 remove_overlapping_predictions=remove_overlapping_predictions,
+                overlapping_predictions_kwargs=overlapping_predictions_kwargs,
                 default_decision=default_decision,
                 iteration=iteration,
                 k=k,

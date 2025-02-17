@@ -333,7 +333,6 @@ class _NestedResult(_Result):
         threshold: bool = True,
         decision_thresholds: Optional[Iterable[float]] = None,
         default_decision: int | str = "none",
-        remove_overlapping_predictions: bool = False,
     ) -> Self:
         classification_results = self._flat_classification_results()
         num_cpus = cpu_count()
@@ -352,7 +351,6 @@ class _NestedResult(_Result):
                 ],
             )
         self._set_classification_results(classification_results)
-        # TODO remove_overlapping_predictions must be handled after parallel processing
         return self
 
     def threshold(
@@ -360,7 +358,6 @@ class _NestedResult(_Result):
         decision_thresholds: Optional[Iterable[float]] = None,
         *,
         default_decision: int | str = "none",
-        remove_overlapping_predictions: bool = False,
     ) -> Self:
         classification_results = self._flat_classification_results()
         num_cpus = cpu_count()
@@ -377,7 +374,6 @@ class _NestedResult(_Result):
                 ],
             )
         self._set_classification_results(classification_results)
-        # TODO remove_overlapping_predictions must be handled after parallel processing
         return self
 
     @property
