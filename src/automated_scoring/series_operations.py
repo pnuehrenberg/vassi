@@ -1,3 +1,4 @@
+from collections.abc import Iterable
 from copy import deepcopy
 
 import numpy as np
@@ -100,7 +101,9 @@ def filter_sliding_quantile_range_1d(
     return sample_1d(array[idx], idx, np.arange(array.size), keep_dtype=True)
 
 
-def smooth_1d(array: NDArray, filter_funcs: list[utils.SmoothingFunction]) -> NDArray:
+def smooth_1d(
+    array: NDArray, filter_funcs: Iterable[utils.SmoothingFunction]
+) -> NDArray:
     """
     Apply multiple filter functions to a 1D array.
 
@@ -110,7 +113,7 @@ def smooth_1d(array: NDArray, filter_funcs: list[utils.SmoothingFunction]) -> ND
     ----------
     array: NDArray
         The array to filter.
-    filter_funcs: list[utils.NDArray_to_NDArray]
+    filter_funcs: Iterable[utils.NDArray_to_NDArray]
         The filter functions to apply.
 
     Returns
@@ -233,7 +236,7 @@ def filter_sliding_quantile_range(
 
 def smooth(
     series: NDArray,
-    filter_funcs: list[utils.SmoothingFunction],
+    filter_funcs: Iterable[utils.SmoothingFunction],
     copy: bool = True,
 ) -> NDArray:
     """
@@ -243,7 +246,7 @@ def smooth(
     ----------
     series: NDArray
         The series to filter.
-    filter_funcs: list[utils.NDArray_to_NDArray]
+    filter_funcs: Iterable[utils.NDArray_to_NDArray]
         The filter functions to apply.
     copy: bool
         Whether to copy the series before filtering.

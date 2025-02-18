@@ -65,7 +65,7 @@ def _predict_sampleable(
     if categories is None:
         raise ValueError("specify categories when classifying unannotated sampleables.")
     return ClassificationResult(
-        categories=categories,
+        categories=tuple(categories),
         timestamps=timestamps,  # type:ignore
         y_proba=y_proba,
         y_pred_numeric=y_pred_numeric,

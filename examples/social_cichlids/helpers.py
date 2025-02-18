@@ -1,9 +1,3 @@
-import numpy as np
-import pandas as pd
-
-from automated_scoring.dataset.sampling.permutation import permute_recipients
-
-
 def subsample_train(
     dataset,
     extractor,
@@ -52,7 +46,7 @@ def subsample_train(
     # y_additional = np.repeat(
     #     "none", len(X_additional)
     # )  # all labels are "none" because of switched recipients
-    
+
     # X = pd.concat([X_train_none, X_frontal, X_minorities])  # , X_additional
     # y = np.concat([y_train_none, y_frontal, y_minorities])  # , y_additional
     # return X, y

@@ -133,7 +133,7 @@ class _Result:
 def _smooth_probabilities(
     arg: tuple[
         "ClassificationResult",
-        list[SmoothingFunction],
+        Iterable[SmoothingFunction],
         bool,
         Optional[Iterable[float]],
         int | str,
@@ -152,7 +152,6 @@ def _smooth_probabilities(
         threshold=threshold,
         decision_thresholds=decision_thresholds,
         default_decision=default_decision,
-        remove_overlapping_predictions=False,
     )
 
 
@@ -164,13 +163,12 @@ def _threshold_probabilities(
     return classification_result.threshold(
         decision_thresholds,
         default_decision=default_decision,
-        remove_overlapping_predictions=False,
     )
 
 
 @dataclass
 class ClassificationResult(_Result):
-    categories: Iterable[str]
+    categories: tuple[str, ...]
     timestamps: NDArray[np.integer]
     y_proba: NDArray
     y_pred_numeric: NDArray[np.integer]
@@ -214,7 +212,6 @@ class ClassificationResult(_Result):
         decision_thresholds: Optional[Iterable[float]] = None,
         *,
         default_decision: int | str = "none",
-        remove_overlapping_predictions: bool = False,
     ) -> Self:
         self._apply_thresholds(decision_thresholds, default_decision)
         probabilties = self.y_proba
@@ -239,21 +236,28 @@ class ClassificationResult(_Result):
 
     def smooth(
         self,
-        label_smoothing_funcs: list[SmoothingFunction],
+        label_smoothing_funcs: Iterable[SmoothingFunction],
         *,
         threshold: bool = True,
         decision_thresholds: Optional[Iterable[float]] = None,
         default_decision: int | str = "none",
-        remove_overlapping_predictions: bool = False,
     ) -> Self:
-        self._y_proba_smoothed = smooth(
-            self.y_proba, filter_funcs=label_smoothing_funcs
-        )
+        num_categories = len(self.categories)
+        label_smoothing_funcs = list(label_smoothing_funcs)
+        if len(label_smoothing_funcs) != num_categories:
+            raise ValueError(
+                f"number of smoothing functions ({len(label_smoothing_funcs)}) "
+                f"does not match number of categories ({len(self.categories)})"
+            )
+        self._y_proba_smoothed = np.zeros_like(self.y_proba, dtype=float)
+        for idx in range(num_categories):
+            self._y_proba_smoothed[:, idx] = smooth(
+                self.y_proba[:, idx], filter_funcs=[label_smoothing_funcs[idx]]
+            )
         if threshold:
             return self.threshold(
                 decision_thresholds,
                 default_decision=default_decision,
-                remove_overlapping_predictions=remove_overlapping_predictions,
             )
         return self
 
@@ -328,7 +332,7 @@ class _NestedResult(_Result):
 
     def smooth(
         self,
-        label_smoothing_funcs: list[SmoothingFunction],
+        label_smoothing_funcs: Iterable[SmoothingFunction],
         *,
         threshold: bool = True,
         decision_thresholds: Optional[Iterable[float]] = None,

@@ -149,12 +149,10 @@ class Group(NestedSampleableMixin, SampleableMixin):
     def individuals(self) -> tuple[IndividualIdentifier, ...]:
         individuals = tuple(sorted(self.trajectories))
         return tuple(
-            individual for individual in individuals
+            individual
+            for individual in individuals
             if any(
-                [
-                    individual == get_actor(identifier)
-                    for identifier in self.identifiers
-                ]
+                [individual == get_actor(identifier) for identifier in self.identifiers]
             )
         )
 

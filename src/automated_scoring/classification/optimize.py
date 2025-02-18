@@ -29,6 +29,10 @@ class OverlappingPredictionsKwargs(TypedDict):
     max_allowed_bout_overlap: float
 
 
+def _passthrough(*, array: NDArray) -> NDArray:
+    return array
+
+
 @log_time(
     level_start="info",
     level_finish="success",
@@ -36,7 +40,7 @@ class OverlappingPredictionsKwargs(TypedDict):
 )
 def _score_smoothed_results(
     smoothing_func: SmoothingFunction,
-    parameter_combinations: list[dict[str, Any]],
+    parameter_combinations: list[list[dict[str, Any]]],
     classification_result: DatasetClassificationResult,
     encode_func: EncodingFunction,
     *,
@@ -44,36 +48,57 @@ def _score_smoothed_results(
     overlapping_predictions_kwargs: Optional[OverlappingPredictionsKwargs],
     iteration: int,
     log: Logger,
-) -> list[dict[str, Any]]:
-    results = []
-    for log, parameters in log_loop(
-        parameter_combinations,
+) -> list[list[dict[str, Any]]]:
+    num_categories = len(parameter_combinations)
+    categories = classification_result.categories
+    if not num_categories == len(categories):
+        raise ValueError(
+            "number of decision thresholds does not match number of categories"
+        )
+    results = [[] for _ in range(num_categories)]
+    for log, category_idx in log_loop(
+        range(num_categories),
         level="info",
-        message="scored parameters",
+        message="scored smoothing parameters",
+        name="category",
+        total=num_categories,
         log=log,
     ):
-        classification_result = classification_result.smooth(
-            [partial(smoothing_func, parameters)],
-        )
-        if remove_overlapping_predictions:
-            if overlapping_predictions_kwargs is None:
-                raise ValueError("overlapping_predictions_kwargs must be provided when remove_overlapping_predictions is True")
-            classification_result = classification_result.remove_overlapping_predictions(
-                **overlapping_predictions_kwargs
+        for log, parameters in log_loop(
+            parameter_combinations[category_idx],
+            level="info",
+            message="scored parameters",
+            log=log,
+        ):
+            smoothing_funcs = [_passthrough for _ in range(num_categories)]
+            smoothing_funcs[category_idx] = partial(smoothing_func, parameters)
+            classification_result = classification_result.smooth(smoothing_funcs)
+            if remove_overlapping_predictions:
+                if overlapping_predictions_kwargs is None:
+                    raise ValueError(
+                        "overlapping_predictions_kwargs must be provided when remove_overlapping_predictions is True"
+                    )
+                classification_result = (
+                    classification_result.remove_overlapping_predictions(
+                        **overlapping_predictions_kwargs
+                    )
+                )
+            results[category_idx].append(
+                {
+                    "iteration": iteration,
+                    **{
+                        f"{key}_{categories[category_idx]}": value
+                        for key, value in parameters.items()
+                    },
+                    **classification_result.score(encode_func=encode_func, macro=True),
+                }
             )
-        results.append(
-            {
-                "iteration": iteration,
-                **parameters,
-                **classification_result.score(encode_func=encode_func, macro=True),
-            }
-        )
     return results
 
 
 def score_smoothing(
     smoothing_func: SmoothingFunction,
-    parameter_combinations: list[dict[str, Any]],
+    parameter_combinations: list[list[dict[str, Any]]],
     dataset: AnnotatedDataset,
     extractor: FeatureExtractor | DataFrameFeatureExtractor,
     classifier: Any,
@@ -86,7 +111,7 @@ def score_smoothing(
     sampling_func: SamplingFunction,
     balance_sample_weights: bool,
     log: Logger,
-) -> list[dict[str, Any]]:
+) -> list[list[dict[str, Any]]]:
     classification_result = k_fold_predict(
         dataset,
         extractor,
@@ -156,9 +181,13 @@ def _score_thresholds(
             )
             if remove_overlapping_predictions:
                 if overlapping_predictions_kwargs is None:
-                    raise ValueError("overlapping_predictions_kwargs must be provided if remove_overlapping_predictions is True")
-                classification_result = classification_result.remove_overlapping_predictions(
-                    **overlapping_predictions_kwargs
+                    raise ValueError(
+                        "overlapping_predictions_kwargs must be provided if remove_overlapping_predictions is True"
+                    )
+                classification_result = (
+                    classification_result.remove_overlapping_predictions(
+                        **overlapping_predictions_kwargs
+                    )
                 )
             results[category_idx].append(
                 {
@@ -184,7 +213,7 @@ def score_thresholds(
     random_state: np.random.Generator | int,
     sampling_func: SamplingFunction,
     balance_sample_weights: bool,
-    smoothing_func: SmoothingFunction | None,
+    smoothing_funcs: Iterable[SmoothingFunction] | None,
     log: Logger,
 ) -> list[list[dict[str, Any]]]:
     classification_result = k_fold_predict(
@@ -198,9 +227,9 @@ def score_thresholds(
         encode_func=dataset.encode,
         log=log,
     )
-    if smoothing_func is not None:
+    if smoothing_funcs is not None:
         classification_result = classification_result.smooth(
-            [smoothing_func], threshold=False
+            smoothing_funcs, threshold=False
         )
     return _score_thresholds(
         decision_thresholds,
@@ -224,7 +253,7 @@ def optimize_smoothing(
     extractor: FeatureExtractor | DataFrameFeatureExtractor,
     classifier: Any,
     smoothing_func: SmoothingFunction,
-    smoothing_parameters_grid: dict[str, Iterable],
+    smoothing_parameters_grid: dict[str, Iterable] | list[dict[str, Iterable]],
     *,
     remove_overlapping_predictions: bool,
     overlapping_predictions_kwargs: Optional[OverlappingPredictionsKwargs] = None,
@@ -237,13 +266,18 @@ def optimize_smoothing(
     balance_sample_weights: bool = True,
     results_path: Optional[str] = None,
     log: Logger | None = None,
-) -> dict[str, Any] | None:
+) -> tuple[dict[str, Any], ...] | None:
     mpi_context = MPIContext(random_state)
     if log is None:
         log = set_logging_level()
-    parameter_combinations = utils.parameter_grid_to_combinations(
-        smoothing_parameters_grid
-    )
+    num_categories = len(dataset.categories)
+    if isinstance(smoothing_parameters_grid, dict):
+        smoothing_parameters_grid = [smoothing_parameters_grid] * num_categories
+    parameter_combinations: list[list[dict[str, Any]]] = []
+    for idx in range(len(smoothing_parameters_grid)):
+        parameter_combinations.append(
+            utils.parameter_grid_to_combinations(smoothing_parameters_grid[idx])
+        )
     for iteration in range(num_iterations):
         if not mpi_context.do_iteration(iteration):
             continue
@@ -270,19 +304,29 @@ def optimize_smoothing(
         )
     if not mpi_context.is_root:
         return
-    results = []
+    results = [[] for _ in range(num_categories)]
     for iteration_results in mpi_context.collect(
         num_iterations=num_iterations
     ).values():
-        results.extend(iteration_results)
-    results = pd.DataFrame(results)
+        for category_idx, category_results in enumerate(iteration_results):
+            results[category_idx].extend(category_results)
+    results = [pd.DataFrame(category_results) for category_results in results]
     if results_path is not None:
-        results.to_csv(os.path.join(results_path, "results_smoothing.csv"))
-    return utils.evaluate_results(
-        results,
-        parameter_names=parameter_combinations[0].keys(),
-        tolerance=tolerance,
-        plot_results=plot_results,
+        for category_results, category in zip(results, dataset.categories):
+            category_results.to_csv(
+                os.path.join(results_path, f"results_smoothing-{category}.csv")
+            )
+    parameter_names = list(smoothing_parameters_grid[0].keys())
+    return tuple(
+        utils.evaluate_results(
+            category_results,
+            parameter_names=[
+                f"{parameter_name}_{category}" for parameter_name in parameter_names
+            ],
+            tolerance=tolerance,
+            plot_results=plot_results,
+        )
+        for category_results, category in zip(results, dataset.categories)
     )
 
 
@@ -305,7 +349,7 @@ def optimize_decision_thresholds(
     ),
     decision_threshold_step: float | Iterable[float] = 0.01,
     default_decision: int | str = "none",
-    smoothing_func: Optional[SmoothingFunction] = None,
+    smoothing_funcs: Optional[Iterable[SmoothingFunction]] = None,
     tolerance: float = 0.01,
     plot_results: bool = True,
     k: int,
@@ -315,7 +359,7 @@ def optimize_decision_thresholds(
     encode_func: Optional[EncodingFunction] = None,
     results_path: Optional[str] = None,
     log: Logger | None = None,
-):
+) -> tuple[dict[str, Any], ...] | None:
     mpi_context = MPIContext(random_state)
     if log is None:
         log = set_logging_level()
@@ -349,7 +393,7 @@ def optimize_decision_thresholds(
                 ),
                 sampling_func=sampling_func,
                 balance_sample_weights=balance_sample_weights,
-                smoothing_func=smoothing_func,
+                smoothing_funcs=smoothing_funcs,
                 log=log,
             ),
         )
