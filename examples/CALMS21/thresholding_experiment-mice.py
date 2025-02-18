@@ -9,6 +9,7 @@ from automated_scoring.classification import (
 from automated_scoring.config import cfg
 from automated_scoring.features import DataFrameFeatureExtractor
 from automated_scoring.io import load_dataset
+from automated_scoring.logging import set_logging_level
 
 if __name__ == "__main__":
     # set the threading layer before any parallel target compilation
@@ -40,7 +41,7 @@ if __name__ == "__main__":
     ).read_yaml("config_file.yaml")
 
     def smooth(*, array):
-        return medfilt(array, 47)  # results from smoothing_experiment-mice.py
+        return medfilt(array, 57)  # results from smoothing_experiment-mice.py
 
     best_parameters = optimize_decision_thresholds(
         dataset_train.exclude_individuals(["intruder"]),
@@ -57,6 +58,7 @@ if __name__ == "__main__":
         random_state=1,
         plot_results=False,
         results_path=".",
+        log=set_logging_level("info"),
     )
 
     if best_parameters is not None:
