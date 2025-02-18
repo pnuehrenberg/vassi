@@ -287,9 +287,9 @@ class Dataset(NestedSampleableMixin, SampleableMixin):
                 train_size=size,
                 random_state=to_int_seed(random_state),
             )
-        for individual in sorted(np.asarray(split_selected).tolist()):
+        for individual in split_selected:
             individuals_selected.append(tuple(individual))
-        individuals_selected = tuple(individuals_selected)
+        individuals_selected = tuple(sorted(individuals_selected))
         individuals_remaining = tuple(
             sorted(set(individuals) - set(individuals_selected))
         )

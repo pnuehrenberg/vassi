@@ -163,7 +163,7 @@ class Group(NestedSampleableMixin, SampleableMixin):
         self,
     ) -> tuple[IndividualIdentifier, ...] | tuple[DyadIdentifier, ...]:
         individuals = tuple(sorted(self.trajectories))
-        if self.target == "individuals":
+        if self.target == "individual":
             return individuals
         return tuple(permutations(individuals, 2))
 
