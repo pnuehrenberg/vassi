@@ -17,6 +17,7 @@ from automated_scoring.sliding_metrics import (
     get_window_slices,
     metrics,
 )
+from automated_scoring.logging import set_logging_level
 
 if __name__ == "__main__":
     cfg.key_keypoints = "pose"
@@ -33,14 +34,12 @@ if __name__ == "__main__":
         target="dyad",
         background_category="none",
     )
-
+    
     dataset_train, dataset_test = dataset_full.split(
         0.8,
         random_state=1,
     )
 
-    observations = dataset_train.observations
-    observations = observations[observations["category"] != "none"]
     time_scales, slices = get_window_slices(3, time_scales=(91,))
 
     aggregator = ColumnTransformer(
@@ -68,6 +67,10 @@ if __name__ == "__main__":
 
     def smooth(parameters, *, array):
         return medfilt(array, parameters["median_filter_window"])
+    
+    
+    def score_priority(observations):
+        return ((1 - observations["max_probability"]) + (1 - observations["mean_probability"])) / 2
 
     best_parameters = optimize_smoothing(
         dataset_train,
@@ -75,14 +78,21 @@ if __name__ == "__main__":
         XGBClassifier(n_estimators=1000),
         smooth,
         smoothing_parameters_grid={"median_filter_window": np.arange(3, 91, 2)},
-        remove_overlapping_predictions=False,
-        num_iterations=4,
+        remove_overlapping_predictions=True,
+        overlapping_predictions_kwargs=dict(
+            priority_func=score_priority,
+            prefilter_recipient_bouts=True,
+            max_bout_gap=60,
+            max_allowed_bout_overlap=30,
+        ),
+        num_iterations=20,
         k=5,
         sampling_func=subsample_train,
         tolerance=0.005,
         random_state=1,
         plot_results=False,
         results_path=".",
+        log=set_logging_level("info"),
     )
 
     if best_parameters is not None:
