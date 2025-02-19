@@ -92,8 +92,8 @@ def is_value_iterable(
     """
     Helper function to validate that a key is an iterable of values.
     """
-    if not isinstance(key, list | tuple):
+    if not isinstance(key, Iterable):
         return False, key
-    if all([isinstance(element, Value) for element in key]):
-        return True, key
-    return False, key
+    if any([not is_value(value) for value in key]):
+        return False, key
+    return True, key
