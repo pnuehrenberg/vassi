@@ -1,6 +1,5 @@
 from helpers import subsample_train
 from numba import config
-from scipy.signal import medfilt
 from sklearn.compose import ColumnTransformer, make_column_selector
 from sklearn.impute import KNNImputer
 from sklearn.pipeline import Pipeline
@@ -71,15 +70,12 @@ if __name__ == "__main__":
         refit_pipeline=True,
     ).read_yaml("config_file-cichlids.yaml")
 
-    def smooth(*, array):
-        return medfilt(array, 47)  # results from smoothing_experiment-mice.py
-
     best_parameters = optimize_decision_thresholds(
         dataset_train,
         extractor,
         XGBClassifier(n_estimators=1000),
         remove_overlapping_predictions=False,
-        smoothing_funcs=[smooth] * len(dataset_train.categories),
+        smoothing_funcs=[None] * len(dataset_train.categories),  # type: ignore # TODO!
         num_iterations=20,
         k=5,
         sampling_func=subsample_train,

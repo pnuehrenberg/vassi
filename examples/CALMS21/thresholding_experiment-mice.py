@@ -11,6 +11,11 @@ from automated_scoring.features import DataFrameFeatureExtractor
 from automated_scoring.io import load_dataset
 from automated_scoring.logging import set_logging_level
 
+
+def smooth(*, array):
+    return medfilt(array, 57)  # results from smoothing_experiment-mice.py
+
+
 if __name__ == "__main__":
     # set the threading layer before any parallel target compilation
     config.THREADING_LAYER = "safe"  # type: ignore
@@ -41,9 +46,6 @@ if __name__ == "__main__":
     extractor = DataFrameFeatureExtractor(
         cache_directory="feature_cache_mice"
     ).read_yaml("config_file.yaml")
-
-    def smooth(*, array):
-        return medfilt(array, 57)  # results from smoothing_experiment-mice.py
 
     best_parameters = optimize_decision_thresholds(
         dataset_train.exclude_individuals(["intruder"]),

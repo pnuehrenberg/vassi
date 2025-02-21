@@ -1,3 +1,27 @@
+import pandas as pd
+
+from automated_scoring.classification.optimize import OverlappingPredictionsKwargs
+from automated_scoring.sliding_metrics import sliding_median
+
+
+def smooth(parameters, *, array):
+    return sliding_median(array, parameters["median_filter_window"])
+
+
+def score_priority(observations: pd.DataFrame) -> pd.Series:
+    return (
+        (1 - observations["max_probability"]) + (1 - observations["mean_probability"])
+    ) / 2
+
+
+overlapping_predictions_kwargs = OverlappingPredictionsKwargs(
+    priority_func=score_priority,
+    prefilter_recipient_bouts=True,
+    max_bout_gap=60,
+    max_allowed_bout_overlap=30,
+)
+
+
 def subsample_train(
     dataset,
     extractor,
