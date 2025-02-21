@@ -1,7 +1,7 @@
 from collections.abc import Iterable, Mapping
 from copy import deepcopy
 from dataclasses import dataclass
-from multiprocessing import Pool, cpu_count
+from multiprocessing import cpu_count, get_context
 from typing import Callable, Literal, Optional, Self, overload
 
 import numpy as np
@@ -341,7 +341,7 @@ class _NestedResult(_Result):
         classification_results = self._flat_classification_results()
         num_cpus = cpu_count()
         num_cpus = min(num_cpus, 32)
-        with Pool(processes=num_cpus) as pool:
+        with get_context("spawn").Pool(processes=num_cpus) as pool:
             classification_results = pool.map(
                 _smooth_probabilities,
                 [
@@ -367,7 +367,7 @@ class _NestedResult(_Result):
         classification_results = self._flat_classification_results()
         num_cpus = cpu_count()
         num_cpus = min(num_cpus, 32)
-        with Pool(processes=num_cpus) as pool:
+        with get_context("spawn").Pool(processes=num_cpus) as pool:
             classification_results = pool.map(
                 _threshold_probabilities,
                 [

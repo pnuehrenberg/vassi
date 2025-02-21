@@ -12,7 +12,7 @@ from numpy.typing import NDArray
 from ..dataset import AnnotatedDataset
 from ..features import DataFrameFeatureExtractor, FeatureExtractor
 from ..logging import log_loop, log_time, set_logging_level, with_loop
-from ..utils import MPIContext, SmoothingFunction
+from ..utils import IterationManager, SmoothingFunction
 from . import _optimization_utils as utils
 from .predict import k_fold_predict
 from .results import DatasetClassificationResult
@@ -261,13 +261,14 @@ def optimize_smoothing(
     tolerance: float = 0.01,
     plot_results: bool = True,
     k: int,
-    random_state: Optional[np.random.Generator | int] = None,
     sampling_func: SamplingFunction,
     balance_sample_weights: bool = True,
     results_path: Optional[str] = None,
     log: Logger | None = None,
+    iteration_manager: IterationManager | None = None,
 ) -> tuple[dict[str, Any], ...] | None:
-    mpi_context = MPIContext(random_state)
+    if iteration_manager is None:
+        iteration_manager = IterationManager()
     if log is None:
         log = set_logging_level()
     num_categories = len(dataset.categories)
@@ -279,10 +280,10 @@ def optimize_smoothing(
             utils.parameter_grid_to_combinations(smoothing_parameters_grid[idx])
         )
     for iteration in range(num_iterations):
-        if not mpi_context.do_iteration(iteration):
+        if not iteration_manager.do_iteration(iteration):
             continue
         log = with_loop(log, name="iteration", step=iteration)[0]
-        mpi_context.add(
+        iteration_manager.add(
             iteration,
             score_smoothing(
                 smoothing_func,
@@ -294,7 +295,7 @@ def optimize_smoothing(
                 overlapping_predictions_kwargs=overlapping_predictions_kwargs,
                 iteration=iteration,
                 k=k,
-                random_state=mpi_context.get_random_state(
+                random_state=iteration_manager.get_random_state(
                     iteration, num_iterations=num_iterations
                 ),
                 sampling_func=sampling_func,
@@ -302,10 +303,10 @@ def optimize_smoothing(
                 log=log,
             ),
         )
-    if not mpi_context.is_root:
+    if not iteration_manager.is_root:
         return
     results = [[] for _ in range(num_categories)]
-    for iteration_results in mpi_context.collect(
+    for iteration_results in iteration_manager.collect(
         num_iterations=num_iterations
     ).values():
         for category_idx, category_results in enumerate(iteration_results):
@@ -353,14 +354,15 @@ def optimize_decision_thresholds(
     tolerance: float = 0.01,
     plot_results: bool = True,
     k: int,
-    random_state: Optional[np.random.Generator | int] = None,
     sampling_func: SamplingFunction,
     balance_sample_weights: bool = True,
     encode_func: Optional[EncodingFunction] = None,
     results_path: Optional[str] = None,
     log: Logger | None = None,
+    iteration_manager: IterationManager | None = None,
 ) -> tuple[dict[str, Any], ...] | None:
-    mpi_context = MPIContext(random_state)
+    if iteration_manager is None:
+        iteration_manager = IterationManager()
     if log is None:
         log = set_logging_level()
     num_categories = len(dataset.categories)
@@ -373,10 +375,10 @@ def optimize_decision_thresholds(
         except ValueError:
             raise ValueError("specify encode_func for non-annotated datasets")
     for iteration in range(num_iterations):
-        if not mpi_context.do_iteration(iteration):
+        if not iteration_manager.do_iteration(iteration):
             continue
         log = with_loop(log, name="iteration", step=iteration)[0]
-        mpi_context.add(
+        iteration_manager.add(
             iteration,
             score_thresholds(
                 decision_thresholds,
@@ -388,7 +390,7 @@ def optimize_decision_thresholds(
                 default_decision=default_decision,
                 iteration=iteration,
                 k=k,
-                random_state=mpi_context.get_random_state(
+                random_state=iteration_manager.get_random_state(
                     iteration, num_iterations=num_iterations
                 ),
                 sampling_func=sampling_func,
@@ -397,10 +399,10 @@ def optimize_decision_thresholds(
                 log=log,
             ),
         )
-    if not mpi_context.is_root:
+    if not iteration_manager.is_root:
         return
     results = [[] for _ in range(num_categories)]
-    for iteration_results in mpi_context.collect(
+    for iteration_results in iteration_manager.collect(
         num_iterations=num_iterations
     ).values():
         for category_idx, category_results in enumerate(iteration_results):

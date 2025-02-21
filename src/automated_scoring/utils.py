@@ -2,16 +2,10 @@ from __future__ import annotations
 
 import hashlib
 import json
-from typing import Iterable, Literal, Optional, Protocol
+from typing import Any, Iterable, Optional, Protocol
 
 import numpy as np
 from numpy.typing import NDArray
-
-try:
-    from mpi4py import MPI
-except ImportError:
-    MPI = None
-
 
 Keypoint = int
 KeypointPair = tuple[Keypoint, Keypoint]
@@ -19,29 +13,13 @@ Keypoints = Iterable[Keypoint]
 KeypointPairs = Iterable[KeypointPair]
 
 
-def class_name(obj: object) -> str:
-    if isinstance(obj, type):
-        return obj.__name__
-    return obj.__class__.__name__
-
-
-class MPIContext:
+class IterationManager:
     def __init__(self, random_state: Optional[np.random.Generator | int] = None):
         self.seed = to_int_seed(ensure_generator(random_state))
         self.data = {}
-        self.comm = None
-        self.rank = 0
-        self.size = 1
-        if MPI is None:
-            return
-        self.comm = MPI.COMM_WORLD
-        self.rank = self.comm.Get_rank()
-        self.size = self.comm.Get_size()
 
-    def do_iteration(self, iteration: int):
-        if self.comm is None:
-            return True
-        return iteration % self.size == self.rank
+    def do_iteration(self, iteration: int) -> bool:
+        return True
 
     def get_random_state(
         self, iteration: int, *, num_iterations: int
@@ -50,35 +28,20 @@ class MPIContext:
         return random_state.spawn(num_iterations)[iteration]
 
     @property
-    def info(self) -> dict[Literal["rank", "size"], int] | None:
-        if self.comm is None:
-            return None
-        return {
-            "rank": self.rank + 1,
-            "size": self.size,
-        }
+    def is_root(self) -> bool:
+        return True
 
-    @property
-    def is_root(self):
-        return self.rank == 0
+    def add(self, iteration: int, data: Any) -> None:
+        self.data[iteration] = data
 
-    def add(self, iteration, data):
-        if self.comm is None or self.is_root:
-            self.data[iteration] = data
-            return
-        self.comm.send(data, dest=0, tag=iteration)
+    def collect(self, *, num_iterations: int) -> dict[int, Any]:
+        return self.data
 
-    def collect(self, *, num_iterations: int):
-        if self.comm is None:
-            return self.data
-        if not self.is_root:
-            raise RuntimeError("collect should only be called from root mpi process")
-        for iteration in range(1, num_iterations):
-            rank = iteration % self.size
-            if rank == self.rank:
-                continue
-            self.data[iteration] = self.comm.recv(source=rank, tag=iteration)
-        return {iteration: self.data[iteration] for iteration in sorted(self.data)}
+
+def class_name(obj: object) -> str:
+    if isinstance(obj, type):
+        return obj.__name__
+    return obj.__class__.__name__
 
 
 def hash_dict(dictionary: dict) -> str:

@@ -1,4 +1,5 @@
 from helpers import subsample_train
+from numba import config
 from scipy.signal import medfilt
 from sklearn.compose import ColumnTransformer, make_column_selector
 from sklearn.impute import KNNImputer
@@ -18,6 +19,11 @@ from automated_scoring.sliding_metrics import (
 )
 
 if __name__ == "__main__":
+    # set the threading layer before any parallel target compilation
+    config.THREADING_LAYER = "safe"  # type: ignore
+
+    from automated_scoring.mpi_utils import MPIContext
+
     cfg.key_keypoints = "pose"
     cfg.key_timestamp = "time_stamp"
 
@@ -80,9 +86,9 @@ if __name__ == "__main__":
         decision_threshold_range=(0.0, 1.0),
         decision_threshold_step=0.01,
         tolerance=0.005,
-        random_state=1,
         plot_results=False,
         results_path=".",
+        iteration_manager=MPIContext(random_state=1),
     )
 
     if best_parameters is not None:

@@ -15,6 +15,8 @@ if __name__ == "__main__":
     # set the threading layer before any parallel target compilation
     config.THREADING_LAYER = "safe"  # type: ignore
 
+    from automated_scoring.mpi_utils import MPIContext
+
     cfg.key_keypoints = "keypoints"
     cfg.key_timestamp = "timestamps"
 
@@ -55,10 +57,10 @@ if __name__ == "__main__":
         decision_threshold_range=(0.0, 1.0),
         decision_threshold_step=0.01,
         tolerance=0.005,
-        random_state=1,
         plot_results=False,
         results_path=".",
         log=set_logging_level("info"),
+        iteration_manager=MPIContext(random_state=1),
     )
 
     if best_parameters is not None:
