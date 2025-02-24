@@ -1,6 +1,11 @@
 import numpy as np
-from numba import njit, prange
+from numba import njit, prange, config
 from numpy.typing import NDArray
+
+
+# set the threading layer before any parallel target compilation
+# this requires tbb!
+config.THREADING_LAYER = "safe"  # type: ignore
 
 
 @njit(parallel=True)

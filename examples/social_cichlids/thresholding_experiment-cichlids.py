@@ -1,5 +1,4 @@
 from helpers import subsample_train
-from numba import config
 from sklearn.compose import ColumnTransformer, make_column_selector
 from sklearn.impute import KNNImputer
 from sklearn.pipeline import Pipeline
@@ -18,8 +17,6 @@ from automated_scoring.sliding_metrics import (
 )
 
 if __name__ == "__main__":
-    # set the threading layer before any parallel target compilation
-    config.THREADING_LAYER = "safe"  # type: ignore
 
     from automated_scoring.mpi_utils import MPIContext
 
