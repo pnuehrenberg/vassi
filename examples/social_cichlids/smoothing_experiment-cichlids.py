@@ -1,6 +1,5 @@
 import numpy as np
 from helpers import overlapping_predictions_kwargs, smooth, subsample_train
-from numba import config
 from sklearn.compose import ColumnTransformer, make_column_selector
 from sklearn.impute import KNNImputer
 from sklearn.pipeline import Pipeline
@@ -30,7 +29,7 @@ cfg.trajectory_keys = (
 
 if __name__ == "__main__":
     # set the threading layer before any parallel target compilation
-    config.THREADING_LAYER = "safe"  # type: ignore
+    # config.THREADING_LAYER = "safe"  # type: ignore
 
     from automated_scoring.mpi_utils import MPIContext
 
