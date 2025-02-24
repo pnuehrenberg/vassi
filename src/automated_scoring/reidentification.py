@@ -241,9 +241,9 @@ def assign_identities(
             assigned_col = []
             for row, col in zip(row_idx, col_idx):
                 # append to active
-                assert (row not in assigned_row) or (
-                    col not in assigned_col
-                ), f"double assignment {row_idx} {col_idx}"
+                assert (row not in assigned_row) or (col not in assigned_col), (
+                    f"double assignment {row_idx} {col_idx}"
+                )
                 assigned_row.append(row)
                 assigned_col.append(col)
                 with current_instances.validate(False):

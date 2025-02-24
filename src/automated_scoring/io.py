@@ -254,7 +254,7 @@ def load_dataset(
                 sorted(set([*np.unique(observations["category"]), background_category]))
             )
             set_logging_level().warning(
-                f"Loading categories ({", ".join(categories)}) from observations file, specify categories argument if incomplete."
+                f"Loading categories ({', '.join(categories)}) from observations file, specify categories argument if incomplete."
             )
         return AnnotatedDataset(
             groups,

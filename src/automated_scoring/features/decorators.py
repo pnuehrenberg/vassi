@@ -34,11 +34,11 @@ def _get_prefix(func: Feature | functools.partial) -> str:
     prefix = ""
     if not hasattr(func.func, "__name__"):
         raise ValueError(f"{func} is not a valid named feature.")
-    if func.func.__name__ in PREFIXES:  # type: ignore
-        prefix = PREFIXES[func.func.__name__]  # type: ignore
+    if func.func.__name__ in PREFIXES:
+        prefix = PREFIXES[func.func.__name__]
     else:
-        print("decorator", func.func.__name__, "has no prefix")  # type: ignore
-    return f"{prefix}{_get_prefix(func.keywords["func"])}"
+        print("decorator", func.func.__name__, "has no prefix")
+    return f"{prefix}{_get_prefix(func.keywords['func'])}"
 
 
 def _as_absolute(*args, func: Feature, **kwargs) -> NDArray:

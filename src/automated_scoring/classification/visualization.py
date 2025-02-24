@@ -176,9 +176,9 @@ def plot_classification_timeline(
         if annotations is not None:
             _plot_timeline(axes[idx], annotations, categories, (0, 0.5), "#67a9cf")
         if y_proba is not None:
-            assert (
-                timestamps is not None
-            ), "specify timestamps when plotting probabilities"
+            assert timestamps is not None, (
+                "specify timestamps when plotting probabilities"
+            )
             axes[idx].plot(
                 timestamps,
                 y_proba[:, idx],
@@ -187,9 +187,9 @@ def plot_classification_timeline(
                 alpha=0.5 if y_proba_smoothed is not None else 1,
             )
         if y_proba_smoothed is not None:
-            assert (
-                timestamps is not None
-            ), "specify timestamps when plotting probabilities"
+            assert timestamps is not None, (
+                "specify timestamps when plotting probabilities"
+            )
             axes[idx].plot(timestamps, y_proba_smoothed[:, idx], lw=1, c="k")
         axes[idx].set_facecolor("#f7f7f7")
         axes[idx].spines[["right", "top", "bottom"]].set_visible(False)

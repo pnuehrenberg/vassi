@@ -1,9 +1,6 @@
 from abc import ABC, abstractmethod
 from collections.abc import Mapping, Sequence
-from typing import (
-    TYPE_CHECKING,
-    Optional,
-)
+from typing import TYPE_CHECKING, Optional, overload
 
 import numpy as np
 import pandas as pd
@@ -40,11 +37,35 @@ class SampleableMixin(ABC):
         extractor: FeatureExtractor | DataFrameFeatureExtractor,
     ) -> pd.DataFrame | NDArray: ...
 
+    @overload
+    def sample_X(
+        self,
+        extractor: FeatureExtractor,
+    ) -> NDArray: ...
+
+    @overload
+    def sample_X(
+        self,
+        extractor: DataFrameFeatureExtractor,
+    ) -> pd.DataFrame: ...
+
     def sample_X(
         self,
         extractor: FeatureExtractor | DataFrameFeatureExtractor,
     ) -> pd.DataFrame | NDArray:
         return self._sample_X(extractor)
+
+    @overload
+    def sample(
+        self,
+        extractor: FeatureExtractor,
+    ) -> tuple[NDArray, NDArray | None]: ...
+
+    @overload
+    def sample(
+        self,
+        extractor: DataFrameFeatureExtractor,
+    ) -> tuple[pd.DataFrame, NDArray | None]: ...
 
     def sample(
         self,
@@ -73,6 +94,34 @@ class SampleableMixin(ABC):
         *,
         store_indices: bool,
     ) -> tuple[pd.DataFrame | NDArray, NDArray | None]: ...
+
+    @overload
+    def subsample(
+        self,
+        extractor: FeatureExtractor,
+        size: int | float | Mapping[str | tuple[str, ...], int | float],
+        *,
+        random_state: Optional[int | np.random.Generator],
+        stratify: bool,
+        reset_previous_indices: bool,
+        exclude_previous_indices: bool,
+        store_indices: bool,
+        log: Optional["Logger"],
+    ) -> tuple[NDArray, NDArray | None]: ...
+
+    @overload
+    def subsample(
+        self,
+        extractor: DataFrameFeatureExtractor,
+        size: int | float | Mapping[str | tuple[str, ...], int | float],
+        *,
+        random_state: Optional[int | np.random.Generator],
+        stratify: bool,
+        reset_previous_indices: bool,
+        exclude_previous_indices: bool,
+        store_indices: bool,
+        log: Optional["Logger"],
+    ) -> tuple[pd.DataFrame, NDArray | None]: ...
 
     def subsample(
         self,

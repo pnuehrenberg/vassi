@@ -339,8 +339,7 @@ class _NestedResult(_Result):
         default_decision: int | str = "none",
     ) -> Self:
         classification_results = self._flat_classification_results()
-        num_cpus = cpu_count()
-        num_cpus = min(num_cpus, 32)
+        num_cpus = cpu_count() - 1
         with get_context("spawn").Pool(processes=num_cpus) as pool:
             classification_results = pool.map(
                 _smooth_probabilities,
@@ -365,8 +364,7 @@ class _NestedResult(_Result):
         default_decision: int | str = "none",
     ) -> Self:
         classification_results = self._flat_classification_results()
-        num_cpus = cpu_count()
-        num_cpus = min(num_cpus, 32)
+        num_cpus = cpu_count() - 1
         with get_context("spawn").Pool(processes=num_cpus) as pool:
             classification_results = pool.map(
                 _threshold_probabilities,

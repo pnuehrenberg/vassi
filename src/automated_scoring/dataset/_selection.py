@@ -148,7 +148,7 @@ def select_indices(
             category in categories for category in key
         ):
             log.warning(
-                f"attempting to subsample at least one undefined category ({", ".join(key)})"
+                f"attempting to subsample at least one undefined category ({', '.join(key)})"
             )
         indices_category, y_category, stratification_levels_category = (
             _get_indices_by_category(

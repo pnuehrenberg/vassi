@@ -3,7 +3,7 @@ from numba import njit, prange
 from numpy.typing import NDArray
 
 
-@njit(parallel=True, cache=True)
+@njit(parallel=True)
 def mean(array: NDArray) -> NDArray:
     assert array.ndim == 3
     result = np.zeros((array.shape[0], array.shape[1]), dtype=np.float64)
@@ -13,7 +13,7 @@ def mean(array: NDArray) -> NDArray:
     return result
 
 
-@njit(parallel=True, cache=True)
+@njit(parallel=True)
 def median(array: NDArray) -> NDArray:
     assert array.ndim == 3
     result = np.zeros((array.shape[0], array.shape[1]), dtype=np.float64)
@@ -23,7 +23,7 @@ def median(array: NDArray) -> NDArray:
     return result
 
 
-@njit(parallel=True, cache=True)
+@njit(parallel=True)
 def min(array: NDArray) -> NDArray:
     assert array.ndim == 3
     result = np.zeros((array.shape[0], array.shape[1]), dtype=np.float64)
@@ -33,7 +33,7 @@ def min(array: NDArray) -> NDArray:
     return result
 
 
-@njit(parallel=True, cache=True)
+@njit(parallel=True)
 def max(array: NDArray) -> NDArray:
     assert array.ndim == 3
     result = np.zeros((array.shape[0], array.shape[1]), dtype=np.float64)
@@ -43,7 +43,7 @@ def max(array: NDArray) -> NDArray:
     return result
 
 
-@njit(parallel=True, cache=True)
+@njit(parallel=True)
 def quantile(array: NDArray, q: float) -> NDArray:
     assert array.ndim == 3
     result = np.zeros((array.shape[0], array.shape[1]), dtype=np.float64)
@@ -53,31 +53,31 @@ def quantile(array: NDArray, q: float) -> NDArray:
     return result
 
 
-@njit(cache=True)
+@njit
 def q01(array: NDArray) -> NDArray:
     return quantile(array, 0.01)
 
 
-@njit(cache=True)
+@njit
 def q05(array: NDArray) -> NDArray:
     return quantile(array, 0.05)
 
 
-@njit(cache=True)
+@njit
 def q10(array: NDArray) -> NDArray:
     return quantile(array, 0.10)
 
 
-@njit(cache=True)
+@njit
 def q90(array: NDArray) -> NDArray:
     return quantile(array, 0.90)
 
 
-@njit(cache=True)
+@njit
 def q95(array: NDArray) -> NDArray:
     return quantile(array, 0.95)
 
 
-@njit(cache=True)
+@njit
 def q99(array: NDArray) -> NDArray:
     return quantile(array, 0.99)
