@@ -94,6 +94,8 @@ def _permute_recipients_in_group(
     proximitry_matrix, timestamps = get_proximitry_matrix(group)
     annotations_group = group.observations
     annotations_group = annotations_group[annotations_group["category"] != "none"]
+    if TYPE_CHECKING:
+        assert isinstance(annotations_group, pd.DataFrame)
     annotations_group["recipient"] = annotations_group.apply(
         _non_recipient_neighbor,
         axis=1,
@@ -102,8 +104,7 @@ def _permute_recipients_in_group(
         proximitry_matrix=proximitry_matrix,
         timestamps=timestamps,
     )
-    if TYPE_CHECKING:
-        assert isinstance(annotations_group, pd.DataFrame)
+    annotations_group = annotations_group.sort_values(["recipient", "start"])
     return group.annotate(
         annotations_group,
         categories=group.categories,
