@@ -28,9 +28,6 @@ cfg.trajectory_keys = (
 
 
 if __name__ == "__main__":
-    # set the threading layer before any parallel target compilation
-    # config.THREADING_LAYER = "safe"  # type: ignore
-
     from automated_scoring.mpi_utils import MPIContext
 
     dataset_full = load_dataset(
@@ -75,15 +72,15 @@ if __name__ == "__main__":
         extractor,
         XGBClassifier(n_estimators=1000),
         smooth,
-        smoothing_parameters_grid={"median_filter_window": np.arange(3, 91, 2)},
+        smoothing_parameters_grid={"median_filter_window": np.arange(1, 91, 2)},
         remove_overlapping_predictions=True,
         overlapping_predictions_kwargs=overlapping_predictions_kwargs,
         num_iterations=20,
         k=5,
         sampling_func=subsample_train,
-        tolerance=0.005,
+        tolerance=0.0,
         plot_results=False,
-        results_path=".",
+        results_path="optimization_results/smoothing",
         log=set_logging_level("info"),
         iteration_manager=MPIContext(random_state=1),
     )
