@@ -1,8 +1,7 @@
 import pandas as pd
-from numpy.typing import NDArray
 
 from ...data_structures import Trajectory
-from ...features import DataFrameFeatureExtractor, FeatureExtractor
+from ...features import BaseExtractor, F
 from ._base_sampleable import BaseSampleable
 from ._mixins import (
     AnnotatedMixin,
@@ -13,8 +12,8 @@ from ._mixins import (
 class Individual(BaseSampleable):
     def _sample_X(
         self,
-        extractor: FeatureExtractor | DataFrameFeatureExtractor,
-    ) -> pd.DataFrame | NDArray:
+        extractor: BaseExtractor[F],
+    ) -> F:
         return extractor.extract(self.trajectory)
 
     def annotate(

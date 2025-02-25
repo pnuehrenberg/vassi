@@ -78,7 +78,6 @@ if __name__ == "__main__":
         num_iterations=20,
         k=5,
         sampling_func=subsample_train,
-        tolerance=0.0,
         plot_results=False,
         results_path="optimization_results/smoothing",
         log=set_logging_level("info"),

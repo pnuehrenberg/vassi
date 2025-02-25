@@ -1,11 +1,8 @@
 from __future__ import annotations
 
-import functools
 from collections.abc import Iterable
-from contextlib import contextmanager
 from itertools import product
-from time import perf_counter
-from typing import TYPE_CHECKING, Any, Callable, Generator, Literal, Optional
+from typing import TYPE_CHECKING, Any, Callable, Optional, TypedDict
 
 import matplotlib.pyplot as plt
 import numpy as np
@@ -13,46 +10,10 @@ import pandas as pd
 from matplotlib.axes import Axes
 from numpy.typing import NDArray
 
-from ..logging import set_logging_level
 from .visualization import Array
 
 if TYPE_CHECKING:
-    from loguru import Logger
-
-
-@contextmanager
-def catch_time() -> Generator[Callable[[], float], None, None]:
-    # https://stackoverflow.com/questions/33987060/python-context-manager-that-measures-time
-    start = perf_counter()
-    yield lambda: perf_counter() - start
-
-
-def _log_time[T, **P](
-    *args,
-    func: Callable[P, T],
-    level: Literal["trace", "debug", "info", "success", "warning", "error"],
-    description: str,
-    **kwargs,
-) -> T:
-    if "log" not in kwargs:
-        raise ValueError("missing keyword-only argument log: loguru.Logger | None")
-    log = kwargs.pop("log")
-    if log is None:
-        log = set_logging_level()
-    if TYPE_CHECKING:
-        assert isinstance(log, Logger)
-    kwargs["log"] = log
-    getattr(log, level)(f"started {description}")
-    with catch_time() as get_time:
-        result = func(*args, **kwargs)
-    getattr(log, level)(f"finished {description} in {get_time():.2f} seconds")
-    return result
-
-
-def log_time[T, **P](func: Callable[P, T]) -> Callable[P, T]:
-    result_func = functools.partial(_log_time, func=func)
-    decorated = functools.wraps(func)(result_func)
-    return decorated
+    pass
 
 
 def parameter_grid_to_combinations(
@@ -205,16 +166,17 @@ def evaluate_results(
         ax.axhspan(
             max_score - tolerance, max_score, color="r", lw=0, alpha=0.2, zorder=0
         )
-        # ax.text(
-        #     1,
-        #     max_score,
-        #     "tolerance",
-        #     transform=transforms.blended_transform_factory(ax.transAxes, ax.transData),
-        #     ha="right",
-        #     va="bottom",
-        #     color="r",
-        #     alpha=0.2,
-        # )
     if show_on_return:
         plt.show()
     return best_parameters
+
+
+class OverlappingPredictionsKwargs(TypedDict):
+    priority_func: Callable[[pd.DataFrame], Iterable[float]]
+    prefilter_recipient_bouts: bool
+    max_bout_gap: float
+    max_allowed_bout_overlap: float
+
+
+def passthrough(*, array: NDArray) -> NDArray:
+    return array

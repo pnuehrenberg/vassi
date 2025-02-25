@@ -14,7 +14,7 @@ from ..dataset import (
 )
 from ..dataset.types._base_sampleable import BaseSampleable
 from ..dataset.types._mixins import AnnotatedMixin, SampleableMixin
-from ..features import DataFrameFeatureExtractor, FeatureExtractor
+from ..features import BaseExtractor, F
 from ..logging import log_loop, log_time, set_logging_level
 from ..utils import class_name, ensure_generator
 from .results import (
@@ -37,7 +37,7 @@ if TYPE_CHECKING:
 def _predict_sampleable(
     sampleable: BaseSampleable,  # use base type instead
     classifier: Classifier,
-    extractor: FeatureExtractor | DataFrameFeatureExtractor,
+    extractor: BaseExtractor[F],
     *,
     encode_func: Optional[EncodingFunction] = None,
     categories: Optional[Iterable[str]] = None,
@@ -78,7 +78,7 @@ def _predict_sampleable(
 def _predict_group(
     group: Group,
     classifier: Classifier,
-    extractor: FeatureExtractor | DataFrameFeatureExtractor,
+    extractor: BaseExtractor[F],
     *,
     encode_func: Optional[EncodingFunction] = None,
     categories: Optional[Iterable[str]] = None,
@@ -120,7 +120,7 @@ def _predict_group(
 def _predict(
     dataset: Dataset,
     classifier: Classifier,
-    extractor: FeatureExtractor | DataFrameFeatureExtractor,
+    extractor: BaseExtractor[F],
     *,
     encode_func: Optional[EncodingFunction] = None,
     categories: Optional[Iterable[str]] = None,
@@ -159,7 +159,7 @@ def _predict(
 def predict(
     sampleable: BaseSampleable,
     classifier: Classifier,
-    extractor: FeatureExtractor | DataFrameFeatureExtractor,
+    extractor: BaseExtractor[F],
     *,
     encode_func: Optional[EncodingFunction] = None,
     categories: Optional[Iterable[str]] = None,
@@ -172,7 +172,7 @@ def predict(
 def predict(
     sampleable: Group,
     classifier: Classifier,
-    extractor: FeatureExtractor | DataFrameFeatureExtractor,
+    extractor: BaseExtractor[F],
     *,
     encode_func: Optional[EncodingFunction] = None,
     categories: Optional[Iterable[str]] = None,
@@ -185,7 +185,7 @@ def predict(
 def predict(
     sampleable: Dataset,
     classifier: Classifier,
-    extractor: FeatureExtractor | DataFrameFeatureExtractor,
+    extractor: BaseExtractor[F],
     *,
     encode_func: Optional[EncodingFunction] = None,
     categories: Optional[Iterable[str]] = None,
@@ -197,7 +197,7 @@ def predict(
 def predict(
     sampleable: SampleableMixin,
     classifier: Classifier,
-    extractor: FeatureExtractor | DataFrameFeatureExtractor,
+    extractor: BaseExtractor[F],
     *,
     encode_func: Optional[EncodingFunction] = None,
     categories: Optional[Iterable[str]] = None,
@@ -247,7 +247,7 @@ def predict(
 )
 def k_fold_predict(
     dataset: Dataset,
-    extractor: FeatureExtractor | DataFrameFeatureExtractor,
+    extractor: BaseExtractor[F],
     classifier: Classifier,
     *,
     k: int,

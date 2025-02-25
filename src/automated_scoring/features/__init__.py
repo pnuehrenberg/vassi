@@ -1,5 +1,10 @@
 from .decorators import as_absolute, as_dataframe, as_sign_change_latency
-from .feature_extractor import DataFrameFeatureExtractor, FeatureExtractor
+from .feature_extractor import (
+    BaseExtractor,
+    DataFrameFeatureExtractor,
+    F,
+    FeatureExtractor,
+)
 from .features import (
     keypoint_distances,
     keypoints,
@@ -45,6 +50,8 @@ __all__ = [
     "projected_velocity",
     "target_velocity",
     # from feature_extractor
+    "BaseExtractor",
     "FeatureExtractor",
     "DataFrameFeatureExtractor",
+    "F",
 ]

@@ -8,10 +8,9 @@ from typing import (
 )
 
 import numpy as np
-import pandas as pd
 from numpy.typing import NDArray
 
-from ....features import DataFrameFeatureExtractor, FeatureExtractor
+from ....features import BaseExtractor, F
 from ...utils import (
     Identifier,
     IndividualIdentifier,
@@ -69,14 +68,13 @@ class NestedSampleableMixin(ABC):
 
     def _sample_X(
         self,
-        extractor: FeatureExtractor | DataFrameFeatureExtractor,
-    ) -> pd.DataFrame | NDArray:
-        X = []
-        for identifier, sampleable in self:
-            X.append(sampleable.sample_X(extractor))
-        if isinstance(extractor, DataFrameFeatureExtractor):
-            return pd.concat(X, axis=0, ignore_index=True)
-        return np.concatenate(X, axis=0)
+        extractor: BaseExtractor[F],
+    ) -> F:
+        return extractor.concatenate(
+            *[sampleable.sample_X(extractor) for identifier, sampleable in self],
+            axis=0,
+            ignore_index=True,
+        )
 
     def _get_available_indices(
         self,
@@ -188,15 +186,16 @@ class NestedSampleableMixin(ABC):
 
     def _select_samples(
         self,
-        extractor: FeatureExtractor | DataFrameFeatureExtractor,
+        extractor: BaseExtractor[F],
         indices: NDArray,
         splits: Optional[dict],
         *,
         store_indices: bool,
-    ) -> tuple[pd.DataFrame | NDArray, NDArray | None]:
+    ) -> tuple[F, NDArray | None]:
         if splits is None:
             raise ValueError("splits must be specified for nested sampleables")
-        X, y = [], []
+        X: list[F] = []
+        y = []
         num_features = None
         for identifier, sampleable in self:
             _X, _y = sampleable._select_samples(
@@ -209,16 +208,14 @@ class NestedSampleableMixin(ABC):
                 num_features = _X.shape[1]
             X.append(_X)
             y.append(_y)
-        if isinstance(extractor, DataFrameFeatureExtractor):
-            X = pd.concat(X, axis=0, ignore_index=True)
-        else:
-            X = [(_X.reshape(0, num_features) if _X.size == 0 else _X) for _X in X]
-            X = np.concatenate(X)
+        X_concat = extractor.concatenate(
+            *X, axis=0, ignore_index=True, num_features=num_features
+        )
         if any([_y is None for _y in y]):
-            y = None
+            y_concat = None
         else:
-            y = np.concatenate(y)
-        return X, y
+            y_concat = np.concatenate(y)
+        return X_concat, y_concat
 
     def select(self, identifier: Identifier) -> "SampleableMixin":
         return self._sampleables[identifier]

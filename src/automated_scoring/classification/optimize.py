@@ -3,34 +3,23 @@ from __future__ import annotations
 import os
 from collections.abc import Iterable
 from functools import partial
-from typing import TYPE_CHECKING, Any, Callable, Optional, TypedDict
+from typing import TYPE_CHECKING, Any, Optional
 
 import numpy as np
 import pandas as pd
 from numpy.typing import NDArray
 
 from ..dataset import AnnotatedDataset
-from ..features import DataFrameFeatureExtractor, FeatureExtractor
+from ..features import BaseExtractor, F
 from ..logging import log_loop, log_time, set_logging_level, with_loop
 from ..utils import IterationManager, SmoothingFunction
-from . import _optimization_utils as utils
+from . import optimization_utils as utils
 from .predict import k_fold_predict
 from .results import DatasetClassificationResult
 from .utils import EncodingFunction, SamplingFunction
 
 if TYPE_CHECKING:
     from loguru import Logger
-
-
-class OverlappingPredictionsKwargs(TypedDict):
-    priority_func: Callable[[pd.DataFrame], Iterable[float]]
-    prefilter_recipient_bouts: bool
-    max_bout_gap: float
-    max_allowed_bout_overlap: float
-
-
-def _passthrough(*, array: NDArray) -> NDArray:
-    return array
 
 
 @log_time(
@@ -45,7 +34,7 @@ def _score_smoothed_results(
     encode_func: EncodingFunction,
     *,
     remove_overlapping_predictions: bool,
-    overlapping_predictions_kwargs: Optional[OverlappingPredictionsKwargs],
+    overlapping_predictions_kwargs: Optional[utils.OverlappingPredictionsKwargs],
     iteration: int,
     log: Logger,
 ) -> list[list[dict[str, Any]]]:
@@ -70,7 +59,7 @@ def _score_smoothed_results(
             message="scored parameters",
             log=log,
         ):
-            smoothing_funcs = [_passthrough for _ in range(num_categories)]
+            smoothing_funcs = [utils.passthrough for _ in range(num_categories)]
             smoothing_funcs[category_idx] = partial(smoothing_func, parameters)
             classification_result = classification_result.smooth(smoothing_funcs)
             if remove_overlapping_predictions:
@@ -100,11 +89,11 @@ def score_smoothing(
     smoothing_func: SmoothingFunction,
     parameter_combinations: list[list[dict[str, Any]]],
     dataset: AnnotatedDataset,
-    extractor: FeatureExtractor | DataFrameFeatureExtractor,
+    extractor: BaseExtractor[F],
     classifier: Any,
     *,
     remove_overlapping_predictions: bool,
-    overlapping_predictions_kwargs: Optional[OverlappingPredictionsKwargs],
+    overlapping_predictions_kwargs: Optional[utils.OverlappingPredictionsKwargs],
     iteration: int,
     k: int,
     random_state: np.random.Generator | int,
@@ -146,7 +135,7 @@ def _score_thresholds(
     encode_func: EncodingFunction,
     *,
     remove_overlapping_predictions: bool,
-    overlapping_predictions_kwargs: Optional[OverlappingPredictionsKwargs],
+    overlapping_predictions_kwargs: Optional[utils.OverlappingPredictionsKwargs],
     default_decision: int | str,
     iteration: int,
     log: Logger,
@@ -202,11 +191,11 @@ def _score_thresholds(
 def score_thresholds(
     decision_thresholds: list[NDArray],
     dataset: AnnotatedDataset,
-    extractor: FeatureExtractor | DataFrameFeatureExtractor,
+    extractor: BaseExtractor[F],
     classifier: Any,
     *,
     remove_overlapping_predictions: bool,
-    overlapping_predictions_kwargs: Optional[OverlappingPredictionsKwargs],
+    overlapping_predictions_kwargs: Optional[utils.OverlappingPredictionsKwargs],
     default_decision: int | str,
     iteration: int,
     k: int,
@@ -250,15 +239,15 @@ def score_thresholds(
 )
 def optimize_smoothing(
     dataset: AnnotatedDataset,
-    extractor: FeatureExtractor | DataFrameFeatureExtractor,
+    extractor: BaseExtractor[F],
     classifier: Any,
     smoothing_func: SmoothingFunction,
     smoothing_parameters_grid: dict[str, Iterable] | list[dict[str, Iterable]],
     *,
     remove_overlapping_predictions: bool,
-    overlapping_predictions_kwargs: Optional[OverlappingPredictionsKwargs] = None,
+    overlapping_predictions_kwargs: Optional[utils.OverlappingPredictionsKwargs] = None,
     num_iterations: int,
-    tolerance: float = 0.01,
+    tolerance: float = 0.0,
     plot_results: bool = True,
     k: int,
     sampling_func: SamplingFunction,
@@ -313,6 +302,8 @@ def optimize_smoothing(
             results[category_idx].extend(category_results)
     results = [pd.DataFrame(category_results) for category_results in results]
     if results_path is not None:
+        if not os.path.exists(results_path):
+            os.makedirs(results_path, exist_ok=True)
         for category_results, category in zip(results, dataset.categories):
             category_results.to_csv(
                 os.path.join(results_path, f"results_smoothing-{category}.csv")
@@ -338,11 +329,11 @@ def optimize_smoothing(
 )
 def optimize_decision_thresholds(
     dataset: AnnotatedDataset,
-    extractor: FeatureExtractor | DataFrameFeatureExtractor,
+    extractor: BaseExtractor[F],
     classifier: Any,
     *,
     remove_overlapping_predictions: bool,
-    overlapping_predictions_kwargs: Optional[OverlappingPredictionsKwargs] = None,
+    overlapping_predictions_kwargs: Optional[utils.OverlappingPredictionsKwargs] = None,
     num_iterations: int,
     decision_threshold_range: tuple[float, float] | Iterable[tuple[float, float]] = (
         0.0,
@@ -351,7 +342,7 @@ def optimize_decision_thresholds(
     decision_threshold_step: float | Iterable[float] = 0.01,
     default_decision: int | str = "none",
     smoothing_funcs: Optional[Iterable[SmoothingFunction]] = None,
-    tolerance: float = 0.01,
+    tolerance: float = 0.0,
     plot_results: bool = True,
     k: int,
     sampling_func: SamplingFunction,
@@ -409,6 +400,8 @@ def optimize_decision_thresholds(
             results[category_idx].extend(category_results)
     results = [pd.DataFrame(category_results) for category_results in results]
     if results_path is not None:
+        if not os.path.exists(results_path):
+            os.makedirs(results_path, exist_ok=True)
         for category_results, category in zip(results, dataset.categories):
             category_results.to_csv(
                 os.path.join(results_path, f"results_thresholding-{category}.csv")

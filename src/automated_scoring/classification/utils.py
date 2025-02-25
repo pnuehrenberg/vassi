@@ -21,7 +21,7 @@ from ..dataset.observations.utils import (
     ensure_single_index,
 )
 from ..dataset.utils import interval_contained, interval_overlap
-from ..features import DataFrameFeatureExtractor, FeatureExtractor
+from ..features import BaseExtractor, F
 from ..utils import ensure_generator, to_int_seed
 
 if TYPE_CHECKING:
@@ -229,9 +229,9 @@ class SamplingFunction(Protocol):
     def __call__(
         self,
         dataset: Dataset,
-        extractor: FeatureExtractor | DataFrameFeatureExtractor,
+        extractor: BaseExtractor[F],
         *args,
         random_state: Optional[np.random.Generator | int],
         log: Optional[Logger],
         **kwargs,
-    ) -> tuple[pd.DataFrame | NDArray, NDArray]: ...
+    ) -> tuple[F, NDArray]: ...

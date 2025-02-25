@@ -1,20 +1,25 @@
-from typing import TYPE_CHECKING
+from numpy.typing import NDArray
 
-from automated_scoring.dataset import AnnotatedDataset
-from automated_scoring.features import DataFrameFeatureExtractor
+from automated_scoring.dataset import AnnotatedDataset, Dataset
+from automated_scoring.features import BaseExtractor, F
+from automated_scoring.sliding_metrics import sliding_median
+
+
+def smooth(parameters, array):
+    if parameters["median_filter_window"] <= 1:
+        return array
+    return sliding_median(array, parameters["median_filter_window"])
 
 
 def subsample_train(
-    dataset,
-    extractor,
+    dataset: Dataset,
+    extractor: BaseExtractor[F],
     *,
-    random_state=None,
+    random_state,
     log,
-):
-    if TYPE_CHECKING:
-        assert isinstance(dataset, AnnotatedDataset)
-        assert isinstance(extractor, DataFrameFeatureExtractor)
-
+) -> tuple[F, NDArray]:
+    if not isinstance(dataset, AnnotatedDataset):
+        raise ValueError("dataset must be an annotated dataset")
     return dataset.subsample(
         extractor,
         {

@@ -1,41 +1,44 @@
 import numpy as np
-
-# from numba import jit
+from numba import config, njit
 from numpy.typing import NDArray
 
+# set the threading layer before any parallel target compilation
+# this requires tbb!
+config.THREADING_LAYER = "safe"  # type: ignore
 
-# @jit(nopython=True, cache=True)
+
+@njit
 def subtract(array_1: NDArray, array_2: NDArray) -> NDArray:
     """Subtract array_2 from array_1."""
     return array_2 - array_1
 
 
-# @jit(nopython=True, cache=True)
+@njit
 def unit_vector(vectors: NDArray) -> NDArray:
     """Vectors to unit vectors."""
-    with np.errstate(divide="ignore", invalid="ignore"):
-        return vectors / magnitude(vectors)[..., np.newaxis]
+    # with np.errstate(divide="ignore", invalid="ignore"):
+    return vectors / np.expand_dims(magnitude(vectors), -1)
 
 
-# @jit(nopython=True, cache=True)
+@njit
 def magnitude(vectors: NDArray) -> NDArray:
     """Vector magnitudes."""
     return np.sqrt(np.sum(vectors**2, axis=-1))
 
 
-# @jit(nopython=True, cache=True)
+@njit
 def euclidean_distance(array_1: NDArray, array_2: NDArray) -> NDArray:
     """Euclidean distance between two vector arrays."""
     return magnitude(array_2 - array_1)
 
 
-# @jit(nopython=True, cache=True)
+@njit
 def dot_product(vectors_1: NDArray, vectors_2: NDArray) -> NDArray:
     """Dot product between two vector arrays."""
     return np.sum(vectors_1 * vectors_2, axis=-1)
 
 
-# @jit(nopython=True, cache=True)
+@njit
 def perp(vectors: NDArray) -> NDArray:
     """Perpendicular vectors (rotated counterclockwise)."""
     vectors_perp = np.zeros(vectors.shape)
@@ -44,43 +47,43 @@ def perp(vectors: NDArray) -> NDArray:
     return vectors_perp
 
 
-# @jit(nopython=True, cache=True)
+@njit
 def perp_dot_product(vectors_1: NDArray, vectors_2: NDArray) -> NDArray:
     """Perpendicular dot product between two vector arrays."""
     return np.sum(vectors_1 * perp(vectors_2), axis=-1)
 
 
-# @jit(nopython=True, cache=True)
+@njit
 def scalar_projection(vectors_1: NDArray, vectors_2: NDArray) -> NDArray:
     """Scalar projection of vectors_1 onto vectors_2."""
-    with np.errstate(divide="ignore", invalid="ignore"):
-        return dot_product(vectors_1, vectors_2) / magnitude(vectors_2)
+    # with np.errstate(divide="ignore", invalid="ignore"):
+    return dot_product(vectors_1, vectors_2) / magnitude(vectors_2)
 
 
-# @jit(nopython=True, cache=True)
+@njit
 def projection(vectors_1: NDArray, vectors_2: NDArray) -> NDArray:
     """Projection vectors of vectors_1 onto vectors_2."""
-    return scalar_projection(vectors_1, vectors_2)[..., np.newaxis] * unit_vector(
+    return np.expand_dims(scalar_projection(vectors_1, vectors_2), -1) * unit_vector(
         vectors_2
     )
 
 
-# @jit(nopython=True, cache=True)
+@njit
 def scalar_rejection(vectors_1: NDArray, vectors_2: NDArray) -> NDArray:
     """Scalar rejection of vectors_1 from vectors_2."""
-    with np.errstate(divide="ignore", invalid="ignore"):
-        return perp_dot_product(vectors_1, vectors_2) / magnitude(vectors_2)
+    # with np.errstate(divide="ignore", invalid="ignore"):
+    return perp_dot_product(vectors_1, vectors_2) / magnitude(vectors_2)
 
 
-# @jit(nopython=True, cache=True)
+@njit
 def rejection(vectors_1: NDArray, vectors_2: NDArray) -> NDArray:
     """Rejection vectors of vectors_1 from vectors_2."""
-    return scalar_rejection(vectors_1, vectors_2)[..., np.newaxis] * unit_vector(
+    return np.expand_dims(scalar_rejection(vectors_1, vectors_2), -1) * unit_vector(
         perp(vectors_2)
     )
 
 
-# @jit(nopython=True, cache=True)
+@njit
 def rotate(vectors: NDArray, angles: NDArray) -> NDArray:
     """Rotate vectors around angles in radians."""
     vectors_rotated = np.zeros(vectors.shape)
@@ -93,7 +96,7 @@ def rotate(vectors: NDArray, angles: NDArray) -> NDArray:
     return vectors_rotated
 
 
-# @jit(nopython=True, cache=True)
+@njit
 def as_angle(vectors: NDArray) -> NDArray:
     """Represent vectors as angles in radians on the unit circle.
 
@@ -106,13 +109,13 @@ def as_angle(vectors: NDArray) -> NDArray:
     return np.arctan2(y, x)
 
 
-# @jit(nopython=True, cache=True)
+@njit
 def wrap_angle(radians: NDArray) -> NDArray:
     """Wrap angles in radians into the [-pi, pi] range."""
     return (radians + np.pi) % (2 * np.pi) - np.pi
 
 
-# @jit(nopython=True, cache=True)
+@njit
 def signed_angle(vectors_1: NDArray, vectors_2: NDArray) -> NDArray:
     """Signed angles between vectors.
 
@@ -120,21 +123,21 @@ def signed_angle(vectors_1: NDArray, vectors_2: NDArray) -> NDArray:
     return wrap_angle(as_angle(vectors_2) - as_angle(vectors_1))
 
 
-# @jit(nopython=True, cache=True)
+@njit
 def unsigned_angle(vectors_1: NDArray, vectors_2: NDArray) -> NDArray:
     """Unsigned angles between vectors.
 
     Returns np.nan values when either input is of zero-magnitude.
     """
     # slightly faster than np.abs(signed_angle(vectors_2, vectors_1))
-    with np.errstate(divide="ignore", invalid="ignore"):
-        return np.acos(
-            dot_product(vectors_1, vectors_2)
-            / (magnitude(vectors_1) * magnitude(vectors_2))
-        )
+    # with np.errstate(divide="ignore", invalid="ignore"):
+    return np.acos(
+        dot_product(vectors_1, vectors_2)
+        / (magnitude(vectors_1) * magnitude(vectors_2))
+    )
 
 
-# @jit(nopython=True, cache=True)
+@njit
 def as_unit_vector(radians: NDArray) -> NDArray:
     """Unit vectors representing angles in radians on the unit circle."""
     unit_vectors = np.zeros((*radians.shape, 2))
@@ -143,14 +146,14 @@ def as_unit_vector(radians: NDArray) -> NDArray:
     return unit_vectors
 
 
-# @jit(nopython=True, cache=True)
+@njit
 def shift(array: NDArray, step: int) -> NDArray:
     """Similar to np.roll on axis 0 (shift to right with step > 0, shift to left with step < 0).
 
     Values are filled with the last value (shift to left) or the first value (shift to right), no wrapping."""
     if step == 0:
         return array.copy()
-    array_shifted = np.zeros_like(array)
+    array_shifted = np.zeros(array.shape, dtype=array.dtype)
     if step > 0:
         array_shifted[step:] = array[:-step]
         array_shifted[:step] = array[0]

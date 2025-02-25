@@ -1,12 +1,12 @@
 from abc import ABC, abstractmethod
 from collections.abc import Mapping, Sequence
-from typing import TYPE_CHECKING, Optional, overload
+from typing import TYPE_CHECKING, Optional
 
 import numpy as np
 import pandas as pd
 from numpy.typing import NDArray
 
-from ....features import DataFrameFeatureExtractor, FeatureExtractor
+from ....features import BaseExtractor, F
 from ..._selection import select_indices
 from .annotated import AnnotatedMixin
 
@@ -34,43 +34,19 @@ class SampleableMixin(ABC):
     @abstractmethod
     def _sample_X(
         self,
-        extractor: FeatureExtractor | DataFrameFeatureExtractor,
-    ) -> pd.DataFrame | NDArray: ...
-
-    @overload
-    def sample_X(
-        self,
-        extractor: FeatureExtractor,
-    ) -> NDArray: ...
-
-    @overload
-    def sample_X(
-        self,
-        extractor: DataFrameFeatureExtractor,
-    ) -> pd.DataFrame: ...
+        extractor: BaseExtractor[F],
+    ) -> F: ...
 
     def sample_X(
         self,
-        extractor: FeatureExtractor | DataFrameFeatureExtractor,
-    ) -> pd.DataFrame | NDArray:
+        extractor: BaseExtractor[F],
+    ) -> F:
         return self._sample_X(extractor)
 
-    @overload
     def sample(
         self,
-        extractor: FeatureExtractor,
-    ) -> tuple[NDArray, NDArray | None]: ...
-
-    @overload
-    def sample(
-        self,
-        extractor: DataFrameFeatureExtractor,
-    ) -> tuple[pd.DataFrame, NDArray | None]: ...
-
-    def sample(
-        self,
-        extractor: FeatureExtractor | DataFrameFeatureExtractor,
-    ) -> tuple[pd.DataFrame | NDArray, NDArray | None]:
+        extractor: BaseExtractor[F],
+    ) -> tuple[F, NDArray | None]:
         X = self.sample_X(extractor)
         y = None
         if isinstance(self, AnnotatedMixin):
@@ -88,17 +64,16 @@ class SampleableMixin(ABC):
     @abstractmethod
     def _select_samples(
         self,
-        extractor: FeatureExtractor | DataFrameFeatureExtractor,
+        extractor: BaseExtractor[F],
         indices: NDArray,
         splits: Optional[dict],
         *,
         store_indices: bool,
-    ) -> tuple[pd.DataFrame | NDArray, NDArray | None]: ...
+    ) -> tuple[F, NDArray | None]: ...
 
-    @overload
     def subsample(
         self,
-        extractor: FeatureExtractor,
+        extractor: BaseExtractor[F],
         size: int | float | Mapping[str | tuple[str, ...], int | float],
         *,
         random_state: Optional[int | np.random.Generator],
@@ -107,34 +82,7 @@ class SampleableMixin(ABC):
         exclude_previous_indices: bool,
         store_indices: bool,
         log: Optional["Logger"],
-    ) -> tuple[NDArray, NDArray | None]: ...
-
-    @overload
-    def subsample(
-        self,
-        extractor: DataFrameFeatureExtractor,
-        size: int | float | Mapping[str | tuple[str, ...], int | float],
-        *,
-        random_state: Optional[int | np.random.Generator],
-        stratify: bool,
-        reset_previous_indices: bool,
-        exclude_previous_indices: bool,
-        store_indices: bool,
-        log: Optional["Logger"],
-    ) -> tuple[pd.DataFrame, NDArray | None]: ...
-
-    def subsample(
-        self,
-        extractor: FeatureExtractor | DataFrameFeatureExtractor,
-        size: int | float | Mapping[str | tuple[str, ...], int | float],
-        *,
-        random_state: Optional[int | np.random.Generator],
-        stratify: bool,
-        reset_previous_indices: bool,
-        exclude_previous_indices: bool,
-        store_indices: bool,
-        log: Optional["Logger"],
-    ) -> tuple[pd.DataFrame | NDArray, NDArray | None]:
+    ) -> tuple[F, NDArray | None]:
         available_indices, y, stratification_levels, splits = (
             self._get_available_indices(
                 reset_previous_indices=reset_previous_indices,

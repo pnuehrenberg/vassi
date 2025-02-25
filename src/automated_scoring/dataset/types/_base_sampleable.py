@@ -1,15 +1,12 @@
 from collections.abc import Sequence
-from typing import (
-    Literal,
-    Optional,
-)
+from typing import Literal, Optional, cast
 
 import numpy as np
 import pandas as pd
 from numpy.typing import NDArray
 
 from ...data_structures import Trajectory
-from ...features import DataFrameFeatureExtractor, FeatureExtractor
+from ...features import BaseExtractor, F
 from .._selection import get_available_indices
 from ..observations.utils import (
     check_observations,
@@ -126,12 +123,12 @@ class BaseSampleable(SampleableMixin):
 
     def _select_samples(
         self,
-        extractor: FeatureExtractor | DataFrameFeatureExtractor,
+        extractor: BaseExtractor[F],
         indices: NDArray,
         splits: Optional[dict],
         *,
         store_indices: bool,
-    ) -> tuple[pd.DataFrame | NDArray, NDArray | None]:
+    ) -> tuple[F, NDArray | None]:
         if splits is not None:
             if not all([key in splits for key in ["min", "max", "offset"]]):
                 raise ValueError(
@@ -145,11 +142,7 @@ class BaseSampleable(SampleableMixin):
             y = None
             if isinstance(self, AnnotatedMixin):
                 y = np.array([])
-            if isinstance(extractor, DataFrameFeatureExtractor):
-                X = pd.DataFrame()
-            else:
-                X = np.array([])
-            return X, y
+            return extractor.empty(), y
         X = self.sample_X(extractor)
         y = None
         if isinstance(self, AnnotatedMixin):
@@ -158,8 +151,10 @@ class BaseSampleable(SampleableMixin):
             self._previous_indices.append(indices)
         if isinstance(X, pd.DataFrame):
             X = X.iloc[indices]
-        else:
+        elif isinstance(X, np.ndarray):
             X = X[indices]
+        else:
+            raise TypeError("unsupported sample type")
         if y is not None:
             y = y[indices]
-        return X, y
+        return cast(F, X), y

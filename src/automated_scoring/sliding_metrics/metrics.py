@@ -1,7 +1,6 @@
 import numpy as np
-from numba import njit, prange, config
+from numba import config, njit, prange
 from numpy.typing import NDArray
-
 
 # set the threading layer before any parallel target compilation
 # this requires tbb!

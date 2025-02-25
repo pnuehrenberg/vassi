@@ -1,5 +1,16 @@
 import os
-from typing import TYPE_CHECKING, Any, Literal, Optional, Self
+from abc import ABC, abstractmethod
+from collections.abc import Mapping
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Generic,
+    Literal,
+    Optional,
+    Protocol,
+    Self,
+    TypeVar,
+)
 
 import numpy as np
 import pandas as pd
@@ -77,7 +88,15 @@ def load_feature_func(func_name: str) -> utils.Feature:
     )
 
 
-class BaseExtractor:
+class Shaped(Protocol):
+    @property
+    def shape(self) -> tuple[int, ...]: ...
+
+
+F = TypeVar("F", bound=Shaped)
+
+
+class BaseExtractor(ABC, Generic[F]):
     """
     The base class for feature extractors.
 
@@ -86,9 +105,9 @@ class BaseExtractor:
 
     Parameters
     ----------
-    features : list[tuple[utils.Feature, dict[str, Any]]] | None, optional
+    features : list[tuple[utils.Feature, Mapping[str, Any]]] | None, optional
         The features to extract, by default None.
-    dyadic_features : list[tuple[utils.Feature, dict[str, Any]]] | None, optional
+    dyadic_features : list[tuple[utils.Feature, Mapping[str, Any]]] | None, optional
         The dyadic features to extract, by default None.
     cache_directory : str, optional
         The directory to use for caching, by default "cache".
@@ -103,8 +122,8 @@ class BaseExtractor:
     def __init__(
         self,
         *,
-        features: list[tuple[utils.Feature, dict[str, Any]]] | None = None,
-        dyadic_features: list[tuple[utils.Feature, dict[str, Any]]] | None = None,
+        features: list[tuple[utils.Feature, Mapping[str, Any]]] | None = None,
+        dyadic_features: list[tuple[utils.Feature, Mapping[str, Any]]] | None = None,
         cache_directory: str,
         pipeline: Optional[Pipeline] = None,
         refit_pipeline: bool = False,
@@ -212,7 +231,7 @@ class BaseExtractor:
 
         Returns
         -------
-        list[tuple[utils.Feature, dict[str, Any]]]
+        list[tuple[utils.Feature, Mapping[str, Any]]]
             The feature functions for the specified category.
         """
         if category == "individual":
@@ -257,7 +276,7 @@ class BaseExtractor:
 
     def _init_features(
         self,
-        feature_funcs: list[tuple[utils.Feature, dict[str, Any]]],
+        feature_funcs: list[tuple[utils.Feature, Mapping[str, Any]]],
         *,
         category: FeatureCategory,
     ) -> None:
@@ -266,7 +285,7 @@ class BaseExtractor:
 
         Parameters
         ----------
-        feature_funcs : list[tuple[utils.Feature, dict[str, Any]]]
+        feature_funcs : list[tuple[utils.Feature, Mapping[str, Any]]]
             The feature functions to initialize.
         category : Literal["individual", "dyadic"]
             The category of the features to initialize.
@@ -295,7 +314,7 @@ class BaseExtractor:
                 discard=kwargs["discard"] if "discard" in kwargs else None,
             )
             _feature_names.extend(pruned_names)
-            _feature_funcs.append((func, kwargs))
+            _feature_funcs.append((func, {key: value for key, value in kwargs.items()}))
 
     @property
     def config(self):
@@ -353,14 +372,14 @@ class BaseExtractor:
 
     def load(
         self,
-        features_config: dict[FeatureCategory, list[tuple[str, dict[str, Any]]]],
+        features_config: dict[FeatureCategory, list[tuple[str, Mapping[str, Any]]]],
     ) -> Self:
         """
         Load the extractor configuration from a dictionary.
 
         Parameters
         ----------
-        features_config : dict[Literal["individual", "dyadic"], list[tuple[str, dict[str, Any]]]]
+        features_config : dict[Literal["individual", "dyadic"], list[tuple[str, Mapping[str, Any]]]]
             The configuration to load.
 
         Returns
@@ -369,7 +388,8 @@ class BaseExtractor:
             The extractor with the loaded configuration.
         """
 
-        def ensure_flat(kwargs: dict[str, Any]) -> dict[str, Any]:
+        def ensure_flat(kwargs: Mapping[str, Any]) -> dict[str, Any]:
+            kwargs = {key: value for key, value in kwargs.items()}
             kwargs["flat"] = True
             return kwargs
 
@@ -384,11 +404,12 @@ class BaseExtractor:
         return self
 
     @classmethod
-    def concatenate(cls, *args: Any, axis: int = 1) -> Any:
-        """
-        Each subclass must implement this method to concatenate the computed features.
-        """
-        raise NotImplementedError
+    @abstractmethod
+    def concatenate(cls, *args: F, axis: int = 1, **kwargs: Any) -> F: ...
+
+    @classmethod
+    @abstractmethod
+    def empty(cls) -> F: ...
 
     def extract_features(
         self,
@@ -416,11 +437,13 @@ class BaseExtractor:
             The computed features. The type depends on the subclass.
         """
 
-        def prepare_args(kwargs: dict[str, Any]) -> tuple[Trajectory, dict[str, Any]]:
+        def prepare_args(
+            kwargs: Mapping[str, Any],
+        ) -> tuple[Trajectory, dict[str, Any]]:
             nonlocal trajectory, trajectory_other
             input_trajectory = trajectory
             input_trajectory_other = trajectory_other
-            kwargs = kwargs.copy()
+            kwargs = {key: value for key, value in kwargs.items()}
             for kwarg in self.allowed_additional_kwargs:
                 if kwarg not in kwargs:
                     continue
@@ -512,13 +535,13 @@ class BaseExtractor:
         )
 
 
-class FeatureExtractor(BaseExtractor):
+class FeatureExtractor(BaseExtractor[NDArray]):
     """
     A subclass to extract features as numpy arrays.
     """
 
     @classmethod
-    def concatenate(cls, *args: NDArray, axis: int = 1) -> NDArray:
+    def concatenate(cls, *args: NDArray, axis: int = 1, **kwargs: Any) -> NDArray:
         """
         Concatenate the computed features as a numpy array.
 
@@ -534,7 +557,25 @@ class FeatureExtractor(BaseExtractor):
         NDArray
             The concatenated features.
         """
-        return np.concatenate(args, axis=axis)
+
+        def prepare_array(array: NDArray, num_features: int | None) -> NDArray:
+            if array.size == 0:
+                if num_features is None:
+                    raise ValueError("num_features can not be None when array is empty")
+                array = array.reshape(-1, num_features)
+            return array
+
+        if "ignore_index" in kwargs:
+            kwargs.pop("ignore_index")
+        num_features = None
+        if "num_features" in kwargs:
+            num_features = kwargs.pop("num_features")
+        prepared_args = [prepare_array(arg, num_features) for arg in args]
+        return np.concatenate(prepared_args, axis=axis, **kwargs)
+
+    @classmethod
+    def empty(cls) -> NDArray:
+        return np.array([])
 
     if TYPE_CHECKING:
 
@@ -551,7 +592,7 @@ class FeatureExtractor(BaseExtractor):
         ) -> NDArray: ...
 
 
-class DataFrameFeatureExtractor(BaseExtractor):
+class DataFrameFeatureExtractor(BaseExtractor[pd.DataFrame]):
     """
     A subclass to extract features as pandas DataFrames.
 
@@ -605,7 +646,9 @@ class DataFrameFeatureExtractor(BaseExtractor):
         )
 
     @classmethod
-    def concatenate(cls, *args: pd.DataFrame, axis: int = 1) -> pd.DataFrame:
+    def concatenate(
+        cls, *args: pd.DataFrame, axis: int = 1, **kwargs: Any
+    ) -> pd.DataFrame:
         """
         Concatenate the computed features as a pandas DataFrame.
 
@@ -621,9 +664,16 @@ class DataFrameFeatureExtractor(BaseExtractor):
         pd.DataFrame
             The concatenated features.
         """
-        dataframe = pd.concat(args, axis=axis)
+        if "num_features" in kwargs:
+            kwargs.pop("num_features")
+
+        dataframe = pd.concat(args, axis=axis, **kwargs)
         assert isinstance(dataframe, pd.DataFrame)
         return dataframe
+
+    @classmethod
+    def empty(cls) -> pd.DataFrame:
+        return pd.DataFrame()
 
     if TYPE_CHECKING:
 

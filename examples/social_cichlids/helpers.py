@@ -1,10 +1,13 @@
 import numpy as np
 import pandas as pd
+from numpy.typing import NDArray
 
-from automated_scoring.classification.optimize import OverlappingPredictionsKwargs
+from automated_scoring.classification.optimization_utils import (
+    OverlappingPredictionsKwargs,
+)
 from automated_scoring.dataset import AnnotatedDataset, Dataset
 from automated_scoring.dataset.sampling.permutation import permute_recipients
-from automated_scoring.features import DataFrameFeatureExtractor, FeatureExtractor
+from automated_scoring.features import BaseExtractor, F
 from automated_scoring.sliding_metrics import sliding_median
 
 
@@ -29,12 +32,12 @@ overlapping_predictions_kwargs = OverlappingPredictionsKwargs(
 
 
 def subsample_train(
-    dataset: Dataset | AnnotatedDataset,
-    extractor: FeatureExtractor | DataFrameFeatureExtractor,
+    dataset: Dataset,
+    extractor: BaseExtractor[F],
     *,
     random_state=None,
     log,
-):
+) -> tuple[F, NDArray]:
     if not isinstance(dataset, AnnotatedDataset):
         raise ValueError(
             f"helper function to sample annotated datasets, got invalid dataset of type {type(dataset)}"
@@ -75,16 +78,10 @@ def subsample_train(
         for neighbor_rank in sampling_frequency
     ]
 
-    if isinstance(extractor, DataFrameFeatureExtractor):
-        # we know that X_additional is a list of DataFrames
-        X_additional = pd.concat(X_additional, axis=0, ignore_index=True)  # type: ignore
-        X = pd.concat([X, X_additional], axis=0, ignore_index=True)  # type: ignore
-    else:
-        X_additional = np.concatenate(X_additional, axis=0)
-        X = np.concatenate([X, X_additional], axis=0)
-
-    y_additional = np.repeat(
-        "none", len(X_additional)
-    )  # all labels are "none" because of switched recipients
-
-    return X, np.concatenate([y, y_additional])
+    X_additional = extractor.concatenate(*X_additional, axis=0, ignore_index=True)
+    # all corresponding labels are "none" because of switched recipients
+    y_additional = np.repeat("none", X_additional.shape[0])
+    return (
+        extractor.concatenate(X, X_additional, axis=0, ignore_index=True),
+        np.concatenate([y, y_additional]),
+    )

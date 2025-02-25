@@ -16,17 +16,17 @@ from automated_scoring.sliding_metrics import (
     metrics,
 )
 
+cfg.key_keypoints = "pose"
+cfg.key_timestamp = "time_stamp"
+
+cfg.trajectory_keys = (
+    "pose",
+    "time_stamp",
+)
+
+
 if __name__ == "__main__":
-
     from automated_scoring.mpi_utils import MPIContext
-
-    cfg.key_keypoints = "pose"
-    cfg.key_timestamp = "time_stamp"
-
-    cfg.trajectory_keys = (
-        "pose",
-        "time_stamp",
-    )
 
     dataset_full = load_dataset(
         "cichlids",
@@ -78,9 +78,8 @@ if __name__ == "__main__":
         sampling_func=subsample_train,
         decision_threshold_range=(0.0, 1.0),
         decision_threshold_step=0.01,
-        tolerance=0.005,
         plot_results=False,
-        results_path=".",
+        results_path="optimization_results/smoothing",
         iteration_manager=MPIContext(random_state=1),
     )
 

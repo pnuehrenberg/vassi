@@ -6,3 +6,5 @@ build
 .virtual_documents
 *.egg-info
 docs
+.zed
+*Untitled*
