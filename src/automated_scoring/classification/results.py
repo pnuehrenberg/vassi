@@ -26,19 +26,12 @@ from ..series_operations import smooth
 from ..utils import SmoothingFunction
 from .utils import (
     _filter_recipient_bouts,
-    score_category_counts,
     to_predictions,
     validate_predictions,
 )
 
 
 class _Result:
-    def score_category_counts(self) -> NDArray:
-        annotations: pd.DataFrame = self.annotations  # type: ignore
-        predictions: pd.DataFrame = self.predictions  # type: ignore
-        categories: Iterable[str] = self.categories  # type: ignore
-        return score_category_counts(annotations, predictions, categories)
-
     def f1_score(
         self,
         per: Literal["timestamp", "annotation", "prediction"],
@@ -89,7 +82,6 @@ class _Result:
         encode_func: Callable[[NDArray], NDArray[np.integer]],
         macro: bool = False,
     ) -> Mapping[str, NDArray | float]:
-        category_count_scores = self.score_category_counts()
         f1_per_timestamp = self.f1_score("timestamp", encode_func=encode_func)
         f1_per_annotation = self.f1_score("annotation", encode_func=encode_func)
         f1_per_prediction = self.f1_score("prediction", encode_func=encode_func)
@@ -97,13 +89,11 @@ class _Result:
             score_name: np.asarray(values)
             for score_name, values in zip(
                 [
-                    "category_count_score",
                     "f1_per_timestamp",
                     "f1_per_annotation",
                     "f1_per_prediction",
                 ],
                 [
-                    category_count_scores,
                     f1_per_timestamp,
                     f1_per_annotation,
                     f1_per_prediction,

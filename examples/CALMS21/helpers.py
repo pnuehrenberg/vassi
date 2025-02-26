@@ -5,10 +5,11 @@ from automated_scoring.features import BaseExtractor, F
 from automated_scoring.sliding_metrics import sliding_median
 
 
-def smooth(parameters, array):
-    if parameters["median_filter_window"] <= 1:
+def smooth(parameters, *, array):
+    median_filter_window = int(parameters["median_filter_window"])
+    if median_filter_window <= 1:
         return array
-    return sliding_median(array, parameters["median_filter_window"])
+    return sliding_median(array, median_filter_window)
 
 
 def subsample_train(

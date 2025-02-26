@@ -1,7 +1,5 @@
 import numpy as np
-from helpers import subsample_train
-from numba import config
-from scipy.signal import medfilt
+from helpers import smooth, subsample_train
 from xgboost import XGBClassifier
 
 from automated_scoring.classification import (
@@ -12,24 +10,16 @@ from automated_scoring.features import DataFrameFeatureExtractor
 from automated_scoring.io import load_dataset
 from automated_scoring.logging import set_logging_level
 
+cfg.key_keypoints = "keypoints"
+cfg.key_timestamp = "timestamps"
 
-def smooth(parameters, *, array):
-    return medfilt(array, parameters["median_filter_window"])
-
+cfg.trajectory_keys = (
+    "keypoints",
+    "timestamps",
+)
 
 if __name__ == "__main__":
-    # set the threading layer before any parallel target compilation
-    config.THREADING_LAYER = "safe"  # type: ignore
-
     from automated_scoring.mpi_utils import MPIContext
-
-    cfg.key_keypoints = "keypoints"
-    cfg.key_timestamp = "timestamps"
-
-    cfg.trajectory_keys = (
-        "keypoints",
-        "timestamps",
-    )
 
     dataset_train = load_dataset(
         "mice_train",
@@ -58,9 +48,8 @@ if __name__ == "__main__":
         num_iterations=20,
         k=5,
         sampling_func=subsample_train,
-        tolerance=0.005,
         plot_results=False,
-        results_path=".",
+        results_path="optimization_results/smoothing",
         log=set_logging_level("info"),
         iteration_manager=MPIContext(random_state=1),
     )

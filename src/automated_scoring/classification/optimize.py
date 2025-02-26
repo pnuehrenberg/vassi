@@ -37,16 +37,16 @@ def _score_smoothed_results(
     overlapping_predictions_kwargs: Optional[utils.OverlappingPredictionsKwargs],
     iteration: int,
     log: Logger,
-) -> list[list[dict[str, Any]]]:
+) -> dict[str, list[dict[str, Any]]]:
     num_categories = len(parameter_combinations)
     categories = classification_result.categories
     if not num_categories == len(categories):
         raise ValueError(
             "number of decision thresholds does not match number of categories"
         )
-    results = [[] for _ in range(num_categories)]
-    for log, category_idx in log_loop(
-        range(num_categories),
+    results = {category: [] for category in categories}
+    for log, (category_idx, category) in log_loop(
+        enumerate(categories),
         level="info",
         message="scored smoothing parameters",
         name="category",
@@ -72,13 +72,10 @@ def _score_smoothed_results(
                         **overlapping_predictions_kwargs
                     )
                 )
-            results[category_idx].append(
+            results[category].append(
                 {
                     "iteration": iteration,
-                    **{
-                        f"{key}_{categories[category_idx]}": value
-                        for key, value in parameters.items()
-                    },
+                    **parameters,
                     **classification_result.score(encode_func=encode_func, macro=True),
                 }
             )
@@ -100,7 +97,7 @@ def score_smoothing(
     sampling_func: SamplingFunction,
     balance_sample_weights: bool,
     log: Logger,
-) -> list[list[dict[str, Any]]]:
+) -> dict[str, list[dict[str, Any]]]:
     classification_result = k_fold_predict(
         dataset,
         extractor,
@@ -139,16 +136,16 @@ def _score_thresholds(
     default_decision: int | str,
     iteration: int,
     log: Logger,
-) -> list[list[dict[str, Any]]]:
+) -> dict[str, list[dict[str, Any]]]:
     num_categories = len(decision_thresholds)
     if not num_categories == len(classification_result.categories):
         raise ValueError(
             "number of decision thresholds does not match number of categories"
         )
     categories = classification_result.categories
-    results = [[] for _ in range(num_categories)]
-    for log, category_idx in log_loop(
-        range(num_categories),
+    results = {category: [] for category in categories}
+    for log, (category_idx, category) in log_loop(
+        enumerate(categories),
         level="info",
         message="scored thresholds",
         name="category",
@@ -178,10 +175,10 @@ def _score_thresholds(
                         **overlapping_predictions_kwargs
                     )
                 )
-            results[category_idx].append(
+            results[category].append(
                 {
                     "iteration": iteration,
-                    f"threshold_{categories[category_idx]}": threshold,
+                    "threshold": threshold,
                     **classification_result.score(encode_func=encode_func, macro=True),
                 }
             )
@@ -204,7 +201,7 @@ def score_thresholds(
     balance_sample_weights: bool,
     smoothing_funcs: Iterable[SmoothingFunction] | None,
     log: Logger,
-) -> list[list[dict[str, Any]]]:
+) -> dict[str, list[dict[str, Any]]]:
     classification_result = k_fold_predict(
         dataset,
         extractor,
@@ -247,7 +244,6 @@ def optimize_smoothing(
     remove_overlapping_predictions: bool,
     overlapping_predictions_kwargs: Optional[utils.OverlappingPredictionsKwargs] = None,
     num_iterations: int,
-    tolerance: float = 0.0,
     plot_results: bool = True,
     k: int,
     sampling_func: SamplingFunction,
@@ -255,7 +251,7 @@ def optimize_smoothing(
     results_path: Optional[str] = None,
     log: Logger | None = None,
     iteration_manager: IterationManager | None = None,
-) -> tuple[dict[str, Any], ...] | None:
+) -> dict[str, dict[str, Any]] | None:
     if iteration_manager is None:
         iteration_manager = IterationManager()
     if log is None:
@@ -294,32 +290,33 @@ def optimize_smoothing(
         )
     if not iteration_manager.is_root:
         return
-    results = [[] for _ in range(num_categories)]
+    results = {category: [] for category in dataset.categories}
     for iteration_results in iteration_manager.collect(
         num_iterations=num_iterations
     ).values():
-        for category_idx, category_results in enumerate(iteration_results):
-            results[category_idx].extend(category_results)
-    results = [pd.DataFrame(category_results) for category_results in results]
+        for category, category_results in iteration_results.items():
+            results[category].extend(category_results)
+    results = {
+        category: pd.DataFrame(category_results)
+        for category, category_results in results.items()
+    }
     if results_path is not None:
         if not os.path.exists(results_path):
             os.makedirs(results_path, exist_ok=True)
-        for category_results, category in zip(results, dataset.categories):
+        for category, category_results in results.items():
             category_results.to_csv(
-                os.path.join(results_path, f"results_smoothing-{category}.csv")
+                os.path.join(results_path, f"results_smoothing-{category}.csv"),
+                index=False,
             )
     parameter_names = list(smoothing_parameters_grid[0].keys())
-    return tuple(
-        utils.evaluate_results(
+    return {
+        category: utils.evaluate_results(
             category_results,
-            parameter_names=[
-                f"{parameter_name}_{category}" for parameter_name in parameter_names
-            ],
-            tolerance=tolerance,
+            parameter_names=parameter_names,
             plot_results=plot_results,
         )
-        for category_results, category in zip(results, dataset.categories)
-    )
+        for category, category_results in results.items()
+    }
 
 
 @log_time(
@@ -342,7 +339,6 @@ def optimize_decision_thresholds(
     decision_threshold_step: float | Iterable[float] = 0.01,
     default_decision: int | str = "none",
     smoothing_funcs: Optional[Iterable[SmoothingFunction]] = None,
-    tolerance: float = 0.0,
     plot_results: bool = True,
     k: int,
     sampling_func: SamplingFunction,
@@ -351,7 +347,7 @@ def optimize_decision_thresholds(
     results_path: Optional[str] = None,
     log: Logger | None = None,
     iteration_manager: IterationManager | None = None,
-) -> tuple[dict[str, Any], ...] | None:
+) -> dict[str, dict[str, Any]] | None:
     if iteration_manager is None:
         iteration_manager = IterationManager()
     if log is None:
@@ -392,26 +388,29 @@ def optimize_decision_thresholds(
         )
     if not iteration_manager.is_root:
         return
-    results = [[] for _ in range(num_categories)]
+    results = {category: [] for category in dataset.categories}
     for iteration_results in iteration_manager.collect(
         num_iterations=num_iterations
     ).values():
-        for category_idx, category_results in enumerate(iteration_results):
-            results[category_idx].extend(category_results)
-    results = [pd.DataFrame(category_results) for category_results in results]
+        for category, category_results in iteration_results.items():
+            results[category].extend(category_results)
+    results = {
+        category: pd.DataFrame(category_results)
+        for category, category_results in results.items()
+    }
     if results_path is not None:
         if not os.path.exists(results_path):
             os.makedirs(results_path, exist_ok=True)
-        for category_results, category in zip(results, dataset.categories):
+        for category, category_results in results.items():
             category_results.to_csv(
-                os.path.join(results_path, f"results_thresholding-{category}.csv")
+                os.path.join(results_path, f"results_thresholding-{category}.csv"),
+                index=False,
             )
-    return tuple(
-        utils.evaluate_results(
+    return {
+        category: utils.evaluate_results(
             category_results,
-            parameter_names=[f"threshold_{category}"],
-            tolerance=tolerance,
+            parameter_names=["threshold"],
             plot_results=plot_results,
         )
-        for category_results, category in zip(results, dataset.categories)
-    )
+        for category, category_results in results.items()
+    }

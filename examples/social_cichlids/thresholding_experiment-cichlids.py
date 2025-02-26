@@ -72,7 +72,7 @@ if __name__ == "__main__":
         extractor,
         XGBClassifier(n_estimators=1000),
         remove_overlapping_predictions=False,
-        smoothing_funcs=[None] * len(dataset_train.categories),  # type: ignore # TODO!
+        smoothing_funcs=None,  # TODO!
         num_iterations=20,
         k=5,
         sampling_func=subsample_train,
