@@ -664,10 +664,14 @@ class DataFrameFeatureExtractor(BaseExtractor[pd.DataFrame]):
         pd.DataFrame
             The concatenated features.
         """
-        if "num_features" in kwargs:
-            kwargs.pop("num_features")
-
-        dataframe = pd.concat(args, axis=axis, **kwargs)
+        ignore_index = False
+        if "ignore_index" in kwargs:
+            ignore_index = kwargs.pop("ignore_index")
+            if TYPE_CHECKING:
+                assert isinstance(ignore_index, bool)
+        dataframe = pd.concat(
+            args, axis="index" if axis == 0 else "columns", ignore_index=ignore_index
+        )
         assert isinstance(dataframe, pd.DataFrame)
         return dataframe
 

@@ -53,5 +53,7 @@ def aggregate_bouts(
         bout_idx_filled.append(idx if idx != -1 else bout_idx_filled[-1])
     observations["bout"] = bout_idx_filled
     bouts = observations.groupby("bout").apply(_bout_aggregator)
-    bouts = bouts.sort_values(by="start").reset_index(drop=True).drop(columns=["bout"])
+    bouts = bouts.sort_values(by="start", ignore_index=True, inplace=False).drop(
+        columns=["bout"], inplace=False
+    )
     return bouts

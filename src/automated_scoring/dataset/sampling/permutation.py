@@ -104,7 +104,9 @@ def _permute_recipients_in_group(
         proximitry_matrix=proximitry_matrix,
         timestamps=timestamps,
     )
-    annotations_group = annotations_group.sort_values(["recipient", "start"])
+    annotations_group = annotations_group.sort_values(
+        ["recipient", "start"], ignore_index=True, inplace=False
+    )
     return group.annotate(
         annotations_group,
         categories=group.categories,

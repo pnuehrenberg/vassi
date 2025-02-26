@@ -102,8 +102,11 @@ def evaluate_results(
     average_results = (
         results.groupby(parameter_names)
         .aggregate({"average_score": "mean"})
-        .reset_index()
+        .reset_index(drop=True, inplace=False)
     )
+    if TYPE_CHECKING:
+        # reset_index with inplace=False not correctly detected by pyright
+        assert average_results is not None
     max_score = average_results["average_score"].max()
     if TYPE_CHECKING:
         assert isinstance(max_score, float)
@@ -117,9 +120,14 @@ def evaluate_results(
     parameters /= parameters.max(axis=0)
     parameter_costs = parameters * np.asarray(parameter_weight)
     best = parameter_costs[within_tolerance].sum(axis=1).argmin()
-    best_parameters = average_results.iloc[within_tolerance[best]][
-        parameter_names
-    ].to_dict()
+    best_parameters = {
+        str(parameter_name): value
+        for parameter_name, value in average_results.iloc[within_tolerance[best]][
+            parameter_names
+        ]
+        .to_dict()
+        .items()
+    }
     if not plot_results:
         return best_parameters
     show_on_return = False
@@ -143,8 +151,8 @@ def evaluate_results(
                 color="grey",
                 zorder=1,
             )
-        x = average_results[parameter_name]
-        y = average_results["average_score"]
+        x = np.asarray(average_results[parameter_name])
+        y = np.asarray(average_results["average_score"])
         ax.plot(x[np.argsort(x)], y[np.argsort(x)], lw=1, color="k", zorder=2)
         best_value = float(best_parameters[parameter_name])
         if best_value == round(best_value):

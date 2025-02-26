@@ -154,7 +154,7 @@ def _filter_recipient_bouts(
     priority_func: Callable[[pd.DataFrame], Iterable[float]],
     max_bout_gap: float,
     max_allowed_bout_overlap: float,
-):
+) -> pd.DataFrame:
     observations = check_observations(
         observations,
         required_columns=["start", "stop", "actor", "recipient", "category"],
@@ -178,16 +178,12 @@ def _filter_recipient_bouts(
         )
     if len(bouts) == 0:
         return observations
-    bouts = (
-        remove_overlapping_observations(
-            pd.concat(bouts, ignore_index=True),
-            index_columns=(),
-            priority_func=priority_func,
-            max_allowed_overlap=max_allowed_bout_overlap,
-        )
-        .sort_values("start")
-        .reset_index(drop=True)
-    )
+    bouts = remove_overlapping_observations(
+        pd.concat(bouts, ignore_index=True),
+        index_columns=(),
+        priority_func=priority_func,
+        max_allowed_overlap=max_allowed_bout_overlap,
+    ).sort_values("start", ignore_index=True, inplace=False)
     same_recipient = np.asarray(observations["recipient"])[:, np.newaxis] == np.asarray(
         bouts["recipient"]
     )
@@ -204,12 +200,11 @@ def _filter_recipient_bouts(
     indices = observations.index[idx]
     observations["in_bout"] = False
     observations.loc[indices, "in_bout"] = True
-    observations = observations[observations["in_bout"]]  # type: ignore
-    return (
-        observations.drop(columns=["in_bout"])
-        .sort_values("start")
-        .reset_index(drop=True)
+    observations = observations[observations["in_bout"]]
+    observations = observations.drop(columns=["in_bout"], inplace=False).sort_values(
+        "start", ignore_index=True, inplace=False
     )
+    return observations
 
 
 class EncodingFunction(Protocol):

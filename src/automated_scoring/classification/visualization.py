@@ -145,7 +145,7 @@ def plot_classification_timeline(
         except KeyError:
             return
         ax.broken_barh(
-            intervals,
+            [(float(start), float(stop)) for start, stop in intervals],
             yrange=y_range,
             lw=0,
             color=color,

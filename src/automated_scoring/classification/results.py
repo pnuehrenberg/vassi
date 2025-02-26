@@ -2,7 +2,7 @@ from collections.abc import Iterable, Mapping
 from copy import deepcopy
 from dataclasses import dataclass
 from multiprocessing import cpu_count, get_context
-from typing import Callable, Literal, Optional, Self, overload
+from typing import TYPE_CHECKING, Callable, Literal, Optional, Self, overload
 
 import numpy as np
 import pandas as pd
@@ -501,9 +501,12 @@ class GroupClassificationResult(_NestedResult):
             return self
         predictions = predictions[predictions["category"] != "none"]
         for actor in self.individuals:
-            predictions_actor: pd.DataFrame = predictions[
+            predictions_actor = predictions.loc[
                 predictions["actor"] == actor
-            ].reset_index(drop=True)  # type: ignore
+            ].reset_index(drop=True, inplace=False)
+            if TYPE_CHECKING:
+                # reset_index with inplace=False not correctly detected by pyright
+                assert predictions_actor is not None
             if prefilter_recipient_bouts:
                 predictions_actor = _filter_recipient_bouts(
                     predictions_actor,
@@ -555,7 +558,9 @@ class GroupClassificationResult(_NestedResult):
                     if column in predictions_dyad.columns
                 ]
                 if len(drop) > 0:
-                    predictions_dyad = predictions_dyad.drop(columns=drop)
+                    predictions_dyad = predictions_dyad.drop(
+                        columns=drop, inplace=False
+                    )
                 classification_result._predictions = predictions_dyad
         return self
 

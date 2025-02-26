@@ -80,7 +80,7 @@ def _as_dataframe(
     return pd.DataFrame(
         func(*args, flat=True, **kwargs),
         columns=pd.Index(names),
-    ).drop(labels=drop, axis="columns")
+    ).drop(labels=drop, axis="columns", inplace=False)
 
 
 def as_dataframe(

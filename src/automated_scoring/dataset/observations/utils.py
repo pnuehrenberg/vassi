@@ -1,5 +1,5 @@
 import functools
-from typing import Callable, Iterable, Optional, ParamSpec
+from typing import TYPE_CHECKING, Callable, Iterable, Optional, ParamSpec
 
 import networkx as nx
 import numpy as np
@@ -40,7 +40,11 @@ def ensure_single_index(
         raise ValueError(
             "observations contain more than one unique index key combination"
         )
-    return observations.reset_index(drop=drop)
+    validated_observations = observations.reset_index(drop=drop, inplace=False)
+    if TYPE_CHECKING:
+        # pyright does not correctly infer return type of reset_index with inplace=False
+        assert validated_observations is not None
+    return validated_observations
 
 
 def to_y(
@@ -89,7 +93,14 @@ def to_observations(
     observations = pd.DataFrame({"start": start, "stop": stop, "category": categories})
     if drop is None:
         return observations
-    return observations.set_index("category").drop(drop, axis="index").reset_index()
+    observations = observations.set_index("category").drop(
+        drop, axis="index", inplace=False
+    )
+    observations = observations.reset_index(drop=True, inplace=False)
+    if TYPE_CHECKING:
+        # pyright does not correctly infer return type of reset_index with inplace=False
+        assert observations is not None
+    return observations
 
 
 @with_duration
@@ -124,17 +135,13 @@ def infill_observations(
             "stop": np.asarray(observations[1:].loc[insert_idx, "start"] - 1),
         }
     )
-    observations = (
-        pd.concat(
-            [
-                pd.DataFrame(padding),
-                observations,
-                observations_fill,
-            ],
-        )
-        .sort_values("start")
-        .reset_index(drop=True)
-    )
+    observations = pd.concat(
+        [
+            pd.DataFrame(padding),
+            observations,
+            observations_fill,
+        ],
+    ).sort_values("start", ignore_index=True, inplace=False)
     observations.loc[observations["stop"] > observation_stop, "stop"] = observation_stop
     observations = observations.loc[observations["start"] <= observation_stop]
     return observations
@@ -218,7 +225,7 @@ def remove_overlapping_observations(
         observations_component = observations.iloc[overlapping_idx]
         priority = np.asarray(priority_func(observations_component))
         order = np.argsort(priority)  # lower is better!
-        prioritized = observations_component.index[order[0]]
+        prioritized = int(observations_component.index[order][0])
         overlap_prioritized = interval_overlap(
             observations_component[["start", "stop"]].to_numpy(),
             observations_component.loc[[prioritized], ["start", "stop"]].to_numpy(),
@@ -239,10 +246,14 @@ def remove_overlapping_observations(
                 drop_overlapping=False,
                 drop_overlapping_column=False,
             )
-            observations_component.loc[observations_temp.index] = observations_temp
-        observations.loc[observations_component.index] = observations_component
+            observations_component.loc[np.array(observations_temp.index)] = (
+                observations_temp
+            )
+        observations.loc[np.array(observations_component.index)] = (
+            observations_component
+        )
     if drop_overlapping:
-        observations = observations[observations["overlapping"] != "yes"]  # type: ignore
+        observations = observations[observations["overlapping"] != "yes"]
     if drop_overlapping_column:
-        observations = observations.drop(columns=["overlapping"])
+        observations = observations.drop(columns=["overlapping"], inplace=False)
     return observations
