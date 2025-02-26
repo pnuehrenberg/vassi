@@ -72,7 +72,7 @@ if __name__ == "__main__":
         extractor,
         XGBClassifier(n_estimators=1000),
         smooth,
-        smoothing_parameters_grid={"median_filter_window": np.arange(1, 91, 2)},
+        smoothing_parameters_grid={"median_filter_window": np.arange(1, 181, 2)},
         remove_overlapping_predictions=True,
         overlapping_predictions_kwargs=overlapping_predictions_kwargs,
         num_iterations=20,
