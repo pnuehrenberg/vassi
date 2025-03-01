@@ -7,13 +7,19 @@ from numpy.typing import NDArray
 from sklearn.utils.class_weight import compute_sample_weight
 
 from ..dataset import (
+    AnnotatedDataset,
     Dataset,
     Group,
     GroupIdentifier,
     Identifier,
 )
-from ..dataset.types._base_sampleable import BaseSampleable
-from ..dataset.types._mixins import AnnotatedMixin, SampleableMixin
+from ..dataset.types import (
+    AnnotatedMixin,
+    BaseSampleable,
+    EncodingFunction,
+    SampleableMixin,
+    SamplingFunction,
+)
 from ..features import BaseExtractor, F
 from ..logging import log_loop, log_time, set_logging_level
 from ..utils import class_name, ensure_generator
@@ -24,8 +30,6 @@ from .results import (
 )
 from .utils import (
     Classifier,
-    EncodingFunction,
-    SamplingFunction,
     fit_classifier,
     init_new_classifier,
 )
@@ -35,11 +39,11 @@ if TYPE_CHECKING:
 
 
 def _predict_sampleable(
-    sampleable: BaseSampleable,  # use base type instead
+    sampleable: BaseSampleable,
     classifier: Classifier,
     extractor: BaseExtractor[F],
     *,
-    encode_func: Optional[EncodingFunction] = None,
+    encoding_function: Optional[EncodingFunction] = None,
     categories: Optional[Iterable[str]] = None,
     log: Logger,
 ) -> ClassificationResult:
@@ -47,12 +51,14 @@ def _predict_sampleable(
     y_pred_numeric: NDArray = classifier.predict(X)
     y_proba: NDArray = classifier.predict_proba(X).astype(float)
     y_true_numeric: Optional[NDArray] = None
-    if encode_func is None and isinstance(sampleable, AnnotatedMixin):
-        encode_func = sampleable.encode
-    elif encode_func is None:
-        raise ValueError("encode_func must be provided for non-annotated sampleables")
+    if encoding_function is None and isinstance(sampleable, AnnotatedMixin):
+        encoding_function = sampleable.encode
+    elif encoding_function is None:
+        raise ValueError(
+            "encoding_function must be provided for non-annotated sampleables"
+        )
     if y is not None:
-        y_true_numeric = encode_func(y)
+        y_true_numeric = encoding_function(y)
     timestamps = sampleable.trajectory.timestamps
     annotations = None
     if isinstance(sampleable, AnnotatedMixin):
@@ -80,7 +86,7 @@ def _predict_group(
     classifier: Classifier,
     extractor: BaseExtractor[F],
     *,
-    encode_func: Optional[EncodingFunction] = None,
+    encoding_function: Optional[EncodingFunction] = None,
     categories: Optional[Iterable[str]] = None,
     exclude: Optional[Iterable[Identifier]] = None,
     log: Logger,
@@ -101,7 +107,7 @@ def _predict_group(
             sampleable,
             classifier,
             extractor,
-            encode_func=encode_func,
+            encoding_function=encoding_function,
             categories=categories,
             log=log,
         )
@@ -122,7 +128,7 @@ def _predict(
     classifier: Classifier,
     extractor: BaseExtractor[F],
     *,
-    encode_func: Optional[EncodingFunction] = None,
+    encoding_function: Optional[EncodingFunction] = None,
     categories: Optional[Iterable[str]] = None,
     exclude: Optional[Iterable[Identifier]] = None,
     log: Logger,
@@ -144,7 +150,7 @@ def _predict(
             group,
             classifier,
             extractor,
-            encode_func=encode_func,
+            encoding_function=encoding_function,
             categories=categories,
             exclude=exclude,
             log=log,
@@ -161,7 +167,7 @@ def predict(
     classifier: Classifier,
     extractor: BaseExtractor[F],
     *,
-    encode_func: Optional[EncodingFunction] = None,
+    encoding_function: Optional[EncodingFunction] = None,
     categories: Optional[Iterable[str]] = None,
     exclude: Optional[Iterable[Identifier]] = None,
     log: Optional[Logger],
@@ -174,7 +180,7 @@ def predict(
     classifier: Classifier,
     extractor: BaseExtractor[F],
     *,
-    encode_func: Optional[EncodingFunction] = None,
+    encoding_function: Optional[EncodingFunction] = None,
     categories: Optional[Iterable[str]] = None,
     exclude: Optional[Iterable[Identifier]] = None,
     log: Optional[Logger],
@@ -187,7 +193,7 @@ def predict(
     classifier: Classifier,
     extractor: BaseExtractor[F],
     *,
-    encode_func: Optional[EncodingFunction] = None,
+    encoding_function: Optional[EncodingFunction] = None,
     categories: Optional[Iterable[str]] = None,
     exclude: Optional[Iterable[Identifier]] = None,
     log: Optional[Logger],
@@ -199,7 +205,7 @@ def predict(
     classifier: Classifier,
     extractor: BaseExtractor[F],
     *,
-    encode_func: Optional[EncodingFunction] = None,
+    encoding_function: Optional[EncodingFunction] = None,
     categories: Optional[Iterable[str]] = None,
     exclude: Optional[Iterable[Identifier]] = None,
     log: Optional[Logger],
@@ -211,7 +217,7 @@ def predict(
             sampleable,
             classifier,
             extractor,
-            encode_func=encode_func,
+            encoding_function=encoding_function,
             categories=categories,
             exclude=exclude,
             log=log,
@@ -221,7 +227,7 @@ def predict(
             sampleable,
             classifier,
             extractor,
-            encode_func=encode_func,
+            encoding_function=encoding_function,
             categories=categories,
             exclude=exclude,
             log=log,
@@ -234,7 +240,7 @@ def predict(
         sampleable,
         classifier,
         extractor,
-        encode_func=encode_func,
+        encoding_function=encoding_function,
         categories=categories,
         log=log,
     )
@@ -246,22 +252,18 @@ def predict(
     description="k-fold cross-validation",
 )
 def k_fold_predict(
-    dataset: Dataset,
+    dataset: AnnotatedDataset,
     extractor: BaseExtractor[F],
     classifier: Classifier,
     *,
     k: int,
     random_state: Optional[np.random.Generator | int] = None,
-    sampling_func: SamplingFunction,
+    sampling_function: SamplingFunction,
     balance_sample_weights: bool = True,
-    encode_func: Optional[EncodingFunction] = None,
     log: Optional[Logger],
 ) -> DatasetClassificationResult:
     random_state = ensure_generator(random_state)
-    if encode_func is None and isinstance(dataset, AnnotatedMixin):
-        encode_func = dataset.encode
-    elif encode_func is None:
-        raise ValueError("encode_func must be provided for non-annotated datasets")
+    encoding_function = dataset.encode
     if type(classifier) is type:
         classifier = init_new_classifier(classifier(), random_state)
     fold_results = []
@@ -274,7 +276,7 @@ def k_fold_predict(
         log=log,
     ):
         X_train, y_train = log_time(
-            sampling_func, level_finish="success", description="sampling"
+            sampling_function, level_finish="success", description="sampling"
         )(
             fold_train,
             extractor,
@@ -283,7 +285,9 @@ def k_fold_predict(
         )
         sample_weight = None
         if balance_sample_weights:
-            sample_weight = compute_sample_weight("balanced", encode_func(y_train))
+            sample_weight = compute_sample_weight(
+                "balanced", encoding_function(y_train)
+            )
         classifier = log_time(
             fit_classifier,
             level_finish="success",
@@ -291,7 +295,7 @@ def k_fold_predict(
         )(
             init_new_classifier(classifier, random_state),
             np.asarray(X_train),
-            encode_func(y_train),
+            encoding_function(y_train),
             sample_weight=sample_weight,
             log=log,
         )
@@ -300,7 +304,7 @@ def k_fold_predict(
                 fold_holdout,
                 classifier,
                 extractor,
-                encode_func=encode_func,
+                encoding_function=encoding_function,
                 log=log,
             )
         )

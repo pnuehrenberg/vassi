@@ -1,8 +1,26 @@
 from abc import ABC, abstractmethod
+from functools import partial
+from typing import Protocol
 
 import numpy as np
 import pandas as pd
 from numpy.typing import NDArray
+
+
+class EncodingFunction(Protocol):
+    def __call__(
+        self,
+        y: NDArray,
+        *args: ...,
+        **kwargs: ...,
+    ) -> NDArray[np.int64]: ...
+
+
+def encode_categories(y: NDArray, *, categories: tuple[str, ...]) -> NDArray:
+    y_numeric = np.zeros_like(y, dtype=int)
+    for category in categories:
+        y_numeric[y == category] = categories.index(category)
+    return y_numeric
 
 
 class AnnotatedMixin(ABC):
@@ -16,14 +34,13 @@ class AnnotatedMixin(ABC):
         if background_category not in categories:
             categories = tuple(list(categories) + [background_category])
         self.categories = tuple(sorted(categories))
+        self._encode = partial(encode_categories, categories=self.categories)
         # call finalize init to handle observations in subclasses
         # some additional attributes may be needed for other
 
-    def encode(self, y: NDArray) -> NDArray:
-        y_numeric = np.zeros(len(y), dtype=int)
-        for category in self.categories:
-            y_numeric[y == category] = self.categories.index(category)
-        return y_numeric
+    @property
+    def encode(self) -> EncodingFunction:
+        return self._encode
 
     @property
     def category_counts(self) -> dict[str, int]:

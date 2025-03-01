@@ -6,16 +6,18 @@ build-backend = "setuptools.build_meta"
 name = "automated-scoring"
 version = "0.0.1"
 dependencies = [
-    "numba",
     "tbb",
+    "numba",
     "numpy>=2.0",
     "h5py",
     "pandas",
+    "pandas-stubs",
     "matplotlib",
     "scikit-learn",
     "xgboost",
     "networkx",
     "loguru",
+    "optuna",
     "observation-library @ git+ssh://git@github.com/pnuehrenberg/observation-library.git",
 ]
 requires-python = ">=3.12"

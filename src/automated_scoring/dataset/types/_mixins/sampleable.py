@@ -1,6 +1,8 @@
+from __future__ import annotations
+
 from abc import ABC, abstractmethod
 from collections.abc import Mapping, Sequence
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING, Optional, Protocol
 
 import numpy as np
 import pandas as pd
@@ -14,6 +16,18 @@ if TYPE_CHECKING:
     from loguru import Logger
 
     from .annotated_sampleable import AnnotatedSampleableMixin
+
+
+class SamplingFunction(Protocol):
+    def __call__(
+        self,
+        sampleable: "SampleableMixin",
+        extractor: BaseExtractor[F],
+        *args: ...,
+        random_state: Optional[np.random.Generator | int],
+        log: Optional[Logger],
+        **kwargs: ...,
+    ) -> tuple[F, NDArray]: ...
 
 
 class SampleableMixin(ABC):

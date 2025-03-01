@@ -7,10 +7,10 @@ try:
 except ImportError:
     MPI = None
 
-from .utils import IterationManager, ensure_generator, to_int_seed
+from .utils import Experiment, ensure_generator, to_int_seed
 
 
-class MPIContext(IterationManager):
+class DistributedExperiment(Experiment):
     def __init__(self, random_state: Optional[np.random.Generator | int] = None):
         self.seed = to_int_seed(ensure_generator(random_state))
         self.data = {}
@@ -23,35 +23,33 @@ class MPIContext(IterationManager):
         self.rank = self.comm.Get_rank()
         self.size = self.comm.Get_size()
 
-    def do_iteration(self, iteration: int) -> bool:
+    def performs_run(self, run: int) -> bool:
         if self.comm is None:
             return True
-        return iteration % self.size == self.rank
+        return run % self.size == self.rank
 
-    def get_random_state(
-        self, iteration: int, *, num_iterations: int
-    ) -> np.random.Generator:
+    def get_random_state(self, run: int, *, num_runs: int) -> np.random.Generator:
         random_state = ensure_generator(self.seed)
-        return random_state.spawn(num_iterations)[iteration]
+        return random_state.spawn(num_runs)[run]
 
     @property
     def is_root(self) -> bool:
         return self.rank == 0
 
-    def add(self, iteration: int, data: Any) -> None:
+    def add(self, run: int, data: Any) -> None:
         if self.comm is None or self.is_root:
-            self.data[iteration] = data
+            self.data[run] = data
             return
-        self.comm.send(data, dest=0, tag=iteration)
+        self.comm.send(data, dest=0, tag=run)
 
-    def collect(self, *, num_iterations: int) -> dict[int, Any]:
+    def collect(self, *, num_runs: int) -> dict[int, Any]:
         if self.comm is None:
             return self.data
         if not self.is_root:
             raise RuntimeError("collect should only be called from root mpi process")
-        for iteration in range(1, num_iterations):
-            rank = iteration % self.size
+        for run in range(1, num_runs):
+            rank = run % self.size
             if rank == self.rank:
                 continue
-            self.data[iteration] = self.comm.recv(source=rank, tag=iteration)
-        return {iteration: self.data[iteration] for iteration in sorted(self.data)}
+            self.data[run] = self.comm.recv(source=rank, tag=run)
+        return {run: self.data[run] for run in sorted(self.data)}

@@ -8,7 +8,6 @@ import pandas as pd
 from numpy.typing import NDArray
 
 from ..data_structures.utils import get_interval_slice
-from ..dataset import Dataset
 from ..dataset.observations import (
     aggregate_bouts,
     check_observations,
@@ -21,7 +20,6 @@ from ..dataset.observations.utils import (
     ensure_single_index,
 )
 from ..dataset.utils import interval_contained, interval_overlap
-from ..features import BaseExtractor, F
 from ..utils import ensure_generator, to_int_seed
 
 if TYPE_CHECKING:
@@ -205,28 +203,3 @@ def _filter_recipient_bouts(
         "start", ignore_index=True, inplace=False
     )
     return observations
-
-
-class EncodingFunction(Protocol):
-    __name__: str
-
-    def __call__(
-        self,
-        y: NDArray,
-        *args,
-        **kwargs,
-    ) -> NDArray[np.int64]: ...
-
-
-class SamplingFunction(Protocol):
-    __name__: str
-
-    def __call__(
-        self,
-        dataset: Dataset,
-        extractor: BaseExtractor[F],
-        *args,
-        random_state: Optional[np.random.Generator | int],
-        log: Optional[Logger],
-        **kwargs,
-    ) -> tuple[F, NDArray]: ...

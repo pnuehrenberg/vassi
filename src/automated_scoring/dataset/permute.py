@@ -5,10 +5,10 @@ import numpy as np
 import pandas as pd
 from numpy.typing import NDArray
 
-from ...data_structures.utils import get_interval_slice
-from ...features import keypoint_distances
-from .. import IndividualIdentifier
-from ..types import AnnotatedDataset, AnnotatedGroup, Dyad, Group
+from ..data_structures.utils import get_interval_slice
+from ..features import keypoint_distances
+from .types import AnnotatedDataset, AnnotatedGroup, Dyad, Group
+from .utils import IndividualIdentifier
 
 
 def get_proximitry_matrix(group: Group | AnnotatedGroup) -> tuple[NDArray, NDArray]:

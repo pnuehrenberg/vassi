@@ -1,15 +1,31 @@
+from ._base_sampleable import BaseSampleable
+from ._mixins import (
+    AnnotatedMixin,
+    EncodingFunction,
+    NestedSampleableMixin,
+    SampleableMixin,
+    SamplingFunction,
+    encode_categories,
+)
 from .dataset import AnnotatedDataset, Dataset
 from .dyad import AnnotatedDyad, Dyad
 from .group import AnnotatedGroup, Group
 from .individual import AnnotatedIndividual, Individual
 
 __all__ = [
+    "BaseSampleable",
+    "AnnotatedMixin",
+    "EncodingFunction",
+    "NestedSampleableMixin",
+    "SampleableMixin",
+    "SamplingFunction",
+    "encode_categories",
     "AnnotatedDataset",
-    "AnnotatedDyad",
-    "AnnotatedGroup",
-    "AnnotatedIndividual",
     "Dataset",
+    "AnnotatedDyad",
     "Dyad",
+    "AnnotatedGroup",
     "Group",
+    "AnnotatedIndividual",
     "Individual",
 ]

@@ -58,7 +58,7 @@ def set_logging_level(
     sink=None,
     format: str | Callable[..., str] = _formatter,
     enqueue: bool = True,
-) -> "Logger":
+) -> Logger:
     """Set the logging level (and sink, format and enqueue parameters of the loguru logger."""
     global logger
     if sink is None:
@@ -155,12 +155,12 @@ def log_time(
 
 
 def with_loop(
-    log: "Logger",
+    log: Logger,
     *,
     name: Optional[str | int] = None,
     step: int,
     total: Optional[int] = None,
-) -> tuple["Logger", str | int]:
+) -> tuple[Logger, str | int]:
     if isinstance(name, str) and len(name) == 0:
         raise ValueError("name should be either None or non-empty string")
     extra: dict = deepcopy(log._options[-1])  # type: ignore
@@ -191,8 +191,8 @@ def log_loop[T](
     message: str,
     name: Optional[str] = None,
     total: Optional[int] = None,
-    log: Optional["Logger"] = None,
-) -> Generator[tuple["Logger", T], None, None]:
+    log: Optional[Logger] = None,
+) -> Generator[tuple[Logger, T], None, None]:
     if log is None:
         log = set_logging_level()
     if total is None and isinstance(iterable, Sized):

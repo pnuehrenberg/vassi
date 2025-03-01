@@ -1,8 +1,9 @@
+from abc import ABC, abstractmethod
 from collections.abc import Iterable, Mapping
 from copy import deepcopy
 from dataclasses import dataclass
-from multiprocessing import cpu_count, get_context
-from typing import TYPE_CHECKING, Callable, Literal, Optional, Self, overload
+from functools import partial
+from typing import TYPE_CHECKING, Callable, Literal, Optional, Self
 
 import numpy as np
 import pandas as pd
@@ -21,8 +22,8 @@ from ..dataset.observations import (
     infill_observations,
     remove_overlapping_observations,
 )
+from ..dataset.types import encode_categories
 from ..logging import set_logging_level
-from ..series_operations import smooth
 from ..utils import SmoothingFunction
 from .utils import (
     _filter_recipient_bouts,
@@ -34,78 +35,44 @@ from .utils import (
 class _Result:
     def f1_score(
         self,
-        per: Literal["timestamp", "annotation", "prediction"],
-        *,
-        average: Optional[Literal["micro", "macro", "weighted"]] = None,
-        encode_func: Callable[[NDArray], NDArray[np.integer]],
-    ) -> float | tuple[float, ...]:
+        on: Literal["timestamp", "annotation", "prediction"],
+    ) -> tuple[float, ...]:
         categories: tuple[str, ...] = tuple(self.categories)  # type: ignore
-        if per == "timestamp":
+        encoding_function = partial(encode_categories, categories=categories)
+        if on == "timestamp":
             y_true = self.y_true_numeric  # type: ignore
             y_pred = self.y_pred_numeric  # type: ignore
-        elif per == "annotation":
+        elif on == "annotation":
             annotations: pd.DataFrame = self.annotations  # type: ignore
-            y_true = encode_func(annotations["category"].to_numpy())
-            y_pred = encode_func(annotations["predicted_category"].to_numpy())
-        elif per == "prediction":
+            y_true = encoding_function(annotations["category"].to_numpy())
+            y_pred = encoding_function(annotations["predicted_category"].to_numpy())
+        elif on == "prediction":
             predictions: pd.DataFrame = self.predictions  # type: ignore
-            y_true = encode_func(predictions["true_category"].to_numpy())
-            y_pred = encode_func(predictions["category"].to_numpy())
+            y_true = encoding_function(predictions["true_category"].to_numpy())
+            y_pred = encoding_function(predictions["category"].to_numpy())
         else:
             raise ValueError(
-                f"'per' should be one of 'timestamp', 'annotation', 'prediction' and not '{per}'"
+                f"'on' should be one of 'timestamp', 'annotation', 'prediction' and not '{on}'"
             )
         return f1_score(
             y_true,
             y_pred,
             labels=range(len(categories)),
-            average=average,  # type: ignore
-            zero_division=np.nan,  # type: ignore
+            average=None,  # type: ignore
+            zero_division=1.0,  # type: ignore
         )
 
-    @overload
-    def score(
-        self,
-        encode_func: Callable[[NDArray], NDArray[np.integer]],
-        macro: Literal[False] = False,
-    ) -> Mapping[str, NDArray]: ...
-
-    @overload
-    def score(
-        self,
-        encode_func: Callable[[NDArray], NDArray[np.integer]],
-        macro: Literal[True],
-    ) -> Mapping[str, float]: ...
-
-    def score(
-        self,
-        encode_func: Callable[[NDArray], NDArray[np.integer]],
-        macro: bool = False,
-    ) -> Mapping[str, NDArray | float]:
-        f1_per_timestamp = self.f1_score("timestamp", encode_func=encode_func)
-        f1_per_annotation = self.f1_score("annotation", encode_func=encode_func)
-        f1_per_prediction = self.f1_score("prediction", encode_func=encode_func)
-        scores = {
-            score_name: np.asarray(values)
-            for score_name, values in zip(
-                [
-                    "f1_per_timestamp",
-                    "f1_per_annotation",
-                    "f1_per_prediction",
-                ],
-                [
-                    f1_per_timestamp,
-                    f1_per_annotation,
-                    f1_per_prediction,
-                ],
-            )
-        }
-        if macro:
-            return {
-                score_name: float(values.mean())
-                for score_name, values in scores.items()
-            }
-        return scores
+    def score(self) -> NDArray:
+        f1_per_timestamp = self.f1_score("timestamp")
+        f1_per_annotation = self.f1_score("annotation")
+        f1_per_prediction = self.f1_score("prediction")
+        return np.array(
+            [
+                f1_per_timestamp,
+                f1_per_annotation,
+                f1_per_prediction,
+            ]
+        )
 
     def _remove_overlapping_predictions(
         self,
@@ -123,7 +90,7 @@ class _Result:
 def _smooth_probabilities(
     arg: tuple[
         "ClassificationResult",
-        Iterable[SmoothingFunction],
+        SmoothingFunction,
         bool,
         Optional[Iterable[float]],
         int | str,
@@ -132,13 +99,13 @@ def _smooth_probabilities(
     """Wrapper for smoothing probabilities in a classification result. Used in parallel processing."""
     (
         classification_result,
-        label_smoothing_funcs,
+        smoothing_func,
         threshold,
         decision_thresholds,
         default_decision,
     ) = arg
     return classification_result.smooth(
-        label_smoothing_funcs,
+        smoothing_func,
         threshold=threshold,
         decision_thresholds=decision_thresholds,
         default_decision=default_decision,
@@ -226,24 +193,13 @@ class ClassificationResult(_Result):
 
     def smooth(
         self,
-        label_smoothing_funcs: Iterable[SmoothingFunction],
+        smoothing_func: SmoothingFunction,
         *,
         threshold: bool = True,
         decision_thresholds: Optional[Iterable[float]] = None,
         default_decision: int | str = "none",
     ) -> Self:
-        num_categories = len(self.categories)
-        label_smoothing_funcs = list(label_smoothing_funcs)
-        if len(label_smoothing_funcs) != num_categories:
-            raise ValueError(
-                f"number of smoothing functions ({len(label_smoothing_funcs)}) "
-                f"does not match number of categories ({len(self.categories)})"
-            )
-        self._y_proba_smoothed = np.zeros_like(self.y_proba, dtype=float)
-        for idx in range(num_categories):
-            self._y_proba_smoothed[:, idx] = smooth(
-                self.y_proba[:, idx], filter_funcs=[label_smoothing_funcs[idx]]
-            )
+        self._y_proba_smoothed = smoothing_func(array=self.y_proba)
         if threshold:
             return self.threshold(
                 decision_thresholds,
@@ -290,7 +246,7 @@ def _get_target(
 
 
 @dataclass
-class _NestedResult(_Result):
+class _NestedResult(_Result, ABC):
     classification_results: dict[
         Identifier,
         "ClassificationResult | GroupClassificationResult",
@@ -322,21 +278,22 @@ class _NestedResult(_Result):
 
     def smooth(
         self,
-        label_smoothing_funcs: Iterable[SmoothingFunction],
+        smoothing_func: SmoothingFunction,
         *,
         threshold: bool = True,
         decision_thresholds: Optional[Iterable[float]] = None,
         default_decision: int | str = "none",
     ) -> Self:
         classification_results = self._flat_classification_results()
-        num_cpus = cpu_count() - 1
-        with get_context("spawn").Pool(processes=num_cpus) as pool:
-            classification_results = pool.map(
+        # num_cpus = cpu_count() - 1
+        # with get_context("spawn").Pool(processes=num_cpus) as pool:
+        classification_results = list(
+            map(
                 _smooth_probabilities,
                 [
                     (
                         classification_result,
-                        label_smoothing_funcs,
+                        smoothing_func,
                         threshold,
                         decision_thresholds,
                         default_decision,
@@ -344,6 +301,7 @@ class _NestedResult(_Result):
                     for classification_result in classification_results
                 ],
             )
+        )
         self._set_classification_results(classification_results)
         return self
 
@@ -354,9 +312,10 @@ class _NestedResult(_Result):
         default_decision: int | str = "none",
     ) -> Self:
         classification_results = self._flat_classification_results()
-        num_cpus = cpu_count() - 1
-        with get_context("spawn").Pool(processes=num_cpus) as pool:
-            classification_results = pool.map(
+        # num_cpus = cpu_count() - 1
+        # with get_context("spawn").Pool(processes=num_cpus) as pool:
+        classification_results = list(
+            map(
                 _threshold_probabilities,
                 [
                     (
@@ -367,6 +326,7 @@ class _NestedResult(_Result):
                     for classification_result in classification_results
                 ],
             )
+        )
         self._set_classification_results(classification_results)
         return self
 
@@ -441,6 +401,14 @@ class _NestedResult(_Result):
         for classification_result in self.classification_results.values():
             y_true_numeric.append(classification_result.y_true_numeric)
         return np.concatenate(y_true_numeric, axis=0)
+
+    @property
+    @abstractmethod
+    def annotations(self) -> pd.DataFrame: ...
+
+    @property
+    @abstractmethod
+    def predictions(self) -> pd.DataFrame: ...
 
 
 @dataclass

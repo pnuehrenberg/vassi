@@ -13,28 +13,26 @@ Keypoints = Iterable[Keypoint]
 KeypointPairs = Iterable[KeypointPair]
 
 
-class IterationManager:
+class Experiment:
     def __init__(self, random_state: Optional[np.random.Generator | int] = None):
         self.seed = to_int_seed(ensure_generator(random_state))
         self.data = {}
 
-    def do_iteration(self, iteration: int) -> bool:
+    def performs_run(self, run: int) -> bool:
         return True
 
-    def get_random_state(
-        self, iteration: int, *, num_iterations: int
-    ) -> np.random.Generator:
+    def get_random_state(self, run: int, *, num_runs: int) -> np.random.Generator:
         random_state = ensure_generator(self.seed)
-        return random_state.spawn(num_iterations)[iteration]
+        return random_state.spawn(num_runs)[run]
 
     @property
     def is_root(self) -> bool:
         return True
 
-    def add(self, iteration: int, data: Any) -> None:
-        self.data[iteration] = data
+    def add(self, run: int, data: Any) -> None:
+        self.data[run] = data
 
-    def collect(self, *, num_iterations: int) -> dict[int, Any]:
+    def collect(self, *, num_runs: int) -> dict[int, Any]:
         return self.data
 
 

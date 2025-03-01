@@ -83,7 +83,7 @@ def to_observations(
     if not y.ndim == 1:
         raise ValueError("y should be a 1D array of category labels (int).")
     change_idx = np.argwhere((np.diff(y) != 0)).ravel()
-    stop = np.asarray(change_idx.tolist() + [y.size - 1])
+    stop = np.asarray(change_idx.tolist() + [len(y) - 1])
     start = np.asarray([0] + (change_idx + 1).tolist())
     categories = np.asarray(category_names)[y[start]]
     if timestamps is not None:
