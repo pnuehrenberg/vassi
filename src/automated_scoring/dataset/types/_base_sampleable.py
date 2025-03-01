@@ -161,4 +161,6 @@ class BaseSampleable(SampleableMixin):
             raise TypeError("unsupported sample type")
         if y is not None:
             y = y[indices]
-        return cast(F, X), y
+        if TYPE_CHECKING:
+            X = cast(F, X)
+        return X, y
