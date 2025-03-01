@@ -1,12 +1,13 @@
+from __future__ import annotations
+
 from collections.abc import Sequence
-from typing import Literal, Optional, cast
+from typing import TYPE_CHECKING, Literal, Optional, cast
 
 import numpy as np
 import pandas as pd
 from numpy.typing import NDArray
 
 from ...data_structures import Trajectory
-from ...features import BaseExtractor, F
 from .._selection import get_available_indices
 from ..observations.utils import (
     check_observations,
@@ -18,6 +19,9 @@ from ._mixins import (
     AnnotatedMixin,
     SampleableMixin,
 )
+
+if TYPE_CHECKING:
+    from ...features import BaseExtractor, F
 
 
 class BaseSampleable(SampleableMixin):

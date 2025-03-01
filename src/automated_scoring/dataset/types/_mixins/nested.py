@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from abc import ABC, abstractmethod
 from collections.abc import Sequence
 from typing import (
@@ -10,7 +12,6 @@ from typing import (
 import numpy as np
 from numpy.typing import NDArray
 
-from ....features import BaseExtractor, F
 from ...utils import (
     Identifier,
     IndividualIdentifier,
@@ -18,6 +19,9 @@ from ...utils import (
 )
 from .annotated import AnnotatedMixin
 from .sampleable import SampleableMixin
+
+if TYPE_CHECKING:
+    from ....features import BaseExtractor, F
 
 
 class NestedSampleableMixin(ABC):

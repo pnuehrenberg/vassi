@@ -1,12 +1,18 @@
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
 import pandas as pd
 
 from ...data_structures import Trajectory
-from ...features import BaseExtractor, F
 from ._base_sampleable import BaseSampleable
 from ._mixins import (
     AnnotatedMixin,
     AnnotatedSampleableMixin,
 )
+
+if TYPE_CHECKING:
+    from ...features import BaseExtractor, F
 
 
 class Individual(BaseSampleable):

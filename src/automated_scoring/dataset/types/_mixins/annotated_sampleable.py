@@ -6,12 +6,13 @@ from typing import TYPE_CHECKING, Optional
 import numpy as np
 from numpy.typing import NDArray
 
-from ....features import BaseExtractor, F
 from .annotated import AnnotatedMixin
 from .sampleable import SampleableMixin
 
 if TYPE_CHECKING:
     from loguru import Logger
+
+    from ....features import BaseExtractor, F
 
 
 class AnnotatedSampleableMixin(SampleableMixin, AnnotatedMixin):

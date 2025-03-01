@@ -10,10 +10,12 @@ from numpy.dtypes import StringDType  # type: ignore
 from numpy.typing import NDArray
 
 from .data_structures.trajectory import Trajectory
-from .dataset import (
+from .dataset.types import (
     AnnotatedDataset,
     Dataset,
     Group,
+)
+from .dataset.utils import (
     GroupIdentifier,
     IndividualIdentifier,
 )
@@ -175,6 +177,9 @@ def save_trajectories(
 def load_trajectories(
     trajectory_file: str, data_path: str | None = None, exclude: list[str] | None = None
 ) -> dict[IndividualIdentifier, Trajectory]:
+    # delayed import to avoid circular imports
+    from .data_structures.trajectory import Trajectory
+
     with h5py.File(trajectory_file, "r") as h5_file:
         if data_path is not None:
             h5_data = h5_file[data_path]

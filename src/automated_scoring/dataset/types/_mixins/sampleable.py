@@ -8,13 +8,13 @@ import numpy as np
 import pandas as pd
 from numpy.typing import NDArray
 
-from ....features import BaseExtractor, F
 from ..._selection import select_indices
 from .annotated import AnnotatedMixin
 
 if TYPE_CHECKING:
     from loguru import Logger
 
+    from ....features import BaseExtractor, F
     from .annotated_sampleable import AnnotatedSampleableMixin
 
 
