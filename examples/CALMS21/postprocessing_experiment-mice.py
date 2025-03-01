@@ -1,3 +1,4 @@
+import pandas as pd
 from helpers import postprocessing, subsample_train, suggest_postprocessing_parameters
 from xgboost import XGBClassifier
 
@@ -37,36 +38,46 @@ if __name__ == "__main__":
         cache_directory="feature_cache_mice"
     ).read_yaml("config_file.yaml")
 
+    log = set_logging_level("info")
+
     studies = optimize_postprocessing_parameters(
         dataset_train.exclude_individuals(["intruder"]),
         extractor,
-        XGBClassifier(n_estimators=100),
+        XGBClassifier(n_estimators=1000),
         postprocessing_function=postprocessing,
         suggest_postprocessing_parameters_function=suggest_postprocessing_parameters,
         remove_overlapping_predictions=False,
         overlapping_predictions_kwargs=None,
-        num_runs=2,
+        num_runs=20,
+        num_trials=500,
         k=5,
         sampling_function=subsample_train,
         balance_sample_weights=True,
-        results_path=".",
-        num_trials=100,
         experiment=DistributedExperiment(random_state=1),
-        log=set_logging_level("info"),
+        log=log,
     )
 
     if studies is not None:
+        summary = [
+            {
+                "best": study.best_trial.number,
+                "best_value": study.best_value,
+                "best_params": study.best_params,
+                "results": study.trials_dataframe(
+                    ("number", "params", "value")
+                ).to_dict(orient="records"),
+            }
+            for study in studies
+        ]
+
         to_yaml(
-            [
-                {
-                    "best": study.best_trial.number,
-                    "best_value": study.best_value,
-                    "best_params": study.best_params,
-                    "results": study.trials_dataframe(
-                        ("number", "params", "value")
-                    ).to_dict(orient="records"),
-                }
-                for study in studies
-            ],
+            summary,
             file_name="optimization_results.yaml",
+        )
+
+        log.success(
+            "\n"
+            + pd.DataFrame([result["best_params"] for result in summary])
+            .aggregate(["mean", "std"])
+            .T.to_string()
         )

@@ -163,7 +163,6 @@ def optimize_postprocessing_parameters(
     sampling_function: SamplingFunction,
     balance_sample_weights: bool = True,
     experiment: Optional[Experiment] = None,
-    results_path: Optional[str] = None,
     log: Logger | None = None,
 ) -> list[optuna.study.Study] | None:
     if experiment is None:
