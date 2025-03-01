@@ -1,10 +1,11 @@
 import os
 from collections.abc import ItemsView, Mapping
-from typing import Literal, Optional, overload
+from typing import Any, Literal, Optional, overload
 
 import h5py
 import numpy as np
 import pandas as pd
+import yaml
 from numpy.dtypes import StringDType  # type: ignore
 from numpy.typing import NDArray
 
@@ -17,6 +18,46 @@ from .dataset import (
     IndividualIdentifier,
 )
 from .logging import set_logging_level
+
+
+class _NoAliasDumper(yaml.SafeDumper):
+    """
+    Helper class to dump yaml without aliases.
+    """
+
+    def ignore_aliases(self, data):
+        return True
+
+
+def _construct_yaml_tuple(self, node):
+    """
+    Helper function to construct a tuple from a yaml sequence.
+    """
+    seq = self.construct_sequence(node)
+    if seq and isinstance(seq, list):
+        return tuple(seq)
+    return seq
+
+
+class _TupleLoader(yaml.SafeLoader):
+    """
+    Helper class to load all sequences in yaml as tuples.
+    """
+
+    pass
+
+
+_TupleLoader.add_constructor("tag:yaml.org,2002:seq", _construct_yaml_tuple)
+
+
+def to_yaml(dump: Any, *, file_name: str) -> None:
+    with open(file_name, "w") as yaml_file:
+        yaml_file.write(yaml.dump(dump, Dumper=_NoAliasDumper, sort_keys=False))
+
+
+def from_yaml(file_name: str) -> Any:
+    with open(file_name, "r") as yaml_file:
+        return yaml.load(yaml_file, Loader=_TupleLoader)
 
 
 def _is_string_array(array: NDArray):

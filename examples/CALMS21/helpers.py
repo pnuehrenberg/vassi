@@ -6,21 +6,24 @@ import optuna
 from numpy.typing import NDArray
 
 from automated_scoring.classification.postprocessing import PostprocessingParameters
-from automated_scoring.dataset import AnnotatedDataset, Dataset
+from automated_scoring.dataset.types._mixins import (
+    AnnotatedSampleableMixin,
+    SampleableMixin,
+)
 from automated_scoring.features import BaseExtractor, F
 from automated_scoring.sliding_metrics import sliding_mean, sliding_quantile
 
 
 def subsample_train(
-    dataset: Dataset,
+    sampleable: SampleableMixin,
     extractor: BaseExtractor[F],
     *,
     random_state,
     log,
 ) -> tuple[F, NDArray]:
-    if not isinstance(dataset, AnnotatedDataset):
-        raise ValueError("dataset must be an annotated dataset")
-    return dataset.subsample(
+    if not isinstance(sampleable, AnnotatedSampleableMixin):
+        raise ValueError("sampleable must be annotated")
+    return sampleable.subsample(
         extractor,
         {
             ("attack", "mount"): 1.0,

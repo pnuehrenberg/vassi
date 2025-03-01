@@ -14,47 +14,17 @@ from typing import (
 
 import numpy as np
 import pandas as pd
-import yaml
 from numpy.typing import NDArray
 from sklearn.pipeline import Pipeline
 
 from ..data_structures import Trajectory
+from ..io import from_yaml, to_yaml
 from ..logging import set_logging_level
 from ..utils import hash_dict
 from . import decorators, features, temporal_features, utils
 from ._caching import cache
 
 FeatureCategory = Literal["individual", "dyadic"]
-
-
-class _NoAliasDumper(yaml.SafeDumper):
-    """
-    Helper class to dump yaml without aliases.
-    """
-
-    def ignore_aliases(self, data):
-        return True
-
-
-def _construct_yaml_tuple(self, node):
-    """
-    Helper function to construct a tuple from a yaml sequence.
-    """
-    seq = self.construct_sequence(node)
-    if seq and isinstance(seq, list):
-        return tuple(seq)
-    return seq
-
-
-class _TupleLoader(yaml.SafeLoader):
-    """
-    Helper class to load all sequences in yaml as tuples.
-    """
-
-    pass
-
-
-_TupleLoader.add_constructor("tag:yaml.org,2002:seq", _construct_yaml_tuple)
 
 
 def load_feature_func(func_name: str) -> utils.Feature:
@@ -346,10 +316,7 @@ class BaseExtractor(ABC, Generic[F]):
         features_config_file : str
             The path to the yaml file to save the configuration to.
         """
-        with open(features_config_file, "w") as yaml_file:
-            yaml_file.write(
-                yaml.dump(self.config, Dumper=_NoAliasDumper, sort_keys=False)
-            )
+        to_yaml(self.config, file_name=features_config_file)
 
     def read_yaml(self, features_config_file: str) -> Self:
         """
@@ -365,9 +332,7 @@ class BaseExtractor(ABC, Generic[F]):
         Self
             The extractor with the loaded configuration.
         """
-        with open(features_config_file, "r") as yaml_file:
-            features_config = yaml.load(yaml_file.read(), Loader=_TupleLoader)
-        self.load(features_config)
+        self.load(from_yaml(features_config_file))
         return self
 
     def load(
