@@ -1,13 +1,13 @@
-import pandas as pd
 from helpers import postprocessing, subsample_train, suggest_postprocessing_parameters
 from xgboost import XGBClassifier
 
 from automated_scoring.classification.postprocessing import (
     optimize_postprocessing_parameters,
+    summarize_experiment,
 )
 from automated_scoring.config import cfg
 from automated_scoring.features import DataFrameFeatureExtractor
-from automated_scoring.io import load_dataset, to_yaml
+from automated_scoring.io import load_dataset
 from automated_scoring.logging import set_logging_level
 
 cfg.key_keypoints = "keypoints"
@@ -46,8 +46,6 @@ if __name__ == "__main__":
         XGBClassifier(n_estimators=1000),
         postprocessing_function=postprocessing,
         suggest_postprocessing_parameters_function=suggest_postprocessing_parameters,
-        remove_overlapping_predictions=False,
-        overlapping_predictions_kwargs=None,
         num_runs=20,
         num_trials=500,
         k=5,
@@ -58,26 +56,4 @@ if __name__ == "__main__":
     )
 
     if studies is not None:
-        summary = [
-            {
-                "best": study.best_trial.number,
-                "best_value": study.best_value,
-                "best_params": study.best_params,
-                "results": study.trials_dataframe(
-                    ("number", "params", "value")
-                ).to_dict(orient="records"),
-            }
-            for study in studies
-        ]
-
-        to_yaml(
-            summary,
-            file_name="optimization_results.yaml",
-        )
-
-        log.success(
-            "\n"
-            + pd.DataFrame([result["best_params"] for result in summary])
-            .aggregate(["mean", "std"])
-            .T.to_string()
-        )
+        summarize_experiment(studies, log=log)

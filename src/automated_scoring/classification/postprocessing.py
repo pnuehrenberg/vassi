@@ -7,13 +7,15 @@ from typing import TYPE_CHECKING, Any, Callable, Optional, Protocol, TypedDict, 
 import numpy as np
 import optuna
 import pandas as pd
+from scipy.stats import gaussian_kde
 
-from ..classification.results import ClassificationResult, _NestedResult
 from ..dataset.types import AnnotatedDataset, SamplingFunction
 from ..features import BaseExtractor, F
+from ..io import to_yaml
 from ..logging import log_time, set_logging_level, with_loop
 from ..utils import Experiment, ensure_generator, to_int_seed
 from .predict import k_fold_predict
+from .results import ClassificationResult, _NestedResult
 
 if TYPE_CHECKING:
     from loguru import Logger
@@ -158,12 +160,10 @@ def optimize_postprocessing_parameters(
     num_runs: int,
     num_trials: int,
     k: int,
-    remove_overlapping_predictions: bool,
-    overlapping_predictions_kwargs: Optional[OverlappingPredictionsKwargs] = None,
     sampling_function: SamplingFunction,
     balance_sample_weights: bool = True,
     experiment: Optional[Experiment] = None,
-    log: Logger | None = None,
+    log: Optional[Logger] = None,
 ) -> list[optuna.study.Study] | None:
     if experiment is None:
         experiment = Experiment()
@@ -195,3 +195,55 @@ def optimize_postprocessing_parameters(
     for run, study in sorted(experiment.collect(num_runs=num_runs).items()):
         studies.append(study)
     return studies
+
+
+def summarize_experiment(
+    studies: list[optuna.study.Study],
+    *,
+    results_file: str = "optimization-results.yaml",
+    summary_file: str = "optimization-summary.yaml",
+    log: Optional[Logger] = None,
+):
+    if log is None:
+        log = set_logging_level()
+    results = [
+        {
+            "best": study.best_trial.number,
+            "best_value": study.best_value,
+            "best_params": study.best_params,
+            "results": study.trials_dataframe(("number", "params", "value")).to_dict(
+                orient="list"
+            ),
+        }
+        for study in studies
+    ]
+    parameters = list(results[0]["best_params"].keys())
+    best_parameters = {}
+    for parameter in parameters:
+        tested_values = [
+            trial[f"params_{parameter}"]
+            for result in results
+            for trial in result["results"]
+        ]
+        values = np.unique(tested_values)
+        best_values = [result["best_params"][parameter] for result in results]
+        density = gaussian_kde(best_values)(np.unique(tested_values))
+        best = np.argmax(density)
+        best_value = values[best]
+        if "window" in parameter:
+            best_value = int(best_value + 1)
+        else:
+            best_value = float(best_value)
+        best_parameters[parameter] = best_value
+    to_yaml(results, file_name=results_file)
+    to_yaml(best_parameters, file_name=summary_file)
+    space = max([len(parameter) for parameter in best_parameters]) + 10
+    decimals = 3
+    summary = "\n".join(
+        [
+            f"{key:<{space}}{value:{f'.{decimals}f' if isinstance(value, float) else ''}}"
+            for key, value in best_parameters.items()
+        ]
+    )
+    log.success("Best parameters:\n" + summary)
+    return best_parameters
