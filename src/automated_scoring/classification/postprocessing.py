@@ -12,7 +12,7 @@ from scipy.stats import gaussian_kde
 from ..dataset.types import AnnotatedDataset, SamplingFunction
 from ..features import BaseExtractor, F
 from ..io import to_yaml
-from ..logging import log_time, set_logging_level, with_loop
+from ..logging import increment_loop, log_time, set_logging_level, with_loop
 from ..utils import Experiment, ensure_generator, to_int_seed
 from .predict import k_fold_predict
 from .results import ClassificationResult, _NestedResult
@@ -57,19 +57,20 @@ class ParameterSuggestionFunction(Protocol):
     ) -> PostprocessingParameters: ...
 
 
-@log_time(
-    level_start="debug",
-    level_finish="info",
-    description="optuna optimization trial",
-)
+# @log_time(
+#     level_start="debug",
+#     level_finish="info",
+#     description="optuna optimization trial",
+# )
 def optuna_score_postprocessing_trial(
     classification_result: ClassificationResult | _NestedResult,
     trial: optuna.trial.Trial,
     *,
     postprocessing_function: PostprocessingFunction,
     postprocessing_parameters: PostprocessingParameters | ParameterSuggestionFunction,
-    log: Optional[Logger],
+    loop_log: tuple[Logger, str],
 ) -> float:
+    log, loop_name = loop_log
     if callable(postprocessing_parameters):
         postprocessing_parameters = postprocessing_parameters(
             trial, categories=classification_result.categories
@@ -79,7 +80,9 @@ def optuna_score_postprocessing_trial(
         **postprocessing_parameters,
         default_decision="none",
     )
-    return float(np.nanmean(classification_result_processed.score()))
+    score = float(np.nanmean(classification_result_processed.score()))
+    increment_loop(log, name=loop_name).info(f"score: {score:.3f}")
+    return score
 
 
 @log_time(
@@ -94,7 +97,7 @@ def optuna_parameter_optimization(
     random_state: Optional[int | np.random.Generator],
     postprocessing_function: PostprocessingFunction,
     suggest_postprocessing_parameters_function: ParameterSuggestionFunction,
-    log: Optional[Logger],
+    log: Logger,
 ) -> optuna.study.Study:
     random_state = ensure_generator(random_state)
     objective = partial(
@@ -102,7 +105,7 @@ def optuna_parameter_optimization(
         classification_result,
         postprocessing_function=postprocessing_function,
         postprocessing_parameters=suggest_postprocessing_parameters_function,
-        log=log,
+        loop_log=with_loop(log, name="optuna trial", step=0, total=num_trials),
     )
     optuna.logging.disable_default_handler()
     sampler = optuna.samplers.TPESampler(seed=to_int_seed(random_state))
@@ -123,7 +126,7 @@ def postprocessing_optimization_run(
     postprocessing_function: PostprocessingFunction,
     suggest_postprocessing_parameters_function: ParameterSuggestionFunction,
     random_state: Optional[int | np.random.Generator],
-    log: Optional[Logger],
+    log: Logger,
 ) -> optuna.study.Study:
     k_fold_result = k_fold_predict(
         dataset,

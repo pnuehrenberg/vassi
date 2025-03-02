@@ -39,20 +39,37 @@ def subsample_train(
 
 
 def smooth_model_outputs(postprocessing_parameters: dict[str, Any], *, array: NDArray):
-    q_lower = sliding_quantile(
-        array,
-        postprocessing_parameters["quantile_range_window_lower"],
-        postprocessing_parameters["quantile_range_lower"],
-    )
-    q_upper = sliding_quantile(
-        array,
-        postprocessing_parameters["quantile_range_window_upper"],
-        postprocessing_parameters["quantile_range_upper"],
-    )
-    array_clipped = np.clip(array, q_lower, q_upper)
-    array_smoothed = sliding_mean(
-        array_clipped, postprocessing_parameters["mean_window"]
-    )
+    categories = ("attack", "investigation", "mount", "none")
+    array_smoothed = np.zeros_like(array)
+    for idx, category in enumerate(categories):
+        window_lower = postprocessing_parameters[
+            f"quantile_range_window_lower-{category}"
+        ]
+        window_upper = postprocessing_parameters[
+            f"quantile_range_window_upper-{category}"
+        ]
+        window_mean = postprocessing_parameters[f"mean_window-{category}"]
+        if window_lower > 1:
+            q_lower = sliding_quantile(
+                array[:, idx, np.newaxis],
+                window_lower,
+                postprocessing_parameters[f"quantile_range_lower-{category}"],
+            )
+        else:
+            q_lower = array[:, idx, np.newaxis]
+        if window_upper > 1:
+            q_upper = sliding_quantile(
+                array[:, idx, np.newaxis],
+                window_upper,
+                postprocessing_parameters[f"quantile_range_upper-{category}"],
+            )
+        else:
+            q_upper = array[:, idx, np.newaxis]
+        array_clipped = np.clip(array[:, idx, np.newaxis], q_lower, q_upper)
+        if window_mean > 1:
+            array_smoothed[:, idx] = sliding_mean(array_clipped, window_mean).ravel()
+        else:
+            array_smoothed[:, idx] = array_clipped.ravel()
     return array_smoothed
 
 
@@ -73,22 +90,29 @@ def postprocessing(
 def suggest_postprocessing_parameters(
     trial: optuna.trial.Trial, *, categories: Iterable[str]
 ) -> PostprocessingParameters:
+    parameters = {}
+    for category in categories:
+        parameters[f"quantile_range_window_lower-{category}"] = (
+            trial.suggest_int(f"quantile_range_window_lower-{category}", 0, 90, step=2)
+            + 1
+        )
+        parameters[f"quantile_range_lower-{category}"] = trial.suggest_float(
+            f"quantile_range_lower-{category}", 0, 1
+        )
+        parameters[f"quantile_range_window_upper-{category}"] = (
+            trial.suggest_int(f"quantile_range_window_upper-{category}", 0, 90, step=2)
+            + 1
+        )
+        parameters[f"quantile_range_upper-{category}"] = trial.suggest_float(
+            f"quantile_range_upper-{category}", 0, 1
+        )
+        parameters[f"mean_window-{category}"] = (
+            trial.suggest_int(f"mean_window-{category}", 0, 90, step=2) + 1
+        )
     return {
-        "postprocessing_parameters": {
-            "quantile_range_window_lower": trial.suggest_int(
-                "quantile_range_window_lower", 2, 88, step=2
-            )
-            + 1,
-            "quantile_range_lower": trial.suggest_float("quantile_range_lower", 0, 0.5),
-            "quantile_range_window_upper": trial.suggest_int(
-                "quantile_range_window_upper", 2, 88, step=2
-            )
-            + 1,
-            "quantile_range_upper": trial.suggest_float("quantile_range_upper", 0.5, 1),
-            "mean_window": trial.suggest_int("mean_window", 2, 88, step=2) + 1,
-        },
+        "postprocessing_parameters": parameters,
         "decision_thresholds": [
-            trial.suggest_float(f"threshold_{category}", 0, 1)
+            trial.suggest_float(f"threshold-{category}", 0, 1)
             for category in categories
         ],
     }

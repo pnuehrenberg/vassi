@@ -154,16 +154,33 @@ def log_time(
     return decorated
 
 
+def _get_extra(log: Logger) -> dict:
+    extra = deepcopy(log._options[-1])  # type: ignore
+    return extra
+
+
+def increment_loop(log: Logger, *, name: int | str) -> Logger:
+    extra = _get_extra(log)
+    loops = extra["loops"]
+    loops[name]["step"] += 1
+    extra["loops"] = loops
+    log._options = (*log._options[:-1], extra)  # type: ignore
+    return log
+
+
+T = TypeVar("T", bound=int | str)
+
+
 def with_loop(
     log: Logger,
     *,
-    name: Optional[str | int] = None,
+    name: Optional[T] = None,
     step: int,
     total: Optional[int] = None,
-) -> tuple[Logger, str | int]:
+) -> tuple[Logger, T]:
     if isinstance(name, str) and len(name) == 0:
-        raise ValueError("name should be either None or non-empty string")
-    extra: dict = deepcopy(log._options[-1])  # type: ignore
+        raise ValueError("name should be non-empty string (or int or None)")
+    extra = _get_extra(log)
     if "loops" not in extra:
         loops = {}
     else:
@@ -181,6 +198,8 @@ def with_loop(
         "total": total,
     }
     extra["loops"] = loops
+    if TYPE_CHECKING:
+        loop = cast(T, loop)
     return log.bind(**extra), loop
 
 
@@ -202,5 +221,5 @@ def log_loop[T](
         if idx > 0:
             getattr(_log, level)(message)
         yield _log, element
-        _log = with_loop(_log, name=loop, step=idx + 1, total=total)[0]
+        _log = increment_loop(_log, name=loop)
     getattr(_log, level)(message)
