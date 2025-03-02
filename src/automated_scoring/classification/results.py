@@ -3,10 +3,12 @@ from collections.abc import Iterable, Mapping
 from copy import deepcopy
 from dataclasses import dataclass
 from functools import partial
-from typing import TYPE_CHECKING, Callable, Literal, Optional, Self
+from multiprocessing import cpu_count
+from typing import TYPE_CHECKING, Callable, Literal, Optional, Self, cast
 
 import numpy as np
 import pandas as pd
+from joblib import Parallel, delayed, parallel_config
 from numpy.typing import NDArray
 from sklearn.metrics import f1_score
 
@@ -88,22 +90,13 @@ class _Result:
 
 
 def _smooth_probabilities(
-    arg: tuple[
-        "ClassificationResult",
-        SmoothingFunction,
-        bool,
-        Optional[Iterable[float]],
-        int | str,
-    ],
+    classification_result: "ClassificationResult",
+    smoothing_func: SmoothingFunction,
+    threshold: bool,
+    decision_thresholds: Optional[Iterable[float]],
+    default_decision: int | str,
 ) -> "ClassificationResult":
     """Wrapper for smoothing probabilities in a classification result. Used in parallel processing."""
-    (
-        classification_result,
-        smoothing_func,
-        threshold,
-        decision_thresholds,
-        default_decision,
-    ) = arg
     return classification_result.smooth(
         smoothing_func,
         threshold=threshold,
@@ -113,10 +106,11 @@ def _smooth_probabilities(
 
 
 def _threshold_probabilities(
-    arg: tuple["ClassificationResult", Optional[Iterable[float]], int | str],
+    classification_result: "ClassificationResult",
+    decision_thresholds: Optional[Iterable[float]],
+    default_decision: int | str,
 ) -> "ClassificationResult":
     """Wrapper for thresholding probabilities in a classification result. Used in parallel processing."""
-    classification_result, decision_thresholds, default_decision = arg
     return classification_result.threshold(
         decision_thresholds,
         default_decision=default_decision,
@@ -285,22 +279,22 @@ class _NestedResult(_Result, ABC):
         default_decision: int | str = "none",
     ) -> Self:
         classification_results = self._flat_classification_results()
-        # num_cpus = cpu_count() - 1
-        # with get_context("spawn").Pool(processes=num_cpus) as pool:
-        classification_results = list(
-            map(
-                _smooth_probabilities,
-                [
-                    (
-                        classification_result,
-                        smoothing_func,
-                        threshold,
-                        decision_thresholds,
-                        default_decision,
-                    )
-                    for classification_result in classification_results
-                ],
+        num_cpus = cpu_count()
+        num_inner_threads = num_cpus // 4
+        num_jobs = num_cpus // num_inner_threads
+        with parallel_config(backend="loky", inner_max_num_threads=num_inner_threads):
+            results = Parallel(n_jobs=num_jobs)(
+                delayed(_smooth_probabilities)(
+                    classification_result,
+                    smoothing_func,
+                    threshold,
+                    decision_thresholds,
+                    default_decision,
+                )
+                for classification_result in classification_results
             )
+        classification_results: list[ClassificationResult] = cast(
+            list[ClassificationResult], results
         )
         self._set_classification_results(classification_results)
         return self
@@ -312,20 +306,22 @@ class _NestedResult(_Result, ABC):
         default_decision: int | str = "none",
     ) -> Self:
         classification_results = self._flat_classification_results()
-        # num_cpus = cpu_count() - 1
-        # with get_context("spawn").Pool(processes=num_cpus) as pool:
-        classification_results = list(
-            map(
-                _threshold_probabilities,
-                [
+        num_cpus = cpu_count()
+        num_inner_threads = num_cpus // 4
+        num_jobs = num_cpus // num_inner_threads
+        with parallel_config(backend="loky", inner_max_num_threads=num_inner_threads):
+            results = Parallel(n_jobs=num_jobs)(
+                delayed(_threshold_probabilities)(
                     (
                         classification_result,
                         decision_thresholds,
                         default_decision,
                     )
                     for classification_result in classification_results
-                ],
+                )
             )
+        classification_results: list[ClassificationResult] = cast(
+            list[ClassificationResult], results
         )
         self._set_classification_results(classification_results)
         return self

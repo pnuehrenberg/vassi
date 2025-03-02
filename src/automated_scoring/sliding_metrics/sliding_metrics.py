@@ -47,8 +47,8 @@ def apply_multiple_to_sliding_windows(
         result = result[..., 0, :]
     if not sliced and result.shape[-1] == 1:
         result = result[..., 0]
-    if ndim == 1:
-        return result.reshape(-1, len(funcs))
+    if ndim == 1 and len(funcs) == 1:
+        return result[:, 0]
     return result
 
 

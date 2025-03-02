@@ -40,7 +40,7 @@ def subsample_train(
 
 def smooth_model_outputs(postprocessing_parameters: dict[str, Any], *, array: NDArray):
     categories = ("attack", "investigation", "mount", "none")
-    array_smoothed = np.zeros_like(array)
+    probabilities_smoothed = np.zeros_like(array)
     for idx, category in enumerate(categories):
         window_lower = postprocessing_parameters[
             f"quantile_range_window_lower-{category}"
@@ -49,28 +49,29 @@ def smooth_model_outputs(postprocessing_parameters: dict[str, Any], *, array: ND
             f"quantile_range_window_upper-{category}"
         ]
         window_mean = postprocessing_parameters[f"mean_window-{category}"]
+        probabilities_category = array[:, idx]
+        q_lower = probabilities_category
         if window_lower > 1:
             q_lower = sliding_quantile(
-                array[:, idx, np.newaxis],
+                probabilities_category,
                 window_lower,
                 postprocessing_parameters[f"quantile_range_lower-{category}"],
             )
-        else:
-            q_lower = array[:, idx, np.newaxis]
+        q_upper = probabilities_category
         if window_upper > 1:
             q_upper = sliding_quantile(
-                array[:, idx, np.newaxis],
+                probabilities_category,
                 window_upper,
                 postprocessing_parameters[f"quantile_range_upper-{category}"],
             )
-        else:
-            q_upper = array[:, idx, np.newaxis]
-        array_clipped = np.clip(array[:, idx, np.newaxis], q_lower, q_upper)
+        probabilities_category = np.clip(probabilities_category, q_lower, q_upper)
         if window_mean > 1:
-            array_smoothed[:, idx] = sliding_mean(array_clipped, window_mean).ravel()
+            probabilities_smoothed[:, idx] = sliding_mean(
+                probabilities_category, window_mean
+            )
         else:
-            array_smoothed[:, idx] = array_clipped.ravel()
-    return array_smoothed
+            probabilities_smoothed[:, idx] = probabilities_category
+    return probabilities_smoothed
 
 
 def postprocessing(

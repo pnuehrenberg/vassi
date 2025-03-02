@@ -226,7 +226,7 @@ def summarize_experiment(
         tested_values = [
             trial[f"params_{parameter}"]
             for result in results
-            for trial in result["results"]
+            for trial in pd.DataFrame(result["results"]).to_dict(orient="records")
         ]
         values = np.unique(tested_values)
         best_values = [result["best_params"][parameter] for result in results]

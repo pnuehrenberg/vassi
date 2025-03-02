@@ -16,6 +16,7 @@ dependencies = [
     "scikit-learn",
     "xgboost",
     "networkx",
+    "loky",
     "loguru",
     "optuna",
     "observation-library @ git+ssh://git@github.com/pnuehrenberg/observation-library.git",
