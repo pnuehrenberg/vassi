@@ -98,14 +98,14 @@ def suggest_postprocessing_parameters(
             + 1
         )
         parameters[f"quantile_range_lower-{category}"] = trial.suggest_float(
-            f"quantile_range_lower-{category}", 0, 1
+            f"quantile_range_lower-{category}", 0, 0.5
         )
         parameters[f"quantile_range_window_upper-{category}"] = (
             trial.suggest_int(f"quantile_range_window_upper-{category}", 0, 90, step=2)
             + 1
         )
         parameters[f"quantile_range_upper-{category}"] = trial.suggest_float(
-            f"quantile_range_upper-{category}", 0, 1
+            f"quantile_range_upper-{category}", 0.5, 1
         )
         parameters[f"mean_window-{category}"] = (
             trial.suggest_int(f"mean_window-{category}", 0, 90, step=2) + 1
