@@ -10,7 +10,7 @@ import numpy as np
 import pandas as pd
 from sklearn.model_selection import KFold, StratifiedKFold, train_test_split
 
-from ...utils import ensure_generator, to_int_seed
+from ...utils import to_int_seed
 from ..observations.utils import check_observations
 from ..utils import GroupIdentifier, IndividualIdentifier, SubjectIdentifier
 from ._mixins import (
@@ -261,7 +261,7 @@ class Dataset(NestedSampleableMixin, SampleableMixin):
         random_state: int | None | np.random.Generator,
         subset_actors_only: bool = True,
     ) -> tuple[Self, Self]:
-        random_state = ensure_generator(random_state)
+        random_state = np.random.default_rng(random_state)
         if isinstance(size, float) and (size < 0 or size > 1):
             raise ValueError(
                 "size should be within (0.0, 1.0) interval (exclusive) if float"
@@ -306,7 +306,7 @@ class Dataset(NestedSampleableMixin, SampleableMixin):
         random_state: int | None | np.random.Generator,
         subset_actors_only: bool = True,
     ) -> Generator[tuple[Self, Self], None, None]:
-        random_state = ensure_generator(random_state)
+        random_state = np.random.default_rng(random_state)
         individuals = self.individuals
         try:
             kf = StratifiedKFold(

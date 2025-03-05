@@ -20,7 +20,7 @@ from ..dataset.observations.utils import (
     ensure_single_index,
 )
 from ..dataset.utils import interval_contained, interval_overlap
-from ..utils import ensure_generator, to_int_seed
+from ..utils import to_int_seed
 
 if TYPE_CHECKING:
     from loguru import Logger
@@ -39,7 +39,7 @@ class Classifier(Protocol):
 def init_new_classifier(
     classifier: Classifier, random_state: Optional[np.random.Generator | int]
 ) -> Classifier:
-    random_state = ensure_generator(random_state)
+    random_state = np.random.default_rng(random_state)
     params = classifier.get_params()
     params["random_state"] = to_int_seed(random_state)
     return type(classifier)(**params)

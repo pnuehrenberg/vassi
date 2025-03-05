@@ -20,9 +20,9 @@ from ..dataset.types import (
     SampleableMixin,
     SamplingFunction,
 )
-from ..features import BaseExtractor, F
+from ..features import BaseExtractor, Shaped
 from ..logging import log_loop, log_time, set_logging_level
-from ..utils import class_name, ensure_generator
+from ..utils import class_name
 from .results import (
     ClassificationResult,
     DatasetClassificationResult,
@@ -38,7 +38,7 @@ if TYPE_CHECKING:
     from loguru import Logger
 
 
-def _predict_sampleable(
+def _predict_sampleable[F: Shaped](
     sampleable: BaseSampleable,
     classifier: Classifier,
     extractor: BaseExtractor[F],
@@ -81,7 +81,7 @@ def _predict_sampleable(
     ).threshold()
 
 
-def _predict_group(
+def _predict_group[F: Shaped](
     group: Group,
     classifier: Classifier,
     extractor: BaseExtractor[F],
@@ -123,7 +123,7 @@ def _predict_group(
     level_finish="success",
     description="predicting on dataset",
 )
-def _predict(
+def _predict[F: Shaped](
     dataset: Dataset,
     classifier: Classifier,
     extractor: BaseExtractor[F],
@@ -162,7 +162,7 @@ def _predict(
 
 
 @overload
-def predict(
+def predict[F: Shaped](
     sampleable: BaseSampleable,
     classifier: Classifier,
     extractor: BaseExtractor[F],
@@ -175,7 +175,7 @@ def predict(
 
 
 @overload
-def predict(
+def predict[F: Shaped](
     sampleable: Group,
     classifier: Classifier,
     extractor: BaseExtractor[F],
@@ -188,7 +188,7 @@ def predict(
 
 
 @overload
-def predict(
+def predict[F: Shaped](
     sampleable: Dataset,
     classifier: Classifier,
     extractor: BaseExtractor[F],
@@ -200,7 +200,7 @@ def predict(
 ) -> DatasetClassificationResult: ...
 
 
-def predict(
+def predict[F: Shaped](
     sampleable: SampleableMixin,
     classifier: Classifier,
     extractor: BaseExtractor[F],
@@ -251,7 +251,7 @@ def predict(
     level_finish="success",
     description="k-fold cross-validation",
 )
-def k_fold_predict(
+def k_fold_predict[F: Shaped](
     dataset: AnnotatedDataset,
     extractor: BaseExtractor[F],
     classifier: Classifier,
@@ -262,7 +262,7 @@ def k_fold_predict(
     balance_sample_weights: bool = True,
     log: Optional[Logger],
 ) -> DatasetClassificationResult:
-    random_state = ensure_generator(random_state)
+    random_state = np.random.default_rng(random_state)
     encoding_function = dataset.encode
     if type(classifier) is type:
         classifier = init_new_classifier(classifier(), random_state)

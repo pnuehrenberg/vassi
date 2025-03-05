@@ -7,12 +7,14 @@ try:
 except ImportError:
     MPI = None
 
-from .utils import Experiment, ensure_generator, to_int_seed
+from .utils import Experiment
 
 
 class DistributedExperiment(Experiment):
-    def __init__(self, random_state: Optional[np.random.Generator | int] = None):
-        self.seed = to_int_seed(ensure_generator(random_state))
+    def __init__(
+        self, num_runs: int, *, random_state: Optional[np.random.Generator | int] = None
+    ):
+        super().__init__(num_runs, random_state=random_state)
         self.data = {}
         self.comm = None
         self.rank = 0
@@ -23,33 +25,30 @@ class DistributedExperiment(Experiment):
         self.rank = self.comm.Get_rank()
         self.size = self.comm.Get_size()
 
-    def performs_run(self, run: int) -> bool:
+    @property
+    def performs_run(self) -> bool:
         if self.comm is None:
             return True
-        return run % self.size == self.rank
-
-    def get_random_state(self, run: int, *, num_runs: int) -> np.random.Generator:
-        random_state = ensure_generator(self.seed)
-        return random_state.spawn(num_runs)[run]
+        return self.run % self.size == self.rank
 
     @property
     def is_root(self) -> bool:
         return self.rank == 0
 
-    def add(self, run: int, data: Any) -> None:
+    def add(self, data: Any) -> None:
         if self.comm is None or self.is_root:
-            self.data[run] = data
+            self.data[self.run] = data
             return
-        self.comm.send(data, dest=0, tag=run)
+        self.comm.send(data, dest=0, tag=self.run)
 
-    def collect(self, *, num_runs: int) -> dict[int, Any]:
+    def collect(self) -> dict[int, Any]:
         if self.comm is None:
             return self.data
         if not self.is_root:
             raise RuntimeError("collect should only be called from root mpi process")
-        for run in range(1, num_runs):
+        for run in range(1, self.num_runs):
             rank = run % self.size
             if rank == self.rank:
                 continue
             self.data[run] = self.comm.recv(source=rank, tag=run)
-        return {run: self.data[run] for run in sorted(self.data)}
+        return dict(sorted(self.data.items()))

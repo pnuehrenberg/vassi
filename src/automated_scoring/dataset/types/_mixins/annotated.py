@@ -34,6 +34,9 @@ class AnnotatedMixin(ABC):
         if background_category not in categories:
             categories = tuple(list(categories) + [background_category])
         self.categories = tuple(sorted(categories))
+        self.foreground_categories = tuple(
+            category for category in categories if category != background_category
+        )
         self._encode = partial(encode_categories, categories=self.categories)
         # call finalize init to handle observations in subclasses
         # some additional attributes may be needed for other

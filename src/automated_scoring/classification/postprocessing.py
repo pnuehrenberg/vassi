@@ -10,10 +10,10 @@ import pandas as pd
 from scipy.stats import gaussian_kde
 
 from ..dataset.types import AnnotatedDataset, SamplingFunction
-from ..features import BaseExtractor, F
+from ..features import BaseExtractor, Shaped
 from ..io import to_yaml
 from ..logging import increment_loop, log_time, set_logging_level, with_loop
-from ..utils import Experiment, ensure_generator, to_int_seed
+from ..utils import Experiment, to_int_seed
 from .predict import k_fold_predict
 from .results import ClassificationResult, _NestedResult
 
@@ -99,7 +99,7 @@ def optuna_parameter_optimization(
     suggest_postprocessing_parameters_function: ParameterSuggestionFunction,
     log: Logger,
 ) -> optuna.study.Study:
-    random_state = ensure_generator(random_state)
+    random_state = np.random.default_rng(random_state)
     objective = partial(
         optuna_score_postprocessing_trial,
         classification_result,
@@ -114,7 +114,7 @@ def optuna_parameter_optimization(
     return study
 
 
-def postprocessing_optimization_run(
+def postprocessing_optimization_run[F: Shaped](
     dataset: AnnotatedDataset,
     extractor: BaseExtractor[F],
     classifier: Any,
@@ -153,37 +153,31 @@ def postprocessing_optimization_run(
     level_finish="success",
     description="postprocessing parameter optimization",
 )
-def optimize_postprocessing_parameters(
+def optimize_postprocessing_parameters[F: Shaped](
     dataset: AnnotatedDataset,
     extractor: BaseExtractor[F],
     classifier: Any,
     postprocessing_function: PostprocessingFunction,
     suggest_postprocessing_parameters_function: ParameterSuggestionFunction,
     *,
-    num_runs: int,
     num_trials: int,
     k: int,
     sampling_function: SamplingFunction,
     balance_sample_weights: bool = True,
-    experiment: Optional[Experiment] = None,
+    experiment: Experiment,
     log: Optional[Logger] = None,
 ) -> list[optuna.study.Study] | None:
-    if experiment is None:
-        experiment = Experiment()
     if log is None:
         log = set_logging_level()
-    for run in range(num_runs):
-        if not experiment.performs_run(run):
-            continue
+    for run in experiment:
         log = with_loop(log, name="run", step=run)[0]
         experiment.add(
-            run,
             postprocessing_optimization_run(
                 dataset,
                 extractor,
                 classifier,
                 k=k,
-                random_state=experiment.get_random_state(run, num_runs=num_runs),
+                random_state=experiment.random_state,
                 sampling_function=sampling_function,
                 balance_sample_weights=balance_sample_weights,
                 postprocessing_function=postprocessing_function,
@@ -194,10 +188,7 @@ def optimize_postprocessing_parameters(
         )
     if not experiment.is_root:
         return
-    studies = []
-    for run, study in sorted(experiment.collect(num_runs=num_runs).items()):
-        studies.append(study)
-    return studies
+    return list(experiment.collect().values())
 
 
 def summarize_experiment(

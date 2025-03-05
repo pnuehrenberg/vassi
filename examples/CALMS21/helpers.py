@@ -10,11 +10,11 @@ from automated_scoring.dataset.types._mixins import (
     AnnotatedSampleableMixin,
     SampleableMixin,
 )
-from automated_scoring.features import BaseExtractor, F
+from automated_scoring.features import BaseExtractor, Shaped
 from automated_scoring.sliding_metrics import sliding_mean, sliding_quantile
 
 
-def subsample_train(
+def subsample_train[F: Shaped](
     sampleable: SampleableMixin,
     extractor: BaseExtractor[F],
     *,

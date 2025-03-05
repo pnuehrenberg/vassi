@@ -14,12 +14,12 @@ from .annotated import AnnotatedMixin
 if TYPE_CHECKING:
     from loguru import Logger
 
-    from ....features import BaseExtractor, F
+    from ....features import BaseExtractor, Shaped
     from .annotated_sampleable import AnnotatedSampleableMixin
 
 
 class SamplingFunction(Protocol):
-    def __call__(
+    def __call__[F: Shaped](
         self,
         sampleable: "SampleableMixin",
         extractor: BaseExtractor[F],
@@ -33,7 +33,7 @@ class SamplingFunction(Protocol):
 class SampleableMixin(ABC):
     @classmethod
     @abstractmethod
-    def REQUIRED_COLUMNS(cls, target=None) -> tuple[str, ...]: ...
+    def REQUIRED_COLUMNS(cls, target: Optional[str] = None) -> tuple[str, ...]: ...
 
     @abstractmethod
     def _size(self) -> int: ...
@@ -46,18 +46,18 @@ class SampleableMixin(ABC):
         return self.size
 
     @abstractmethod
-    def _sample_X(
+    def _sample_X[F: Shaped](
         self,
         extractor: BaseExtractor[F],
     ) -> F: ...
 
-    def sample_X(
+    def sample_X[F: Shaped](
         self,
         extractor: BaseExtractor[F],
     ) -> F:
         return self._sample_X(extractor)
 
-    def sample(
+    def sample[F: Shaped](
         self,
         extractor: BaseExtractor[F],
     ) -> tuple[F, NDArray | None]:
@@ -76,7 +76,7 @@ class SampleableMixin(ABC):
     ) -> tuple[NDArray, NDArray | None, Sequence[NDArray | None], dict]: ...
 
     @abstractmethod
-    def _select_samples(
+    def _select_samples[F: Shaped](
         self,
         extractor: BaseExtractor[F],
         indices: NDArray,
@@ -85,7 +85,7 @@ class SampleableMixin(ABC):
         store_indices: bool,
     ) -> tuple[F, NDArray | None]: ...
 
-    def subsample(
+    def subsample[F: Shaped](
         self,
         extractor: BaseExtractor[F],
         size: int | float | Mapping[str | tuple[str, ...], int | float],

@@ -12,11 +12,7 @@ from automated_scoring.logging import set_logging_level
 
 cfg.key_keypoints = "keypoints"
 cfg.key_timestamp = "timestamps"
-
-cfg.trajectory_keys = (
-    "keypoints",
-    "timestamps",
-)
+cfg.trajectory_keys = ("keypoints", "timestamps")
 
 if __name__ == "__main__":
     from automated_scoring.distributed import DistributedExperiment
@@ -46,12 +42,11 @@ if __name__ == "__main__":
         XGBClassifier(n_estimators=1000),
         postprocessing_function=postprocessing,
         suggest_postprocessing_parameters_function=suggest_postprocessing_parameters,
-        num_runs=20,
         num_trials=2000,
         k=5,
         sampling_function=subsample_train,
         balance_sample_weights=True,
-        experiment=DistributedExperiment(random_state=1),
+        experiment=DistributedExperiment(20, random_state=1),
         log=log,
     )
 

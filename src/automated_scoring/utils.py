@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import hashlib
 import json
-from typing import Any, Iterable, Optional, Protocol
+from typing import Any, Iterable, Optional, Protocol, Self
 
 import numpy as np
 from numpy.typing import NDArray
@@ -14,26 +14,66 @@ KeypointPairs = Iterable[KeypointPair]
 
 
 class Experiment:
-    def __init__(self, random_state: Optional[np.random.Generator | int] = None):
-        self.seed = to_int_seed(ensure_generator(random_state))
+    def __init__(
+        self, num_runs: int, *, random_state: Optional[np.random.Generator | int] = None
+    ):
+        self._num_runs = num_runs
+        self._run = None
+        self._seed = to_int_seed(np.random.default_rng(random_state))
+        self._random_state = None
         self.data = {}
 
-    def performs_run(self, run: int) -> bool:
-        return True
+    @property
+    def num_runs(self) -> int:
+        return self._num_runs
 
     def get_random_state(self, run: int, *, num_runs: int) -> np.random.Generator:
-        random_state = ensure_generator(self.seed)
+        random_state = np.random.default_rng(self._seed)
         return random_state.spawn(num_runs)[run]
+
+    def __iter__(self) -> Self:
+        self._run = -1
+        self._random_state = None
+        return self
+
+    def __next__(self) -> int:
+        self._random_state = None
+        if self._run is None:
+            raise ValueError("not in experiment loop")
+        self._run += 1
+        if self._run >= self.num_runs:
+            raise StopIteration
+        while not self.performs_run:
+            return next(self)
+        return self._run
+
+    @property
+    def run(self) -> int:
+        if self._run is None or self._run < 0 or self._run >= self.num_runs:
+            raise ValueError("property only accessible within experiment loop")
+        return self._run
+
+    @property
+    def random_state(self) -> np.random.Generator:
+        if self._random_state is not None:
+            return self._random_state
+        self._random_state = self.get_random_state(self.run, num_runs=self.num_runs)
+        return self._random_state
+
+    @property
+    def performs_run(self) -> bool:
+        _ = self.run
+        return True
 
     @property
     def is_root(self) -> bool:
         return True
 
-    def add(self, run: int, data: Any) -> None:
-        self.data[run] = data
+    def add(self, data: Any) -> None:
+        self.data[self.run] = data
 
-    def collect(self, *, num_runs: int) -> dict[int, Any]:
-        return self.data
+    def collect(self) -> dict[int, Any]:
+        return dict(sorted(self.data.items()))
 
 
 def class_name(obj: object) -> str:
@@ -220,25 +260,25 @@ def pad_values(array: NDArray, step: int, value: int | float | str) -> NDArray:
     return array
 
 
-def ensure_generator(
-    random_state: np.random.Generator | int | None,
-) -> np.random.Generator:
-    """
-    Ensure that the random state is a numpy random generator.
+# def ensure_generator(
+#     random_state: np.random.Generator | int | None,
+# ) -> np.random.Generator:
+#     """
+#     Ensure that the random state is a numpy random generator.
 
-    Parameters
-    ----------
-    random_state: np.random.Generator | int | None
-        The random state.
+#     Parameters
+#     ----------
+#     random_state: np.random.Generator | int | None
+#         The random state.
 
-    Returns
-    -------
-    np.random.Generator
-        The random generator.
-    """
-    if not isinstance(random_state, np.random.Generator):
-        return np.random.default_rng(seed=random_state)
-    return random_state
+#     Returns
+#     -------
+#     np.random.Generator
+#         The random generator.
+#     """
+#     if not isinstance(random_state, np.random.Generator):
+#         return np.random.default_rng(seed=random_state)
+#     return random_state
 
 
 def to_int_seed(random_state: np.random.Generator) -> int:

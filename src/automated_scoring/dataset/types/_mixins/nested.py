@@ -21,7 +21,7 @@ from .annotated import AnnotatedMixin
 from .sampleable import SampleableMixin
 
 if TYPE_CHECKING:
-    from ....features import BaseExtractor, F
+    from ....features import BaseExtractor, Shaped
 
 
 class NestedSampleableMixin(ABC):
@@ -70,7 +70,7 @@ class NestedSampleableMixin(ABC):
         self._iter_current += 1
         return identifier, self.select(identifier)
 
-    def _sample_X(
+    def _sample_X[F: Shaped](
         self,
         extractor: BaseExtractor[F],
     ) -> F:
@@ -188,7 +188,7 @@ class NestedSampleableMixin(ABC):
             splits_updated,
         )
 
-    def _select_samples(
+    def _select_samples[F: Shaped](
         self,
         extractor: BaseExtractor[F],
         indices: NDArray,
@@ -198,26 +198,33 @@ class NestedSampleableMixin(ABC):
     ) -> tuple[F, NDArray | None]:
         if splits is None:
             raise ValueError("splits must be specified for nested sampleables")
-        X: list[F] = []
-        y = []
-        num_features = None
-        for identifier, sampleable in self:
-            _X, _y = sampleable._select_samples(
+        samples = [
+            sampleable._select_samples(
                 extractor,
                 indices,
                 splits[identifier],
                 store_indices=store_indices,
             )
-            if num_features is None and _X.shape[1] != 0:
-                num_features = _X.shape[1]
-            X.append(_X)
-            y.append(_y)
+            for identifier, sampleable in self
+        ]
+        X = [X_sampleable for X_sampleable, _ in samples]
+        y = [y_sampleable for _, y_sampleable in samples]
+        num_features = None
+        for X_sampleable in X:
+            _num_features = X_sampleable.shape[1]
+            if num_features is None and _num_features != 0:
+                num_features = _num_features
+                continue
+            if num_features != _num_features:
+                raise ValueError("Inconsistent number of features")
         X_concat = extractor.concatenate(
             *X, axis=0, ignore_index=True, num_features=num_features
         )
         if any([_y is None for _y in y]):
             y_concat = None
         else:
+            if TYPE_CHECKING:
+                y = [_y for _y in y if _y is not None]
             y_concat = np.concatenate(y)
         return X_concat, y_concat
 

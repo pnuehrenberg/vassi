@@ -12,7 +12,7 @@ from ._mixins import (
 )
 
 if TYPE_CHECKING:
-    from ...features import BaseExtractor, F
+    from ...features import BaseExtractor, Shaped
 
 
 class Dyad(BaseSampleable):
@@ -53,7 +53,7 @@ class Dyad(BaseSampleable):
             raise ValueError("trajectories have mismatched timestamps.")
         return trajectory_other
 
-    def _sample_X(
+    def _sample_X[F: Shaped](
         self,
         extractor: BaseExtractor[F],
     ) -> F:

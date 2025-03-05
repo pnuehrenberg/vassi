@@ -39,7 +39,7 @@ class _Result:
         self,
         on: Literal["timestamp", "annotation", "prediction"],
     ) -> tuple[float, ...]:
-        categories: tuple[str, ...] = tuple(self.categories)  # type: ignore
+        categories: tuple[str, ...] = tuple(self.categories)  # type: ignore  # better done via abstract base class!
         encoding_function = partial(encode_categories, categories=categories)
         if on == "timestamp":
             y_true = self.y_true_numeric  # type: ignore
@@ -64,16 +64,14 @@ class _Result:
             zero_division=1.0,  # type: ignore
         )
 
-    def score(self) -> NDArray:
-        f1_per_timestamp = self.f1_score("timestamp")
-        f1_per_annotation = self.f1_score("annotation")
-        f1_per_prediction = self.f1_score("prediction")
-        return np.array(
-            [
-                f1_per_timestamp,
-                f1_per_annotation,
-                f1_per_prediction,
-            ]
+    def score(self) -> pd.DataFrame:
+        categories: tuple[str, ...] = tuple(self.categories)  # type: ignore
+        levels = ("timestamp", "annotation", "prediction")
+        scores = np.array([self.f1_score(level) for level in levels])
+        return pd.DataFrame(
+            scores,
+            columns=categories,
+            index=levels,
         )
 
     def _remove_overlapping_predictions(
@@ -312,13 +310,11 @@ class _NestedResult(_Result, ABC):
         with parallel_config(backend="loky", inner_max_num_threads=num_inner_threads):
             results = Parallel(n_jobs=num_jobs)(
                 delayed(_threshold_probabilities)(
-                    (
-                        classification_result,
-                        decision_thresholds,
-                        default_decision,
-                    )
-                    for classification_result in classification_results
+                    classification_result,
+                    decision_thresholds,
+                    default_decision,
                 )
+                for classification_result in classification_results
             )
         classification_results: list[ClassificationResult] = cast(
             list[ClassificationResult], results

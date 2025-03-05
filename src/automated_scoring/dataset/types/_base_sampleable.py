@@ -21,7 +21,7 @@ from ._mixins import (
 )
 
 if TYPE_CHECKING:
-    from ...features import BaseExtractor, F
+    from ...features import BaseExtractor, Shaped
 
 
 class BaseSampleable(SampleableMixin):
@@ -125,7 +125,7 @@ class BaseSampleable(SampleableMixin):
             {"min": 0, "max": self.size - 1, "offset": 0},
         )
 
-    def _select_samples(
+    def _select_samples[F: Shaped](
         self,
         extractor: BaseExtractor[F],
         indices: NDArray,

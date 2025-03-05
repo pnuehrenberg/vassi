@@ -4,12 +4,10 @@ from collections.abc import Mapping
 from typing import (
     TYPE_CHECKING,
     Any,
-    Generic,
     Literal,
     Optional,
     Protocol,
     Self,
-    TypeVar,
 )
 
 import numpy as np
@@ -63,10 +61,7 @@ class Shaped(Protocol):
     def shape(self) -> tuple[int, ...]: ...
 
 
-F = TypeVar("F", bound=Shaped)
-
-
-class BaseExtractor(ABC, Generic[F]):
+class BaseExtractor[F: Shaped](ABC):
     """
     The base class for feature extractors.
 
@@ -94,6 +89,7 @@ class BaseExtractor(ABC, Generic[F]):
         *,
         features: list[tuple[utils.Feature, Mapping[str, Any]]] | None = None,
         dyadic_features: list[tuple[utils.Feature, Mapping[str, Any]]] | None = None,
+        cache: bool = True,
         cache_directory: str,
         pipeline: Optional[Pipeline] = None,
         refit_pipeline: bool = False,
@@ -106,6 +102,7 @@ class BaseExtractor(ABC, Generic[F]):
             self._init_features(features, category="individual")
         if dyadic_features is not None:
             self._init_features(dyadic_features, category="dyadic")
+        self.cache = cache
         self.cache_directory = cache_directory
         self.pipeline = pipeline
         self.refit_pipeline = refit_pipeline
@@ -453,7 +450,7 @@ class BaseExtractor(ABC, Generic[F]):
         self,
         trajectory: Trajectory,
         trajectory_other: Optional[Trajectory] = None,
-    ) -> Any:
+    ) -> F:
         """
         Extract features from a trajectory.
 
@@ -472,7 +469,7 @@ class BaseExtractor(ABC, Generic[F]):
             The computed features. The type depends on the subclass.
         """
 
-        def extract_category(category: Literal["individual", "dyadic"]) -> Any:
+        def extract_category(category: Literal["individual", "dyadic"]) -> F:
             nonlocal trajectory, trajectory_other
             if category == "individual":
                 return self.extract_features(

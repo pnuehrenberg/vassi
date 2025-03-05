@@ -51,25 +51,7 @@ def _from_cache(cache_file: str):
         return pickle.load(cached)
 
 
-def _hash_args(extractor: "BaseExtractor", *args, **kwargs) -> str:
-    """
-    Return a hash (hex digest) of the arguments of a method implemented by the BaseExtractor class.
-
-    Parameters
-    ----------
-    extractor : BaseExtractor
-        The extractor.
-    *args : Any
-        The arguments.
-    **kwargs : Any
-        The keyword arguments.
-
-    Returns
-    -------
-    str
-        The hash of the arguments.
-    """
-
+def _hash_args(*args, **kwargs) -> str:
     def to_hash_string(arg):
         if arg is None:
             return "none"
@@ -79,6 +61,7 @@ def _hash_args(extractor: "BaseExtractor", *args, **kwargs) -> str:
             return arg.sha1
         raise NotImplementedError("invalid argument type")
 
+    extractor, args = args[0], args[1:]
     d = {"extractor": extractor.sha1}
     for idx, arg in enumerate(args):
         d[f"arg_{idx}"] = to_hash_string(arg)
@@ -87,7 +70,7 @@ def _hash_args(extractor: "BaseExtractor", *args, **kwargs) -> str:
     return hash_dict(d)
 
 
-def cache(func: Callable) -> Callable:
+def cache[**P, T](func: Callable[P, T]) -> Callable[P, T]:
     """
     Decorator to cache the result of a method implemented by the BaseExtractor class.
 
@@ -102,15 +85,55 @@ def cache(func: Callable) -> Callable:
         The decorated method.
     """
 
-    def _cache(extractor: "BaseExtractor", *args, **kwargs):
-        hash_value = _hash_args(extractor, *args, **kwargs)
+    def _cache(*args: P.args, **kwargs: P.kwargs) -> T:
+        hash_value = _hash_args(*args, **kwargs)
+        extractor = args[0]
+        if TYPE_CHECKING:
+            assert isinstance(extractor, BaseExtractor)
         cache_file = os.path.join(extractor.cache_directory, hash_value)
-        try:
-            return _from_cache(cache_file)
-        except FileNotFoundError:
-            pass
-        value = func(extractor, *args, **kwargs)
+        if extractor.cache:
+            try:
+                return _from_cache(cache_file)
+            except FileNotFoundError:
+                pass
+        value = func(*args, **kwargs)
+        if not extractor.cache:
+            return value
         _to_cache(value, cache_file)
         return value
 
     return _cache
+
+
+# def _cache(extractor: "BaseExtractor", *args, func: Callable, **kwargs):
+#     if not extractor.cache:
+#         return func(extractor, *args, **kwargs)
+#     hash_value = _hash_args(extractor, *args, **kwargs)
+#     cache_file = os.path.join(extractor.cache_directory, hash_value)
+#     try:
+#         return _from_cache(cache_file)
+#     except FileNotFoundError:
+#         pass
+#     value = func(extractor, *args, **kwargs)
+#     _to_cache(value, cache_file)
+#     return value
+
+
+# def cache[**P, T](func: Callable[P, T]) -> Callable[P, T]:
+#     """
+#     Decorator to cache the result of a method implemented by the BaseExtractor class.
+
+#     Parameters
+#     ----------
+#     func : Callable
+#         The method to cache.
+
+#     Returns
+#     -------
+#     Callable
+#         The decorated method.
+#     """
+
+#     result_func = functools.partial(_cache, func=func)
+#     decorated = functools.wraps(func)(result_func)
+#     return decorated

@@ -12,11 +12,11 @@ from ._mixins import (
 )
 
 if TYPE_CHECKING:
-    from ...features import BaseExtractor, F
+    from ...features import BaseExtractor, Shaped
 
 
 class Individual(BaseSampleable):
-    def _sample_X(
+    def _sample_X[F: Shaped](
         self,
         extractor: BaseExtractor[F],
     ) -> F:

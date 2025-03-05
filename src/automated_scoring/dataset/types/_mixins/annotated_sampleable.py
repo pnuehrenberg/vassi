@@ -12,18 +12,18 @@ from .sampleable import SampleableMixin
 if TYPE_CHECKING:
     from loguru import Logger
 
-    from ....features import BaseExtractor, F
+    from ....features import BaseExtractor, Shaped
 
 
 class AnnotatedSampleableMixin(SampleableMixin, AnnotatedMixin):
     if TYPE_CHECKING:
 
-        def sample(
+        def sample[F: Shaped](
             self,
             extractor: BaseExtractor[F],
         ) -> tuple[F, NDArray]: ...
 
-        def subsample(
+        def subsample[F: Shaped](
             self,
             extractor: BaseExtractor[F],
             size: int | float | Mapping[str | tuple[str, ...], int | float],

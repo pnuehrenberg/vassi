@@ -2,8 +2,8 @@ from .decorators import as_absolute, as_dataframe, as_sign_change_latency
 from .feature_extractor import (
     BaseExtractor,
     DataFrameFeatureExtractor,
-    F,
     FeatureExtractor,
+    Shaped,
 )
 from .features import (
     keypoint_distances,
@@ -53,5 +53,5 @@ __all__ = [
     "BaseExtractor",
     "FeatureExtractor",
     "DataFrameFeatureExtractor",
-    "F",
+    "Shaped",
 ]
