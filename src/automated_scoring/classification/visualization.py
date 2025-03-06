@@ -123,11 +123,11 @@ def plot_classification_timeline(
     figsize: tuple[float, float] = (10, 3),
     dpi: float = 100,
     category_labels: Optional[Iterable[str]] = None,
-    interval: tuple[float, float] = (0, 500),
-    x_tick_step: float = 30,
-    x_tick_conversion: Optional[Callable[[Sequence[float]], Sequence]] = None,
-    x_label: Optional[str] = None,
+    interval: Optional[tuple[float, float]] = None,
     limit_interval: bool = True,
+    x_tick_step: Optional[float] = None,
+    x_tick_conversion: Optional[Callable[[Sequence[float]], Sequence[str]]] = None,
+    x_label: Optional[str] = None,
 ):
     def _plot_timeline(
         ax: Axes,
@@ -151,11 +151,12 @@ def plot_classification_timeline(
             color=color,
         )
 
-    if limit_interval:
+    if interval is None or limit_interval:
+        interval = (-np.inf, np.inf)
         interval = (
             max(interval[0], predictions["start"].min()),
             min(interval[1], predictions["stop"].max()),
-        )  # type: ignore
+        )
     categories = list(categories)
     category_labels = categories if category_labels is None else list(category_labels)
     show_on_return = False
@@ -200,7 +201,10 @@ def plot_classification_timeline(
         axes[idx].set_xlim(interval[0], interval[1])
         axes[idx].set_ylim(-0.1, 1.1)
         axes[idx].set_ylabel(category_labels[idx], ha="right", va="center", rotation=0)
-    axes[-1].set_xticks(np.arange(*interval, x_tick_step))
+    if x_tick_step is not None:
+        axes[-1].set_xticks(np.arange(*interval, x_tick_step))
+    else:
+        axes[-1].set_xticks([])
     if x_tick_conversion is not None:
         axes[-1].set_xticklabels(x_tick_conversion(list(axes[-1].get_xticks())))
     if x_label is not None:

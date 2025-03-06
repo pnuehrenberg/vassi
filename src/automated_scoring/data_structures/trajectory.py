@@ -1,5 +1,6 @@
+from collections.abc import Mapping
 from math import isclose
-from typing import Mapping, Optional
+from typing import Optional, Self
 
 import numpy as np
 from numpy.typing import NDArray
@@ -11,24 +12,23 @@ from .timestamped_collection import TimestampedInstanceCollection
 
 class Trajectory(TimestampedInstanceCollection):
     """
-    Trajectory data structure.
+    Represents a trajectory, a specialized TimestampedInstanceCollection with a defined timestep.
+
+    This class extends `TimestampedInstanceCollection` and adds functionality specific to trajectories, such as interpolation and sampling at specific timestamps. It also manages a timestep attribute.
 
     Parameters
     ----------
-    data: Mapping[str, NDArray], optional
-        Data of the instances.
-
-    cfg: Config, optional
-        Configuration of the instances.
-
-    timestep: int | float, optional
-        Timestep of the trajectory.
-
-    validate_on_init: bool, optional
-        Whether to validate the data on initialization.
+    data : Mapping of str and numpy.ndarray, optional
+        A dictionary containing the trajectory data (default is None).
+    cfg : config.Config, optional
+        The configuration object (default is None).
+    timestep : int or float, optional
+        The timestep of the trajectory (default is None).
+    validate_on_init : bool, optional
+        Whether to validate the data during initialization (default is True).
     """
 
-    _timestep: Optional[int | float] = None
+    _timestep: Optional[int | float]
 
     def __init__(
         self,
@@ -47,23 +47,23 @@ class Trajectory(TimestampedInstanceCollection):
         data: Optional[dict[str, NDArray]],
         copy_config: bool = False,
         validate_on_init: bool = False,
-    ) -> "Trajectory":
+    ) -> Self:
         """
-        Initialize a new instance of the same type.
+        Initializes a new Trajectory object, optionally copying the configuration.
 
         Parameters
         ----------
-        data: Mapping[str, NDArray]
-            Data of the new collection.
-        copy_config: bool, optional
-            Whether to copy the configuration.
-        validate_on_init: bool, optional
-            Whether to validate the data on initialization.
+        data : Optional[dict[str, NDArray]]
+            The data to initialize the trajectory with.
+        copy_config : bool, optional
+            Whether to copy the configuration, defaults to False.
+        validate_on_init : bool, optional
+            Whether to validate the trajectory data during initialization, defaults to False.
 
         Returns
         -------
         Trajectory
-            The new instance.
+            A new Trajectory object.
         """
         cfg = self.cfg
         if copy_config:
@@ -75,15 +75,6 @@ class Trajectory(TimestampedInstanceCollection):
             validate_on_init=validate_on_init,
         )
 
-    @property
-    def cfg(
-        self,
-    ) -> config.Config:
-        """
-        Configuration of the trajectory.
-        """
-        return super().cfg
-
     def validate_data(  # type: ignore
         self,
         data: Mapping[str, utils.Value],
@@ -93,26 +84,23 @@ class Trajectory(TimestampedInstanceCollection):
         require_array_like=False,
     ) -> bool:
         """
-        Validates data to be compatible with the trajectory.
+        Validates the input data against the expected data structure.
 
         Parameters
         ----------
-        data: Mapping[str, NDArray | int | float]
-            Data to validate.
-
-        allow_missing_keys: bool, optional
-            Whether to allow missing keys.
-
-        try_broadcasting: bool, optional
-            Whether to try broadcasting the data.
-
-        require_array_like: bool, optional
-            Whether to require the data to be array-like.
+        data : Mapping[str, utils.Value]
+            The data to validate.
+        allow_missing_keys : bool, optional
+            Whether to allow missing keys in the data, defaults to False.
+        try_broadcasting : bool, optional
+            Whether to attempt broadcasting of the data, defaults to True.
+        require_array_like : bool, optional
+            Whether to require array-like data structures, defaults to False.
 
         Returns
         -------
         bool
-            Whether the data is valid.
+            True if the data is valid, False otherwise.
         """
         return super().validate_data(
             data,
@@ -125,7 +113,12 @@ class Trajectory(TimestampedInstanceCollection):
     @property
     def is_complete(self) -> bool:
         """
-        Whether the trajectory is complete.
+        Checks if the trajectory is complete based on its length, timestamps, and timestep.
+
+        Returns
+        -------
+        bool
+            True if the trajectory is complete, False otherwise.
         """
         if self.length <= 1:
             return True
@@ -136,11 +129,17 @@ class Trajectory(TimestampedInstanceCollection):
     @property
     def timestep(self) -> int | float:
         """
-        Timestep of the trajectory.
+        Gets or sets the timestep of the trajectory.
 
-        If the timestep is not specified in the configuration or the trajectory,
-        it is determined by the smallest common denominator of the differences of
-        the timestamps.
+        Parameters
+        ----------
+        timestep : int or float, optional
+            The timestep value to set. Defaults to None.
+
+        Returns
+        -------
+        int or float
+            The timestep of the trajectory.
         """
         if self._timestep is not None:
             return self._timestep
@@ -164,25 +163,30 @@ class Trajectory(TimestampedInstanceCollection):
         *,
         keep_dtype: bool = False,
         copy: bool = True,
-    ) -> "Trajectory":
+    ) -> Self:
         """
-        Sample the trajectory at the specified timestamps using linear interpolation.
+        Samples the trajectory at the given timestamps.
+
+        This method samples the trajectory data at the specified timestamps, interpolating values where necessary.
 
         Parameters
         ----------
-        timestamps: NDArray[int | float]
-            Timestamps to sample at.
-
-        keep_dtype: bool, optional
-            Whether to keep the data type of the timestamps.
-
-        copy: bool, optional
-            Whether to copy the trajectory before sampling.
+        timestamps : numpy.ndarray[numpy.int64 | numpy.float64]
+            The timestamps at which to sample the trajectory.
+        keep_dtype : bool, optional
+            Whether to preserve the original data type of the timestamps. Defaults to False.
+        copy : bool, optional
+            Whether to return a new Trajectory object or modify the existing one. Defaults to True.
 
         Returns
         -------
         Trajectory
-            Sampled trajectory.
+            A new Trajectory object containing the sampled data.
+
+        Raises
+        ------
+        AssertionError
+            If the trajectory is not sorted or if it contains more than one unique identity.
         """
         if not self.is_sorted:
             raise AssertionError("can only sample sorted trajectory")
@@ -223,17 +227,17 @@ class Trajectory(TimestampedInstanceCollection):
 
     def get_interpolated_length(self, timestep: Optional[int | float] = None) -> int:
         """
-        Calculate the length of the trajectory after interpolation.
+        Calculates the interpolated length of the trajectory based on a given timestep.
 
         Parameters
         ----------
-        timestep: int | float, optional
-            Timestep to use for interpolation.
+        timestep : int or float, optional
+            The time step to use for interpolation; defaults to the trajectory's timestep if not provided.
 
         Returns
         -------
         int
-            Length of the interpolated trajectory.
+            The interpolated length (number of instances) of the trajectory.
 
         Raises
         ------
@@ -254,22 +258,23 @@ class Trajectory(TimestampedInstanceCollection):
         timestep: int | float | None = None,
         *,
         copy: bool = True,
-    ) -> "Trajectory":
+    ) -> Self:
         """
-        Interpolate the trajectory with the specified timestep.
+        Interpolates the trajectory to a new timestep.
+
+        This method interpolates the trajectory data to a new timestep, effectively resampling the trajectory at a different rate. The interpolation is performed using linear interpolation.
 
         Parameters
         ----------
-        timestep: int | float, optional
-            Timestep to use for interpolation.
-
-        copy: bool, optional
-            Whether to copy the trajectory before interpolation.
+        timestep : int | float | None, optional
+            The desired timestep for the interpolated trajectory. If None, the original timestep is used. Defaults to None.
+        copy : bool, optional
+            Whether to create a copy of the trajectory data. Defaults to True.
 
         Returns
         -------
         Trajectory
-            Interpolated trajectory.
+            The interpolated trajectory.
         """
         interpolated_length = self.get_interpolated_length(timestep)
         timestamps = np.linspace(
@@ -289,27 +294,32 @@ class Trajectory(TimestampedInstanceCollection):
         copy: bool = True,
         interpolate: bool = True,
         interpolation_timestep: int | float | None = None,
-    ) -> "Trajectory":
+    ) -> Self:
         """
-        Slice a timewindow of the trajectory.
+        Slices a window of the trajectory, optionally interpolating to a fixed timestep.
 
         Parameters
         ----------
-        start: int | float
-            Start of the timewindow.
-        stop: int | float
-            End of the timewindow.
-        copy: bool
-            Whether to return a copy of the window.
-        interpolate: bool
-            Whether to interpolate the window.
-        interpolation_timestep: int | float | None
-            If interpolate is True, the timestep to interpolate to.
+        start : int | float
+            The start time of the window.
+        stop : int | float
+            The stop time of the window.
+        copy : bool, optional
+            Whether to return a copy of the window, defaults to True.
+        interpolate : bool, optional
+            Whether to interpolate the window to a fixed timestep, defaults to True.
+        interpolation_timestep : int | float | None, optional
+            The timestep to use for interpolation, defaults to None.
 
         Returns
         -------
         Trajectory
-            A sliced timewindow of the trajectory.
+            A new Trajectory object representing the sliced window.
+
+        Raises
+        ------
+        ValueError
+            If `interpolate` is True and `copy` is False.
         """
         if not interpolate:
             window_view = super().slice_window(start, stop)

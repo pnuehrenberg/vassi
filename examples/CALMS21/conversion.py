@@ -1,14 +1,24 @@
+import argparse
 import json
+import os
 
 import numpy as np
+import pandas as pd
 
+from automated_scoring.config import cfg
 from automated_scoring.data_structures import Trajectory
-from automated_scoring.dataset import AnnotatedDataset, AnnotatedGroup
+from automated_scoring.dataset import (
+    AnnotatedDataset,
+    AnnotatedGroup,
+    IndividualIdentifier,
+)
 from automated_scoring.dataset.observations import to_observations
 from automated_scoring.io import save_dataset
 
 
-def load_calms21_sequences(calms21_json_file):
+def load_calms21_sequences(
+    calms21_json_file: str,
+) -> list[tuple[dict[IndividualIdentifier, Trajectory], pd.DataFrame]]:
     sequences = []
     with open(calms21_json_file) as json_file:
         # load entire dataset file
@@ -56,40 +66,55 @@ def load_calms21_sequences(calms21_json_file):
     return sequences
 
 
+def parse_args():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--train_sequences", type=str, required=True)
+    parser.add_argument("--test_sequences", type=str, required=True)
+    parser.add_argument("--output_directory", type=str, required=True)
+    return parser.parse_args()
+
+
 if __name__ == "__main__":
-    dataset_train = AnnotatedDataset.from_groups(
-        {
-            idx: AnnotatedGroup(
-                trajectories,
-                target="dyad",
-                observations=annotations,
-                categories=("attack", "investigation", "mount"),
-                background_category="none",
-            )
-            for idx, (trajectories, annotations) in enumerate(
-                load_calms21_sequences(
-                    "/home/paul/Downloads/task1_classic_classification/calms21_task1_train.json"
-                )
-            )
-        }
-    )
+    args = parse_args()
 
-    dataset_test = AnnotatedDataset.from_groups(
-        {
-            idx: AnnotatedGroup(
-                trajectories,
-                target="dyad",
-                observations=annotations,
-                categories=("attack", "investigation", "mount"),
-                background_category="none",
-            )
-            for idx, (trajectories, annotations) in enumerate(
-                load_calms21_sequences(
-                    "/home/paul/Downloads/task1_classic_classification/calms21_task1_test.json"
-                )
-            )
-        }
-    )
+    cfg.key_keypoints = "keypoints"
+    cfg.key_timestamp = "timestamps"
 
-    save_dataset(dataset_test, directory="datasets", dataset_name="mice_test")
-    save_dataset(dataset_train, directory="datasets", dataset_name="mice_train")
+    cfg.trajectory_keys = ("keypoints", "timestamps")
+
+    groups_train: dict[IndividualIdentifier, AnnotatedGroup] = {
+        idx: AnnotatedGroup(
+            trajectories,
+            target="dyad",
+            observations=annotations,
+            categories=("attack", "investigation", "mount"),
+            background_category="none",
+        )
+        for idx, (trajectories, annotations) in enumerate(
+            load_calms21_sequences(args.train_sequences)
+        )
+    }
+
+    groups_test: dict[IndividualIdentifier, AnnotatedGroup] = {
+        idx: AnnotatedGroup(
+            trajectories,
+            target="dyad",
+            observations=annotations,
+            categories=("attack", "investigation", "mount"),
+            background_category="none",
+        )
+        for idx, (trajectories, annotations) in enumerate(
+            load_calms21_sequences(args.test_sequences)
+        )
+    }
+
+    save_dataset(
+        AnnotatedDataset.from_groups(groups_train),
+        directory=os.path.join(args.output_directory, "train"),
+        dataset_name="mice_train",
+    )
+    save_dataset(
+        AnnotatedDataset.from_groups(groups_test),
+        directory=os.path.join(args.output_directory, "test"),
+        dataset_name="mice_test",
+    )

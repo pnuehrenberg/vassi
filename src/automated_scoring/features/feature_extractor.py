@@ -90,7 +90,7 @@ class BaseExtractor[F: Shaped](ABC):
         features: list[tuple[utils.Feature, Mapping[str, Any]]] | None = None,
         dyadic_features: list[tuple[utils.Feature, Mapping[str, Any]]] | None = None,
         cache: bool = True,
-        cache_directory: str,
+        cache_directory: Optional[str] = None,
         pipeline: Optional[Pipeline] = None,
         refit_pipeline: bool = False,
     ):
@@ -103,11 +103,16 @@ class BaseExtractor[F: Shaped](ABC):
         if dyadic_features is not None:
             self._init_features(dyadic_features, category="dyadic")
         self.cache = cache
-        self.cache_directory = cache_directory
+        if self.cache:
+            if cache_directory is None:
+                raise ValueError("cache_directory must be specified when cache is True")
+            self.cache_directory = cache_directory
+            if not os.path.exists(self.cache_directory):
+                os.makedirs(self.cache_directory, exist_ok=True)
+        else:
+            self.cache_directory = None
         self.pipeline = pipeline
         self.refit_pipeline = refit_pipeline
-        if not os.path.exists(self.cache_directory):
-            os.makedirs(self.cache_directory, exist_ok=True)
 
     @property
     def sha1(self):

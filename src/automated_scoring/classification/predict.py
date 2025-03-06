@@ -170,7 +170,7 @@ def predict[F: Shaped](
     encoding_function: Optional[EncodingFunction] = None,
     categories: Optional[Iterable[str]] = None,
     exclude: Optional[Iterable[Identifier]] = None,
-    log: Optional[Logger],
+    log: Optional[Logger] = None,
 ) -> ClassificationResult: ...
 
 
@@ -183,7 +183,7 @@ def predict[F: Shaped](
     encoding_function: Optional[EncodingFunction] = None,
     categories: Optional[Iterable[str]] = None,
     exclude: Optional[Iterable[Identifier]] = None,
-    log: Optional[Logger],
+    log: Optional[Logger] = None,
 ) -> GroupClassificationResult: ...
 
 
@@ -196,7 +196,7 @@ def predict[F: Shaped](
     encoding_function: Optional[EncodingFunction] = None,
     categories: Optional[Iterable[str]] = None,
     exclude: Optional[Iterable[Identifier]] = None,
-    log: Optional[Logger],
+    log: Optional[Logger] = None,
 ) -> DatasetClassificationResult: ...
 
 
@@ -208,7 +208,7 @@ def predict[F: Shaped](
     encoding_function: Optional[EncodingFunction] = None,
     categories: Optional[Iterable[str]] = None,
     exclude: Optional[Iterable[Identifier]] = None,
-    log: Optional[Logger],
+    log: Optional[Logger] = None,
 ) -> ClassificationResult | GroupClassificationResult | DatasetClassificationResult:
     if log is None:
         log = set_logging_level()

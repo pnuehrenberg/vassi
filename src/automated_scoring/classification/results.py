@@ -38,7 +38,7 @@ class _Result:
     def f1_score(
         self,
         on: Literal["timestamp", "annotation", "prediction"],
-    ) -> tuple[float, ...]:
+    ) -> pd.Series:
         categories: tuple[str, ...] = tuple(self.categories)  # type: ignore  # better done via abstract base class!
         encoding_function = partial(encode_categories, categories=categories)
         if on == "timestamp":
@@ -56,23 +56,19 @@ class _Result:
             raise ValueError(
                 f"'on' should be one of 'timestamp', 'annotation', 'prediction' and not '{on}'"
             )
-        return f1_score(
+        scores = f1_score(
             y_true,
             y_pred,
             labels=range(len(categories)),
             average=None,  # type: ignore
             zero_division=1.0,  # type: ignore
         )
+        return pd.Series(scores, index=categories, name=on)
 
     def score(self) -> pd.DataFrame:
         categories: tuple[str, ...] = tuple(self.categories)  # type: ignore
         levels = ("timestamp", "annotation", "prediction")
-        scores = np.array([self.f1_score(level) for level in levels])
-        return pd.DataFrame(
-            scores,
-            columns=categories,
-            index=levels,
-        )
+        return pd.DataFrame([self.f1_score(level) for level in levels])
 
     def _remove_overlapping_predictions(
         self,

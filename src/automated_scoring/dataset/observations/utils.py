@@ -89,17 +89,13 @@ def to_observations(
     if timestamps is not None:
         start = timestamps[start]
         stop = timestamps[stop]
-    # assert not (y[start[:-1]] == y[stop[:-1] + 1]).any() and not (y[start[1:] - 1] == y[stop[1:]]).any()
     observations = pd.DataFrame({"start": start, "stop": stop, "category": categories})
     if drop is None:
         return observations
     observations = observations.set_index("category").drop(
         drop, axis="index", inplace=False
     )
-    observations = observations.reset_index(drop=True, inplace=False)
-    if TYPE_CHECKING:
-        # pyright does not correctly infer return type of reset_index with inplace=False
-        assert observations is not None
+    observations = observations.reset_index(drop=False, inplace=False)
     return observations
 
 

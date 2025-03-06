@@ -24,6 +24,17 @@ if TYPE_CHECKING:
     from ....features import BaseExtractor, Shaped
 
 
+def _update_splits(splits: dict, offset: int) -> dict:
+    if all([key in splits for key in ["min", "max", "offset"]]):
+        splits["offset"] += offset
+        return splits
+    for key, _splits in splits.items():
+        if TYPE_CHECKING:
+            assert isinstance(_splits, dict)
+        splits[key] = _update_splits(_splits, offset)
+    return splits
+
+
 class NestedSampleableMixin(ABC):
     _target: Literal["individual", "dyad"]
     _sampleables: dict[Identifier, SampleableMixin]
@@ -86,16 +97,6 @@ class NestedSampleableMixin(ABC):
         reset_previous_indices: bool,
         exclude_previous_indices: bool,
     ) -> tuple[NDArray, NDArray | None, Sequence[NDArray | None], dict]:
-        def update_splits(splits: dict, offset: int) -> dict:
-            if all([key in splits for key in ["min", "max", "offset"]]):
-                splits["offset"] += offset
-                return splits
-            for key, _splits in splits.items():
-                if TYPE_CHECKING:
-                    assert isinstance(_splits, dict)
-                splits[key] = update_splits(_splits, offset)
-            return splits
-
         indices: list[NDArray] = []
         y: list[NDArray] = []
         stratification_levels: list[list[NDArray | None]] = []
@@ -142,7 +143,7 @@ class NestedSampleableMixin(ABC):
             if idx > 0:
                 offset = int(max(indices[idx - 1])) + 1
             indices[idx] = indices[idx] + offset
-            splits_updated[identifier] = update_splits(splits[idx], offset)
+            splits_updated[identifier] = _update_splits(splits[idx], offset)
             for stratification_level_idx in range(num_stratification_levels):
                 stratification_offset = 0
                 current_stratification = stratification_levels[idx][
@@ -215,7 +216,9 @@ class NestedSampleableMixin(ABC):
             if num_features is None and _num_features != 0:
                 num_features = _num_features
                 continue
-            if num_features != _num_features:
+            if _num_features == 0:
+                continue
+            if _num_features != num_features:
                 raise ValueError("Inconsistent number of features")
         X_concat = extractor.concatenate(
             *X, axis=0, ignore_index=True, num_features=num_features

@@ -10,7 +10,19 @@ def is_str_iterable(
     value: Any,
 ) -> tuple[Literal[True], Iterable[str]] | tuple[Literal[False], Any]:
     """
-    Helper function to validate that a value is an iterable of strings.
+    Checks if a value is an iterable of strings.
+
+    This function determines if a given value is an iterable and if all its elements are strings. It returns a tuple indicating the result and the original value.
+
+    Parameters
+    ----------
+    value : Any
+        The value to check.
+
+    Returns
+    -------
+    tuple[True, Iterable[str]] | tuple[False, Any]
+        A tuple where the first element is a boolean indicating if the value is a string iterable, and the second element is the original value.
     """
     if not isinstance(value, Iterable):
         return False, value
@@ -23,7 +35,17 @@ def is_slice_str(
     value: Any,
 ) -> tuple[Literal[True], tuple[slice, str]] | tuple[Literal[False], Any]:
     """
-    Helper function to validate that a value a tuple of a slice and a string.
+    Checks if a value is a tuple containing a slice and a string.
+
+    Parameters
+    ----------
+    value : Any
+        The value to check.
+
+    Returns
+    -------
+    tuple[True, tuple[slice, str]] | tuple[False, Any]
+        A tuple indicating whether the value is a tuple of (slice, str) and the original value.
     """
     if not isinstance(value, tuple):
         return False, value
@@ -36,7 +58,19 @@ def is_slice_str_iterable(
     value: Any,
 ) -> tuple[Literal[True], tuple[slice, Iterable[str]]] | tuple[Literal[False], Any]:
     """
-    Helper function to validate that a value a tuple of a slice and an iterable of strings.
+    Checks if a value is a tuple containing a slice and an iterable of strings.
+
+    This function is designed to validate if a given value adheres to a specific structure: a tuple where the first element is a slice object and the second element is an iterable containing only strings. It returns a tuple indicating the validation result and the original value.
+
+    Parameters
+    ----------
+    value : Any
+        The value to check.
+
+    Returns
+    -------
+    tuple[True, tuple[slice, Iterable[str]]] | tuple[False, Any]
+        A tuple where the first element is a boolean indicating if the value matches the specified structure, and the second element is the original value.
     """
     if not isinstance(value, tuple):
         return False, value
@@ -49,7 +83,17 @@ def is_int_str(
     value: Any,
 ) -> tuple[Literal[True], tuple[int, str]] | tuple[Literal[False], Any]:
     """
-    Helper function to validate that a value a tuple of an integer and a string.
+    Checks if a value is a tuple containing an integer and a string.
+
+    Parameters
+    ----------
+    value : Any
+        The value to check.
+
+    Returns
+    -------
+    tuple[True, tuple[int, str]] | tuple[False, Any]
+        A tuple indicating whether the value is a tuple of (int, str) and the original value.
     """
     if not isinstance(value, tuple):
         return False, value
@@ -66,7 +110,19 @@ def is_int_str_iterable(
     value: Any,
 ) -> tuple[Literal[True], tuple[int, Iterable[str]]] | tuple[Literal[False], Any]:
     """
-    Helper function to validate that a value is a tuple of an integer and an iterable of strings.
+    Checks if a value is a tuple containing an integer and an iterable of strings.
+
+    This function validates if a given value is a tuple with two elements: an integer and an iterable of strings. It returns a tuple indicating the result and the original value.
+
+    Parameters
+    ----------
+    value : Any
+        The value to check.
+
+    Returns
+    -------
+    tuple[True, tuple[int, Iterable[str]]] | tuple[False, Any]
+        A tuple indicating whether the value matches the specified type and the original value.
     """
     if not isinstance(value, tuple):
         return False, value
@@ -80,7 +136,21 @@ def is_int_str_iterable(
 
 
 def is_value(value: Any) -> tuple[Literal[True], Value] | tuple[Literal[False], Any]:
-    """Helper function to ensure that a value is valid."""
+    """
+    Checks if a given value is an instance of the `Value` type union.
+
+    This function determines whether the input `value` is a `Value` object. If it is, it returns `True` along with the `Value` object; otherwise, it returns `False` and the original `value`.
+
+    Parameters
+    ----------
+    value : Any
+        The value to check.
+
+    Returns
+    -------
+    tuple[True, Value] | tuple[False, Any]
+        A tuple indicating whether the value matches the specified type and the original value.
+    """
     if isinstance(value, Value):
         return True, value
     return False, value
@@ -90,7 +160,19 @@ def is_value_iterable(
     value: Any,
 ) -> tuple[Literal[True], MultipleValues] | tuple[Literal[False], Any]:
     """
-    Helper function to validate that a value is an iterable of values.
+    Checks if a value is iterable and contains only valid values.
+
+    This function determines if a given value is iterable and if all its elements are valid values according to the `is_value` function. It returns a tuple indicating whether the value is iterable and valid, along with the original value.
+
+    Parameters
+    ----------
+    value : Any
+        The value to check for iterability and validity of its elements.
+
+    Returns
+    -------
+    tuple[True, MultipleValues] | tuple[False, Any]
+        A tuple containing a boolean indicating iterability and validity, and the original value.
     """
     if not isinstance(value, Iterable):
         return False, value

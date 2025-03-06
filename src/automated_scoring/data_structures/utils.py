@@ -17,26 +17,28 @@ def validate_keys(
     allow_missing: bool,
 ) -> bool:
     """
-    Validates that all keys are present in the reference keys.
+    Validates that a set of keys conforms to a reference set, optionally allowing missing keys.
+
+    This function checks if a given set of keys is a subset of a reference set. It raises a KeyError if any keys are undefined (not in the reference set) or if any keys are missing from the input set and `allow_missing` is False.
 
     Parameters
     ----------
     keys : Iterable[str]
-        The keys to validate.
+        The set of keys to validate.
     keys_reference : Iterable[str]
-        The reference keys.
+        The reference set of valid keys.
     allow_missing : bool
-        Whether to allow missing reference keys.
+        Whether to allow missing keys (default is False).
 
     Returns
     -------
     bool
-        Whether the keys are valid.
+        True if all keys are valid (or missing keys are allowed), False otherwise.
 
     Raises
     ------
     KeyError
-        If the keys contain undefined keys or missing reference keys when allow_missing is False.
+        If any keys are undefined or if missing keys are not allowed.
     """
     keys = set(keys)
     keys_reference = set(keys_reference)
@@ -55,22 +57,22 @@ def validate_keys(
 
 def validated_length(*values: Value) -> int | None:
     """
-    Validates that all iterable values have the same length.
+    Returns the length of all iterable values if they are all the same length, otherwise raises a ValueError.
 
     Parameters
     ----------
-    values : Value
-        The values to validate.
+    values : Iterable
+        An iterable of values to check the length of.
 
     Returns
     -------
-    int | None
-        The validated length of the iterable values or None if all values are not iterables.
+    int or None
+        The length of the values if all iterable values have the same length, otherwise None.
 
     Raises
     ------
     ValueError
-        If iterable values are unsized or have unequal lengths.
+        If the values have unequal lengths or contain unsized iterables objects.
     """
     try:
         lengths = set([len(value) for value in values if isinstance(value, Iterable)])
@@ -87,22 +89,24 @@ def validated_length(*values: Value) -> int | None:
 
 def validate_timestamps(timestamps: Value) -> bool:
     """
-    Validates that timestamps are unique and non-singular.
+    Validates that a sequence of timestamps contains no duplicates.
+
+    This function checks for duplicate timestamps within a given iterable. It leverages NumPy's efficient unique value counting to identify any repetitions.
 
     Parameters
     ----------
-    timestamps : NDArray, int, float
-        The timestamps to validate.
+    timestamps : Value
+        An iterable containing the timestamps to validate.
 
     Returns
     -------
     bool
-        Whether the timestamps are valid. This will always be True, because invalid timestamps raise exceptions.
+        True if the timestamps are valid (no duplicates), False otherwise.
 
     Raises
     ------
     ValueError
-        If the timestamps are singular or duplicated.
+        If the input is not iterable or if any timestamps are duplicated.
     """
     if not isinstance(timestamps, Iterable):
         raise ValueError("duplicated timestamps from broadcasting singular timestamp")
@@ -117,19 +121,19 @@ def greatest_common_denominator(
     return_inverse: bool = True,
 ) -> float:
     """
-    Calculates the greatest common denominator of a list of values.
+    Finds the greatest common denominator (GCD) of a list of numbers and optionally returns its inverse.
 
     Parameters
     ----------
-    values : list[int | float] | NDArray
-        The values to calculate the greatest common denominator of.
+    values : list of int or float or numpy.ndarray
+        A list or NumPy array of numerical values.
     return_inverse : bool, optional
-        Whether to return the inverse of the greatest common denominator, by default True.
+        Whether to return the inverse of the greatest common denominator. Defaults to True.
 
     Returns
     -------
     float
-        The greatest common denominator of the values or its inverse if return_inverse is True.
+        The greatest common denominator or its inverse.
     """
     denominators = [Fraction(value).limit_denominator().denominator for value in values]
     common_denominator = reduce(lambda a, b: a * b // gcd(a, b), denominators)
@@ -139,9 +143,7 @@ def greatest_common_denominator(
 
 
 class OutOfInterval(Exception):
-    """
-    An exception to be raised when a timestamp is outside a given interval.
-    """
+    """An error raised when a value is outside of an acceptable timestamp interval."""
 
     pass
 
@@ -150,21 +152,21 @@ def get_interval_slice(
     timestamps: NDArray[np.floating | np.integer], start: int | float, stop: int | float
 ) -> slice:
     """
-    Returns a slice of the timestamps that fall within the given interval.
+    Gets a slice object representing the indices of timestamps within a specified interval.
 
     Parameters
     ----------
-    timestamps : NDArray[np.floating | np.integer]
-        The timestamps to slice.
-    start : int | float
-        The start of the interval, inclusive.
-    stop : int | float
-        The end of the interval, inclusive.
+    timestamps : numpy.ndarray
+        An array of timestamps.
+    start : int or float
+        The start of the interval (inclusive).
+    stop : int or float
+        The end of the interval (inclusive).
 
     Returns
     -------
     slice
-        The slice of the timestamps that fall within the interval.
+        A slice object representing the indices of the timestamps within the interval.
     """
     interval_indices = np.argwhere((timestamps >= start) & (timestamps <= stop)).ravel()
     if interval_indices.size == 0:
@@ -175,17 +177,24 @@ def get_interval_slice(
 @contextmanager
 def writeable(*arrays: NDArray) -> Generator:
     """
-    Context manager to temporarily make arrays writeable.
+    A context manager that temporarily makes NumPy arrays writeable.
+
+    This context manager is useful when you need to modify the contents of a read-only NumPy array within a specific block of code. It ensures that the writeable flag is restored to its original state after the block, even if exceptions occur.
 
     Parameters
     ----------
-    arrays : NDArray
-        The arrays to make writeable.
+    arrays : tuple of numpy.ndarray
+        The NumPy arrays to make writeable.
 
     Yields
     ------
-    Generator
-        A generator that yields when the context is entered and exits when the context is exited.
+    None
+        The context manager yields control to the enclosed block of code.
+
+    Raises
+    ------
+    Exception
+        Any exception raised within the context is re-raised.
     """
     writeable: list[bool] = []
     for array in arrays:

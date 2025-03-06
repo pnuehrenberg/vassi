@@ -7,18 +7,23 @@ from .base import ConfiguredData
 
 class Instance(ConfiguredData):
     """
-    Data structure for single instances.
+    Represents an instance of configured data, handling data initialization and access.
 
     Parameters
     ----------
-    cfg: Config, optional
-        Configuration of the instance.
+    cfg : config.Config, optional
+        The configuration object (default is None).
+    from_scalars : bool, optional
+        Whether to convert scalar inputs to arrays (default is False).
+    **kwargs : dict
+        Keyword arguments representing the data to initialize the instance with.
 
-    from_scalars: bool, optional
-        Whether to convert scalars to numpy arrays.
-
-    **kwargs: NDArray | int | float
-        Data of the instance specified as keyword arguments.
+    Raises
+    ------
+    ValueError
+        If a required key is missing, or if a value is not a NumPy array when `from_scalars` is False, or if a value does not have at least one dimension, or if a value does not own its data.
+    KeyError
+        If a key in `kwargs` is not a defined key.
     """
 
     def __init__(self, cfg=None, from_scalars: bool = False, **kwargs):
@@ -45,31 +50,30 @@ class Instance(ConfiguredData):
 
     def __getitem__(self, key: str) -> NDArray:
         """
-        Get value for a specified key.
+        Gets the value associated with a given key.
 
         Parameters
         ----------
-        key: str
-            Key to get the value for.
+        key : str
+            The key to retrieve the value for.
 
         Returns
         -------
         NDArray
-            Value for the specified key.
+            The value associated with the key.
         """
         return self._get_value(key)
 
     def __setitem__(self, key: str, value: utils.Value) -> None:
         """
-        Set the value for a specified key.
+        Sets the value of an instance attribute.
 
         Parameters
         ----------
-        key: str
-            Key to set the value for.
-
-        value: NDArray | int | float
-            Value to set the value for.
+        key : str
+            The name of the attribute to set.
+        value : utils.Value
+            The new value for the attribute.
         """
         _value = self._get_value(key)
         with utils.writeable(_value):

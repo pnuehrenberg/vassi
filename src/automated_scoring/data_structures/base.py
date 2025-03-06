@@ -9,14 +9,21 @@ from ..utils import hash_dict
 
 
 class ConfiguredData:
-    """Base class for data structures that are configured with a config."""
+    """Represents a configured data object with associated configuration and data."""
 
     _data: Optional[dict[str, NDArray]] = None
     _cfg: Optional[config.Config] = None
 
     @property
     def sha1(self) -> str:
-        """The SHA1 hash (digest) of the data structure."""
+        """
+        Calculates the SHA1 hash of the configured data.
+
+        Returns
+        -------
+        str
+            The SHA1 hexadecimal hash of the configured data.
+        """
         items = {
             key: hashlib.sha1(value).hexdigest()
             for key, value in self.items(copy=False)
@@ -25,24 +32,26 @@ class ConfiguredData:
         return hash_dict(items)
 
     def __hash__(self) -> int:
-        """Return the hash of the data structure."""
         return hash(self.sha1)
 
     def __eq__(self, other: object) -> bool:
-        """Return whether the data structure is equal to another object."""
         if not isinstance(other, type(self)):
             return False
         return hash(self) == hash(other)
 
     def __str__(self) -> str:
-        """Return a string representation of the data structure."""
         return self.__repr__()
 
     @property
-    def cfg(
-        self,
-    ) -> config.Config:
-        """Configuration of the data structure."""
+    def cfg(self) -> config.Config:
+        """
+        Property that returns the configuration object.
+
+        Returns
+        -------
+        config.Config
+            The configuration object.
+        """
         if self._cfg is None:
             return config.cfg
         return self._cfg
@@ -52,22 +61,23 @@ class ConfiguredData:
         *,
         exclude: Optional[Iterable[str]] = None,
     ) -> tuple[str, ...]:
-        """Return the keys of the data structure.
+        """
+        Returns the keys of the trajectory data, excluding specified keys.
 
         Parameters
         ----------
-        exclude: Iterable[str], optional
-            Keys to exclude.
+        exclude : Iterable of str, optional
+            Keys to exclude from the returned set of keys; defaults to None.
 
         Returns
         -------
-        tuple[str, ...]
-            Keys of the data structure.
+        tuple of str
+            A tuple containing the keys of the trajectory data, excluding the specified keys.
 
         Raises
         ------
         ValueError
-            If the data structure is not initialized.
+            If the configuration is not initialized.
         """
         if self.cfg is None:
             raise ValueError("not initialized")
@@ -81,24 +91,25 @@ class ConfiguredData:
         *,
         copy: bool = False,
     ) -> NDArray:
-        """Return the value of the data structure for a given key.
+        """
+        Gets a value from the internal data store.
 
         Parameters
         ----------
-        key: str
-            Key of the value.
-        copy: bool, optional
-            Whether to copy the value.
+        key : str
+            The key to retrieve the value for.
+        copy : bool, optional
+            Whether to return a copy of the data (default is False).
 
         Returns
         -------
         NDArray
-            Value of the data structure.
+            The retrieved value.
 
         Raises
         ------
         ValueError
-            If the data structure is not initialized.
+            If the internal data store is not initialized.
         """
         if self._data is None:
             raise ValueError("not initialized")
@@ -116,19 +127,20 @@ class ConfiguredData:
         exclude: Optional[Iterable[str]] = None,
         copy: bool = True,
     ) -> tuple[NDArray, ...]:
-        """Return the values of the data structure.
+        """
+        Returns the values of the configured data.
 
         Parameters
         ----------
-        exclude: Iterable[str], optional
-            Keys to exclude.
-        copy: bool, optional
-            Whether to copy the values.
+        exclude : Iterable of str, optional
+            Keys to exclude from the returned values; defaults to None.
+        copy : bool, optional
+            Whether to return a copy of the data; defaults to True.
 
         Returns
         -------
-        tuple[NDArray, ...]
-            Values of the data structure.
+        tuple of numpy.ndarray
+            A tuple containing the values.
         """
         return tuple(
             self._get_value(key, copy=copy) for key in self.keys(exclude=exclude)
@@ -140,19 +152,20 @@ class ConfiguredData:
         exclude: Optional[Iterable[str]] = None,
         copy: bool = True,
     ) -> tuple[tuple[str, NDArray], ...]:
-        """Return the items of the data structure.
+        """
+        Returns a tuple of (key, value) pairs for the data, optionally excluding some keys.
 
         Parameters
         ----------
-        exclude: Iterable[str], optional
-            Keys to exclude.
-        copy: bool, optional
-            Whether to copy the items.
+        exclude : Iterable of str, optional
+            Keys to exclude from the returned items; defaults to None.
+        copy : bool, optional
+            Whether to return a copy of the data; defaults to True.
 
         Returns
         -------
-        tuple[tuple[str, NDArray], ...]
-            Items of the data structure.
+        tuple of tuple of (str, numpy.ndarray)
+            A tuple containing (key, value) pairs.
         """
         keys = self.keys(exclude=exclude)
         values = self.values(exclude=exclude, copy=copy)
@@ -160,17 +173,20 @@ class ConfiguredData:
 
     @property
     def data(self) -> dict[str, NDArray]:
-        """Return the data of the data structure as a dictionary.
+        """
+        Returns a dictionary containing the data.
+
+        This property provides access to the internal data stored within the ConfiguredData object. It returns a copy of the data to prevent external modification of the internal state.
 
         Returns
         -------
-        dict[str, NDArray]
-            Data of the data structure.
+        dict of str and numpy.ndarray
+            A dictionary where keys are strings and values are NumPy arrays.
 
         Raises
         ------
         ValueError
-            If the data structure is not initialized.
+            If the data has not been initialized.
         """
         if self._data is None:
             raise ValueError("not initialized")

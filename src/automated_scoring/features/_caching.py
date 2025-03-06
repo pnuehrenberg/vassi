@@ -86,10 +86,14 @@ def cache[**P, T](func: Callable[P, T]) -> Callable[P, T]:
     """
 
     def _cache(*args: P.args, **kwargs: P.kwargs) -> T:
-        hash_value = _hash_args(*args, **kwargs)
         extractor = args[0]
         if TYPE_CHECKING:
             assert isinstance(extractor, BaseExtractor)
+        if not extractor.cache:
+            return func(*args, **kwargs)
+        hash_value = _hash_args(*args, **kwargs)
+        if TYPE_CHECKING:
+            assert isinstance(extractor.cache_directory, str)
         cache_file = os.path.join(extractor.cache_directory, hash_value)
         if extractor.cache:
             try:

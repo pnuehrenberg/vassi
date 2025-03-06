@@ -13,23 +13,24 @@ from .base import ConfiguredData
 
 class InstanceCollection(ConfiguredData):
     """
-    Data structure for collections of instances.
+    Represents a collection of instances, each containing data associated with a configuration.
+
+    This class extends `ConfiguredData` and provides methods for managing, validating, and manipulating instance data. It supports operations such as data validation, slicing, selection, and concatenation.
+    It also handles view creation and management, allowing for efficient data access and modification.
 
     Parameters
     ----------
-    data: Mapping[str, NDArray], optional
-        Data of the instances.
-
-    cfg: Config, optional
-        Configuration of the instances.
-
-    validate_on_init: bool, optional
-        Whether to validate the data on initialization.
+    data : Mapping of str and numpy.ndarray, optional
+        A dictionary containing the data for the collection (default is None).
+    cfg : config.Config, optional
+        The configuration object (default is None).
+    validate_on_init : bool, optional
+        Whether to validate the data during initialization (default is True).
     """
 
-    _view_of: list["InstanceCollection"]
-    _views: list["InstanceCollection"]
-    _validate: bool = True
+    _view_of: list[Self]
+    _views: list[Self]
+    _validate: bool
 
     def __init__(
         self,
@@ -38,6 +39,7 @@ class InstanceCollection(ConfiguredData):
         cfg: Optional[config.Config] = None,
         validate_on_init: bool = True,
     ) -> None:
+        self._validate = True
         self._view_of = []
         self._views = []
         if cfg is not None:
@@ -49,12 +51,12 @@ class InstanceCollection(ConfiguredData):
     @contextmanager
     def validate(self, validate: bool) -> Generator:
         """
-        Context manager for validation.
+        Yields a context where validation is enabled or disabled.
 
         Parameters
         ----------
-        validate: bool
-            Whether to validate.
+        validate : bool
+            Whether to enable validation.
         """
         _validate = self._validate
         self._validate = validate
@@ -68,12 +70,12 @@ class InstanceCollection(ConfiguredData):
     @property
     def length(self) -> int:
         """
-        Length of the collection.
+        Returns the number of instances in the collection.
 
         Returns
         -------
         int
-            Length (number of instances) of the collection.
+            The number of instances.
         """
         if self._data is None:
             return 0
@@ -85,12 +87,16 @@ class InstanceCollection(ConfiguredData):
 
     def __len__(self) -> int:
         """
-        Return the length of the collection.
+        Returns the number of instances in the collection.
+
+        Parameters
+        ----------
+        None
 
         Returns
         -------
         int
-            Length (number of instances) of the collection.
+            The number of instances.
         """
         return self.length
 
@@ -104,30 +110,32 @@ class InstanceCollection(ConfiguredData):
         require_array_like=False,
     ) -> bool:
         """
-        Validate data.
+        Validates the input data against the collection's requirements.
+
+        This method checks the data for key completeness, array-like value types, timestamp uniqueness, and length consistency. It uses utility functions to perform these checks and raises ValueErrors if any validation fails.
 
         Parameters
         ----------
-        data: Mapping[str, NDArray | int | float | str]
-            Data to validate.
-        allow_duplicated_timestamps: bool, optional
-            Whether to allow duplicated timestamps.
-        allow_missing_keys: bool, optional
-            Whether to allow missing keys.
-        try_broadcasting: bool, optional
-            Whether to try broadcasting.
-        require_array_like: bool, optional
-            Whether to require array-like values.
+        data : Mapping[str, utils.Value]
+            The data to validate, where keys are strings and values are of type utils.Value.
+        allow_duplicated_timestamps : bool, optional
+            Whether to allow duplicated timestamps (default is True).
+        allow_missing_keys : bool, optional
+            Whether to allow missing keys (default is False).
+        try_broadcasting : bool, optional
+            Whether to try broadcasting if lengths mismatch (default is True).
+        require_array_like : bool, optional
+            Whether to require all values to be array-like (default is False).
 
         Returns
         -------
         bool
-            Whether the data is valid.
+            True if the data is valid, False otherwise.
 
         Raises
         ------
         ValueError
-            If the data is not valid and requirements are not met.
+            If the data fails any of the validation checks, such as key mismatches, length mismatches, or invalid timestamp or identity data types.
         """
         complete_keys = utils.validate_keys(
             data.keys(), self.keys(), allow_missing=allow_missing_keys
@@ -173,7 +181,14 @@ class InstanceCollection(ConfiguredData):
 
     @property
     def data(self) -> dict[str, NDArray]:
-        """Data of the collection."""
+        """
+        Property that returns the underlying data dictionary.
+
+        Parameters
+        ----------
+        data : Mapping[str, NDArray]
+            The data to set for the collection.
+        """
         return super().data
 
     @data.setter
@@ -189,21 +204,24 @@ class InstanceCollection(ConfiguredData):
         copy_config: bool = False,
         validate_on_init: bool = False,
     ) -> Self:
-        """Initialize a new instance of the collection with the same configuration.
+        """
+        Initializes a new InstanceCollection from provided data and configuration.
+
+        This method allows for the creation of a new InstanceCollection, optionally copying the configuration from the current instance. It also provides an option to validate the data during initialization.
 
         Parameters
         ----------
-        data: Mapping[str, NDArray]
-            Data of the new collection.
-        copy_config: bool, optional
-            Whether to copy the configuration.
-        validate_on_init: bool, optional
-            Whether to validate the data on initialization.
+        data : dict of str and numpy.ndarray
+            A dictionary containing the data for the new InstanceCollection.
+        copy_config : bool, optional
+            Whether to copy the configuration from the current instance, defaults to False.
+        validate_on_init : bool, optional
+            Whether to validate the data during initialization, defaults to False.
 
         Returns
         -------
         Self
-            The new instance.
+            A new InstanceCollection instance.
         """
         cfg = self.cfg
         if copy_config:
@@ -215,17 +233,18 @@ class InstanceCollection(ConfiguredData):
         )
 
     def copy(self, *, copy_config: bool = False) -> Self:
-        """Copy the collection.
+        """
+        Copies the InstanceCollection.
 
         Parameters
         ----------
-        copy_config: bool, optional
-            Whether to copy the configuration.
+        copy_config : bool, optional
+            Whether to copy the configuration, defaults to False.
 
         Returns
         -------
         Self
-            The copy.
+            A copy of the InstanceCollection.
         """
         return self._init_other(
             data=self.data, copy_config=copy_config, validate_on_init=False
@@ -238,16 +257,23 @@ class InstanceCollection(ConfiguredData):
         at: slice | int | np.integer,
     ) -> None:
         """
-        Set the value of a key at a given index or slice.
+        Sets a value in the underlying data structure at a specified location.
+
+        This method allows modification of the data stored within the `InstanceCollection`. It handles potential view relationships and ensures data integrity during the update.
 
         Parameters
         ----------
-        key: str
-            Key to set the value for.
-        value: NDArray | int | float | str
-            Value to set.
-        at: slice | int | np.integer
-            Index or slice to set the value at.
+        key : str
+            The key associated with the value to be set.
+        value : utils.Value
+            The value to set.
+        at : slice or int or numpy.integer
+            The index or slice where the value should be set.
+
+        Raises
+        ------
+        ValueError
+            If the underlying data structure is not initialized.
         """
         if self._data is None:
             raise ValueError("not initialized")
@@ -257,11 +283,6 @@ class InstanceCollection(ConfiguredData):
             _value,
         ):
             _value[at] = value
-
-    @overload
-    def __getitem__(self, key: None) -> NDArray:
-        # single key
-        ...
 
     @overload
     def __getitem__(self, key: str) -> NDArray:
@@ -310,8 +331,7 @@ class InstanceCollection(ConfiguredData):
     def __getitem__(
         self,
         key: (
-            None
-            | str
+            str
             | tuple[str, ...]
             | list[str]
             | slice
@@ -333,31 +353,23 @@ class InstanceCollection(ConfiguredData):
         | dict[str, utils.Value]
     ):
         """
-        Get a value or values from the collection.
-
-        There are multiple ways to specify the key:
-        - None: returns the entire collection.
-        - str: returns the value for the specified key.
-        - tuple[str, ...] | list[str]: returns the values for the specified keys.
-        - slice: returns the values for the specified slice.
-        - tuple[slice, str]: returns the values for the specified slice and key.
-        - tuple[slice, tuple[str, ...] | list[str]]: returns the values for the specified slice and keys.
-        - int: returns the value at the specified index.
-        - tuple[int, str]: returns the value at the specified index and key.
-        - tuple[int, tuple[str, ...] | list[str]]: returns the values at the specified index and keys.
+        Gets an item or a slice of items from the collection.
 
         Parameters
         ----------
-        key: None | str | tuple[str, ...] | list[str] | slice | tuple[slice, str] | tuple[slice, tuple[str, ...] | list[str]] | int | tuple[int, str] | tuple[int, tuple[str, ...] | list[str]]
-            Key to get the value for.
+        key : str | Iterable[str] | slice | tuple[slice, str] | tuple[slice, Iterable[str]] | int | tuple[int, str] | tuple[int, Iterable[str]]
+            The key or slice to retrieve the item(s) (required).
 
         Returns
         -------
-        NDArray | tuple[NDArray, ...] | Self | NDArray | dict[str, NDArray] | instance.Instance | utils.Value | dict[str, utils.Value]
-            Value or values from the collection.
+        NDArray | tuple[NDArray, ...] | Self | dict[str, NDArray] | instance.Instance | utils.Value | dict[str, utils.Value]
+            The retrieved item(s) based on the key.
+
+        Raises
+        ------
+        KeyError
+            If the key type is not supported.
         """
-        if key is None:
-            raise KeyError
         if isinstance(key, str):
             # single key
             return self._get_value(key)
@@ -534,32 +546,19 @@ class InstanceCollection(ConfiguredData):
         ),
     ) -> None:
         """
-        Set a value or values in the collection.
-
-        There are multiple ways to specify the key and value:
-        - str, NDArray: sets the value for the specified key to the specified value.
-        - tuple[str, ...] | list[str], NDArray: sets the values for the specified keys to the specified value.
-        - tuple[str, ...] | list[str], tuple[NDArray, ...]: sets the values for the specified keys to the specified values.
-        - slice, Self: sets the values for the specified slice to the values in the specified collection.
-        - tuple[slice, str], NDArray: sets the values for the specified slice and key to the specified value.
-        - tuple[slice, tuple[str, ...] | list[str]], NDArray: sets the values for the specified slice and keys to the specified value.
-        - tuple[slice, tuple[str, ...] | list[str]], tuple[NDArray, ...]: sets the values for the specified slice and keys to the specified values.
-        - int, instance.Instance: sets the value at the specified index to the specified instance.
-        - tuple[int, str], NDArray: sets the value at the specified index and key to the specified value.
-        - tuple[int, tuple[str, ...] | list[str]], NDArray: sets the value at the specified index and keys to the specified value.
+        Sets the value of one or more instances within the collection.
 
         Parameters
         ----------
-        key:  str | tuple[str, ...] | list[str] | slice | tuple[slice, str] | tuple[slice, tuple[str, ...] | list[str]] | int | tuple[int, str] | tuple[int, tuple[str, ...] | list[str]]
-            Key (or keys) to set the value for.
-
-        value: NDArray | int | float | Iterable[NDArray | int | float] | InstanceCollection | Instance
-            Value to set the value for.
+        key : str | Iterable[str] | slice | tuple[slice, str] | tuple[slice, Iterable[str]] | int | tuple[int, str] | tuple[int, Iterable[str]]
+            The key or keys to set the value for.
+        value : utils.Value | utils.MultipleValues | Self | instance.Instance
+            The value to set.
 
         Raises
         ------
-        TypeError
-            If the key is not specified correctly.
+        ValueError
+            If the key-value pair types are not supported.
         """
         # single value
         valid_value, _value = _type_checking.is_value(value)
@@ -649,7 +648,7 @@ class InstanceCollection(ConfiguredData):
             for __key, __value in zip(_key[1], _value):
                 self._set_value(__key, __value, _key[0])
             return
-        if isinstance(key, slice) and isinstance(value, "InstanceCollection"):
+        if isinstance(key, slice) and isinstance(value, InstanceCollection):
             # slice
             _data = value.data
             if self._validate:
@@ -676,6 +675,19 @@ class InstanceCollection(ConfiguredData):
         )
 
     def select_index(self, index: NDArray) -> Self:
+        """
+        Selects a subset of the data based on the provided index.
+
+        Parameters
+        ----------
+        index : numpy.ndarray
+            The indices to select.
+
+        Returns
+        -------
+        Self
+            A new InstanceCollection containing the selected data.
+        """
         # advanced indexing with boolean array always triggers copy, not view
         # # TODO check index (at least 1d numpy array if int, else boolean with length of collection)
         # # otherwise coerce to array with appropriate type or raise
@@ -690,25 +702,24 @@ class InstanceCollection(ConfiguredData):
         identity: Optional[utils.Value] = None,
     ) -> Self:
         """
-        Selects a subset of the data.
+        Selects a subset of instances based on timestamp and/or identity.
 
         Parameters
         ----------
-        timestamp: NDArray | int | float, optional
-            Timestamp (or timestamps) to select the data for.
-
-        identity:  NDarray, int, str, optional
-            Identity (or identities) to select the data for.
+        timestamp : utils.Value, optional
+            The timestamp value to filter by (default is None).
+        identity : utils.Value, optional
+            The identity value to filter by (default is None).
 
         Returns
         -------
         Self
-            The selected data.
+            A new InstanceCollection containing the selected instances.
 
         Raises
         ------
-        TypeError
-            If timestamps or identities are selected, but not defined in the configuration.
+        ValueError
+            If the collection is not initialized or if timestamp/identity selection is attempted without the corresponding keys defined in the configuration.
         """
         if self._data is None:
             raise ValueError("not initialized")
@@ -742,28 +753,33 @@ class InstanceCollection(ConfiguredData):
     @classmethod
     def concatenate(
         cls,
-        *collections: "InstanceCollection",
+        *collections: Self,
         copy_config: bool = False,
         validate: bool = True,
     ) -> Self:
         """
-        Concatenates multiple collections into one.
+        Concatenates multiple InstanceCollection objects into a single InstanceCollection.
 
         Parameters
         ----------
-        *collections: InstanceCollection
-            Collections to concatenate.
-
-        copy_config: bool, optional
-            Whether to copy the configuration of the collections.
-
-        validate: bool, optional
-            Whether to validate the configurations of the collections.
+        collections : InstanceCollection
+            The InstanceCollection objects to concatenate.
+        copy_config : bool, optional
+            Whether to copy the configuration of the first collection, defaults to False.
+        validate : bool, optional
+            Whether to validate the configurations of the collections, defaults to True.
 
         Returns
         -------
         Self
-            The concatenated collection.
+            A new InstanceCollection object containing the concatenated data.
+
+        Raises
+        ------
+        AssertionError
+            If no collections are provided, or if the configurations of the collections are not equal when validation is enabled.
+        ValueError
+            If the identity types of the collections are not compatible.
         """
         if len(collections) == 0:
             raise AssertionError("need at least one collection to concatenate")

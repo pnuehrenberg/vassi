@@ -10,18 +10,23 @@ from .collection import InstanceCollection
 
 class TimestampedInstanceCollection(InstanceCollection):
     """
-    Data structure for collections of instances with timestamps.
+    Represents a collection of timestamped instances, inheriting from InstanceCollection.
+
+    This class extends `InstanceCollection` and adds functionality specific to timestamped data, such as sorting by timestamp and slicing based on time windows. It ensures that a timestamp key is defined in the configuration.
 
     Parameters
     ----------
-    data: Mapping[str, NDArray], optional
-        Data of the instances.
+    data : Mapping of str and numpy.ndarray, optional
+        A dictionary containing the data for the collection (default is None).
+    cfg : config.Config, optional
+        The configuration object (default is None).
+    validate_on_init : bool, optional
+        Whether to validate the data during initialization (default is True).
 
-    cfg: Config, optional
-        Configuration of the instances.
-
-    validate_on_init: bool, optional
-        Whether to validate the data on initialization.
+    Raises
+    ------
+    ValueError
+        If the timestamp key is not defined in the trajectory keys during initialization.
     """
 
     def __init__(
@@ -42,7 +47,12 @@ class TimestampedInstanceCollection(InstanceCollection):
     @property
     def key_timestamp(self) -> str:
         """
-        Timestamp key of the collection.
+        Returns the key used to access the timestamp within each instance.
+
+        Returns
+        -------
+        str
+            The key used to access the timestamp.
         """
         assert self.cfg.key_timestamp is not None
         assert self.cfg.key_timestamp in self.cfg.trajectory_keys
@@ -51,37 +61,47 @@ class TimestampedInstanceCollection(InstanceCollection):
     @property
     def timestamps(self) -> NDArray[np.int64 | np.float64]:
         """
-        Timestamps of the collection.
+        Returns the timestamps of the instances in the collection.
+
+        Returns
+        -------
+        NDArray[np.int64 | np.float64]
+            An array containing the timestamps of the instances.
         """
         return self[self.key_timestamp]
 
     @property
-    def is_sorted(self) -> np.bool_:
+    def is_sorted(self) -> bool:
         """
-        Whether the collection is sorted by timestamps.
+        Checks if the timestamps in the collection are sorted in ascending order.
+
+        Returns
+        -------
+        bool
+            True if the timestamps are sorted, False otherwise.
         """
         timestamps = self.timestamps
         # trajectories do not allow duplicate timestamps, so >= is valid
-        return np.all(timestamps[1:] >= timestamps[:-1])
+        return bool(np.all(timestamps[1:] >= timestamps[:-1]))
 
     def sort(self, copy: bool = True) -> Self:
         """
-        Sort the collection by timestamps.
+        Sorts the collection by timestamp.
 
         Parameters
         ----------
-        copy: bool, optional
-            Whether to copy the collection before sorting.
+        copy : bool, optional
+            Whether to return a copy of the sorted collection, defaults to True.
 
         Returns
         -------
         Self
-            Sorted collection.
+            The sorted collection (or a copy if `copy` is True).
 
         Raises
         ------
         ValueError
-            If the collection is is a view of another, or has views of itself.
+            If `copy` is False and the collection is a view or has existing views.
         """
         if not copy and len(self._view_of) > 0:
             base = ", ".join([str(base) for base in self._view_of])
@@ -108,27 +128,26 @@ class TimestampedInstanceCollection(InstanceCollection):
         stop: int | float,
     ) -> slice:
         """
-        Convert timestamps (start, stop, inclusive) to slice.
+        Converts a time window to a slice object for accessing data within the window.
 
         Parameters
         ----------
-        start: int | float
-            Start timestamp.
-
-        stop: int | float
-            Stop timestamp.
+        start : int or float
+            The start time of the window (inclusive).
+        stop : int or float
+            The end time of the window (inclusive).
 
         Returns
         -------
         slice
-            Slice for the specified timestamps.
+            A slice object representing the indices of the timestamps within the specified window.
 
         Raises
         ------
         ValueError
-            If the collection is empty or not sorted.
-        OutOfInterval
-            If the specified timestamps are out of the interval of the collection.
+            If the collection has zero length or is not sorted.
+        utils.OutOfInterval
+            If the start or stop time is outside the timestamp range.
         """
         if self.length == 0:
             raise ValueError("window slicing requires non zero-length collection")
@@ -155,19 +174,20 @@ class TimestampedInstanceCollection(InstanceCollection):
         stop: int | float,
     ) -> Self:
         """
-        Slice the collection by timestamps.
+        Slices the collection based on a specified time window.
+
+        This method allows for extracting a subset of the data within a given time range. The slicing operation is performed using internal indexing logic.
 
         Parameters
         ----------
-        start: int | float
-            Start timestamp, inclusive.
-
-        stop: int | float
-            Stop timestamp, inclusive.
+        start : int | float
+            The start time of the window (inclusive).
+        stop : int | float
+            The end time of the window (exclusive).
 
         Returns
         -------
         Self
-            Sliced collection (view).
+            A new TimestampedInstanceCollection containing the sliced data.
         """
         return self[self._window_to_slice(start, stop)]

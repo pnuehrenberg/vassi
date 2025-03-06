@@ -90,12 +90,12 @@ class SampleableMixin(ABC):
         extractor: BaseExtractor[F],
         size: int | float | Mapping[str | tuple[str, ...], int | float],
         *,
-        random_state: Optional[int | np.random.Generator],
-        stratify: bool,
-        reset_previous_indices: bool,
-        exclude_previous_indices: bool,
-        store_indices: bool,
-        log: Optional["Logger"],
+        random_state: Optional[int | np.random.Generator] = None,
+        stratify: bool = True,
+        reset_previous_indices: bool = False,
+        exclude_previous_indices: bool = False,
+        store_indices: bool = False,
+        log: Optional["Logger"] = None,
     ) -> tuple[F, NDArray | None]:
         available_indices, y, stratification_levels, splits = (
             self._get_available_indices(
