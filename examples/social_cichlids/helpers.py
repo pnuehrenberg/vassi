@@ -52,10 +52,6 @@ def subsample_train[F: Shaped](
                 "frontal_display": 0.25 * sampling_frequency[neighbor_rank],
             },
             random_state=random_state,
-            stratify=True,
-            reset_previous_indices=False,
-            exclude_previous_indices=False,
-            store_indices=False,
             log=log,
         )[0]  # only keep samples (X) but not labels (y)
         for neighbor_rank in sampling_frequency
@@ -67,7 +63,7 @@ def subsample_train[F: Shaped](
 
     return (
         extractor.concatenate(X, X_additional, axis=0, ignore_index=True),
-        np.concatenate(y, y_additional),
+        np.concatenate([y, y_additional]),
     )
 
 
