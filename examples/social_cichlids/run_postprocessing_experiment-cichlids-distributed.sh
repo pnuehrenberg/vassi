@@ -16,4 +16,4 @@ module load gcc/10 impi/2021.2
 
 source activate autoscore
 
-srun python3 ./smoothing_experiment-cichlids.py
+srun python3 ./postprocessing_experiment-cichlids.py

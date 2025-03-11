@@ -8,6 +8,8 @@ from numpy.typing import NDArray
 
 from automated_scoring.classification.postprocessing import PostprocessingParameters
 from automated_scoring.classification.results import ClassificationResult, _NestedResult
+from automated_scoring.dataset.permute import permute_recipients
+from automated_scoring.dataset.types import AnnotatedDataset, AnnotatedGroup
 from automated_scoring.dataset.types._mixins import (
     AnnotatedSampleableMixin,
     SampleableMixin,
@@ -25,7 +27,7 @@ def subsample_train[F: Shaped](
 ) -> tuple[F, NDArray]:
     if not isinstance(sampleable, AnnotatedSampleableMixin):
         raise ValueError("sampleable must be annotated")
-    return sampleable.subsample(
+    X, y = sampleable.subsample(
         extractor,
         {
             ("approach", "chase", "dart_bite", "lateral_display", "quiver"): 1.0,
@@ -34,6 +36,38 @@ def subsample_train[F: Shaped](
         },
         random_state=random_state,
         log=log,
+    )
+
+    if not isinstance(sampleable, AnnotatedGroup | AnnotatedDataset):
+        raise ValueError("sampleable must be group or dataset for permutation")
+
+    sampling_frequency = {0: 0.1, 1: 0.1, 2: 0.05, 3: 0.05, 4: 0.05}
+
+    X_additional = [
+        permute_recipients(sampleable, neighbor_rank=neighbor_rank).subsample(
+            extractor,
+            {
+                ("approach", "chase", "dart_bite", "lateral_display", "quiver"): 1.0
+                * sampling_frequency[neighbor_rank],
+                "frontal_display": 0.25 * sampling_frequency[neighbor_rank],
+            },
+            random_state=random_state,
+            stratify=True,
+            reset_previous_indices=False,
+            exclude_previous_indices=False,
+            store_indices=False,
+            log=log,
+        )[0]  # only keep samples (X) but not labels (y)
+        for neighbor_rank in sampling_frequency
+    ]
+
+    X_additional = extractor.concatenate(*X_additional, axis=0, ignore_index=True)
+    # all corresponding labels are "none" because of switched recipients
+    y_additional = np.repeat("none", X_additional.shape[0])
+
+    return (
+        extractor.concatenate(X, X_additional, axis=0, ignore_index=True),
+        np.concatenate(y, y_additional),
     )
 
 

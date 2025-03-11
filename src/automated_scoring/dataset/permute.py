@@ -1,5 +1,5 @@
 from collections.abc import Sequence
-from typing import TYPE_CHECKING, overload
+from typing import TYPE_CHECKING
 
 import numpy as np
 import pandas as pd
@@ -128,23 +128,11 @@ def _permute_recipients(
     return AnnotatedDataset.from_groups(groups)
 
 
-@overload
-def permute_recipients(
-    dataset: AnnotatedDataset, *, neighbor_rank: int
-) -> AnnotatedDataset: ...
-
-
-@overload
-def permute_recipients(
-    dataset: AnnotatedGroup, *, neighbor_rank: int
-) -> AnnotatedGroup: ...
-
-
-def permute_recipients(
-    dataset: AnnotatedDataset | AnnotatedGroup, *, neighbor_rank: int
-) -> AnnotatedDataset | AnnotatedGroup:
-    if isinstance(dataset, AnnotatedDataset):
-        return _permute_recipients(dataset, neighbor_rank=neighbor_rank)
-    if isinstance(dataset, AnnotatedGroup):
-        return _permute_recipients_in_group(dataset, neighbor_rank=neighbor_rank)
+def permute_recipients[T: AnnotatedDataset | AnnotatedGroup](
+    sampleable: T, *, neighbor_rank: int
+) -> T:
+    if isinstance(sampleable, AnnotatedDataset):
+        return _permute_recipients(sampleable, neighbor_rank=neighbor_rank)
+    if isinstance(sampleable, AnnotatedGroup):
+        return _permute_recipients_in_group(sampleable, neighbor_rank=neighbor_rank)
     raise TypeError("dataset_or_group must be a Dataset or AnnotatedGroup")

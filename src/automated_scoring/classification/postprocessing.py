@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from collections.abc import Iterable
 from functools import partial
-from typing import TYPE_CHECKING, Any, Callable, Optional, Protocol, TypedDict, TypeVar
+from typing import TYPE_CHECKING, Any, Optional, Protocol, TypedDict
 
 import numpy as np
 import optuna
@@ -21,17 +21,12 @@ if TYPE_CHECKING:
     from loguru import Logger
 
 
-class OverlappingPredictionsKwargs(TypedDict):
-    priority_func: Callable[[pd.DataFrame], Iterable[float]]
-    prefilter_recipient_bouts: bool
-    max_bout_gap: float
-    max_allowed_bout_overlap: float
+class PostprocessingParameters(TypedDict):
+    postprocessing_parameters: dict[str, Any]
+    decision_thresholds: Iterable[float]
 
 
-T = TypeVar("T", bound=ClassificationResult | _NestedResult)
-
-
-class PostprocessingFunction(Protocol):
+class PostprocessingFunction[T: ClassificationResult | _NestedResult](Protocol):
     def __call__(
         self,
         result: T,
@@ -40,11 +35,6 @@ class PostprocessingFunction(Protocol):
         decision_thresholds: Iterable[float],
         **kwargs: ...,
     ) -> T: ...
-
-
-class PostprocessingParameters(TypedDict):
-    postprocessing_parameters: dict[str, Any]
-    decision_thresholds: Iterable[float]
 
 
 class ParameterSuggestionFunction(Protocol):

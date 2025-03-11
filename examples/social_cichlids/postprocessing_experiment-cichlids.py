@@ -11,12 +11,12 @@ from automated_scoring.classification.postprocessing import (
 from automated_scoring.config import cfg
 from automated_scoring.features import DataFrameFeatureExtractor
 from automated_scoring.io import load_dataset
+from automated_scoring.logging import set_logging_level
 from automated_scoring.sliding_metrics import (
     SlidingWindowAggregator,
     get_window_slices,
     metrics,
 )
-from automated_scoring.logging import set_logging_level
 
 cfg.key_keypoints = "pose"
 cfg.key_timestamp = "time_stamp"
