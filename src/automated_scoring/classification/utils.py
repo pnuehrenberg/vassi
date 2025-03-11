@@ -149,7 +149,7 @@ def score_category_counts(
 def _filter_recipient_bouts(
     observations: pd.DataFrame,
     *,
-    priority_func: Callable[[pd.DataFrame], Iterable[float]],
+    priority_function: Callable[[pd.DataFrame], Iterable[float]],
     max_bout_gap: float,
     max_allowed_bout_overlap: float,
 ) -> pd.DataFrame:
@@ -179,7 +179,7 @@ def _filter_recipient_bouts(
     bouts = remove_overlapping_observations(
         pd.concat(bouts, ignore_index=True),
         index_columns=(),
-        priority_func=priority_func,
+        priority_function=priority_function,
         max_allowed_overlap=max_allowed_bout_overlap,
     ).sort_values("start", ignore_index=True, inplace=False)
     same_recipient = np.asarray(observations["recipient"])[:, np.newaxis] == np.asarray(

@@ -23,12 +23,6 @@ if __name__ == "__main__":
         target="dyad",
         background_category="none",
     )
-    dataset_test = load_dataset(
-        "mice_test",
-        directory="../../datasets/CALMS21/test",
-        target="dyad",
-        background_category="none",
-    )
 
     extractor = DataFrameFeatureExtractor(
         cache_directory="feature_cache_mice"

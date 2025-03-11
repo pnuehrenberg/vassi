@@ -30,10 +30,6 @@ def subsample_train[F: Shaped](
             ("none", "investigation"): 30000,
         },
         random_state=random_state,
-        stratify=True,
-        reset_previous_indices=False,
-        exclude_previous_indices=False,
-        store_indices=False,
         log=log,
     )
 

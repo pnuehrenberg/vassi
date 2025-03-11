@@ -57,11 +57,6 @@ class ParameterSuggestionFunction(Protocol):
     ) -> PostprocessingParameters: ...
 
 
-# @log_time(
-#     level_start="debug",
-#     level_finish="info",
-#     description="optuna optimization trial",
-# )
 def optuna_score_postprocessing_trial(
     classification_result: ClassificationResult | _NestedResult,
     trial: optuna.trial.Trial,
@@ -204,7 +199,7 @@ def summarize_experiment(
         {
             "best": study.best_trial.number,
             "best_value": study.best_value,
-            "best_params": study.best_params,
+            "best_params": {**study.best_params, **study.user_attrs},
             "results": study.trials_dataframe(("number", "params", "value")).to_dict(
                 orient="list"
             ),

@@ -66,13 +66,12 @@ class _Result:
         return pd.Series(scores, index=categories, name=on)
 
     def score(self) -> pd.DataFrame:
-        categories: tuple[str, ...] = tuple(self.categories)  # type: ignore
         levels = ("timestamp", "annotation", "prediction")
         return pd.DataFrame([self.f1_score(level) for level in levels])
 
     def _remove_overlapping_predictions(
         self,
-        priority_func: Callable[[pd.DataFrame], Iterable[float]],
+        priority_function: Callable[[pd.DataFrame], Iterable[float]],
         *,
         prefilter_recipient_bouts: bool,
         max_bout_gap: float,
@@ -80,6 +79,21 @@ class _Result:
     ) -> Self:
         raise NotImplementedError(
             "this should be implemented by subclasses if applicable"
+        )
+
+    def remove_overlapping_predictions(
+        self,
+        *,
+        priority_function: Callable[[pd.DataFrame], Iterable[float]],
+        prefilter_recipient_bouts: bool,
+        max_bout_gap: float,
+        max_allowed_bout_overlap: float,
+    ) -> Self:
+        return self._remove_overlapping_predictions(
+            priority_function,
+            prefilter_recipient_bouts=prefilter_recipient_bouts,
+            max_bout_gap=max_bout_gap,
+            max_allowed_bout_overlap=max_allowed_bout_overlap,
         )
 
 
@@ -336,14 +350,14 @@ class _NestedResult(_Result, ABC):
     def remove_overlapping_predictions(
         self,
         *,
-        priority_func: Callable[[pd.DataFrame], Iterable[float]],
+        priority_function: Callable[[pd.DataFrame], Iterable[float]],
         prefilter_recipient_bouts: bool,
         max_bout_gap: float,
         max_allowed_bout_overlap: float,
     ) -> Self:
         try:
             return self._remove_overlapping_predictions(
-                priority_func,
+                priority_function,
                 prefilter_recipient_bouts=prefilter_recipient_bouts,
                 max_bout_gap=max_bout_gap,
                 max_allowed_bout_overlap=max_allowed_bout_overlap,
@@ -353,7 +367,7 @@ class _NestedResult(_Result, ABC):
         for classification_result in self.classification_results.values():
             try:
                 classification_result._remove_overlapping_predictions(
-                    priority_func,
+                    priority_function,
                     prefilter_recipient_bouts=prefilter_recipient_bouts,
                     max_bout_gap=max_bout_gap,
                     max_allowed_bout_overlap=max_allowed_bout_overlap,
@@ -433,7 +447,7 @@ class GroupClassificationResult(_NestedResult):
 
     def _remove_overlapping_predictions(
         self,
-        priority_func: Callable[[pd.DataFrame], Iterable[float]],
+        priority_function: Callable[[pd.DataFrame], Iterable[float]],
         *,
         prefilter_recipient_bouts: bool,
         max_bout_gap: float,
@@ -456,13 +470,13 @@ class GroupClassificationResult(_NestedResult):
             if prefilter_recipient_bouts:
                 predictions_actor = _filter_recipient_bouts(
                     predictions_actor,
-                    priority_func=priority_func,
+                    priority_function=priority_function,
                     max_bout_gap=max_bout_gap,
                     max_allowed_bout_overlap=max_allowed_bout_overlap,
                 )
             predictions_actor = remove_overlapping_observations(
                 predictions_actor,
-                priority_func=priority_func,
+                priority_function=priority_function,
                 max_allowed_overlap=0,
                 index_columns=(),
             )

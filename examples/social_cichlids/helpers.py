@@ -1,88 +1,165 @@
-# import numpy as np
-# import pandas as pd
-# from numpy.typing import NDArray
+from functools import partial
+from typing import Any, Iterable
 
-# from automated_scoring.classification.optimization_utils import (
-#     OverlappingPredictionsKwargs,
-# )
-# from automated_scoring.dataset import AnnotatedDataset, Dataset
-# from automated_scoring.dataset.sampling.permutation import permute_recipients
-# from automated_scoring.features import BaseExtractor, F
-# from automated_scoring.sliding_metrics import sliding_median
+import numpy as np
+import optuna
+import pandas as pd
+from numpy.typing import NDArray
 
-
-# def smooth(parameters, *, array):
-#     median_filter_window = int(parameters["median_filter_window"])
-#     if median_filter_window <= 1:
-#         return array
-#     return sliding_median(array, median_filter_window)
+from automated_scoring.classification.postprocessing import PostprocessingParameters
+from automated_scoring.classification.results import ClassificationResult, _NestedResult
+from automated_scoring.dataset.types._mixins import (
+    AnnotatedSampleableMixin,
+    SampleableMixin,
+)
+from automated_scoring.features import BaseExtractor, Shaped
+from automated_scoring.sliding_metrics import sliding_mean, sliding_quantile
 
 
-# def score_priority(observations: pd.DataFrame) -> pd.Series:
-#     return (
-#         (1 - observations["max_probability"]) + (1 - observations["mean_probability"])
-#     ) / 2
+def subsample_train[F: Shaped](
+    sampleable: SampleableMixin,
+    extractor: BaseExtractor[F],
+    *,
+    random_state,
+    log,
+) -> tuple[F, NDArray]:
+    if not isinstance(sampleable, AnnotatedSampleableMixin):
+        raise ValueError("sampleable must be annotated")
+    return sampleable.subsample(
+        extractor,
+        {
+            ("approach", "chase", "dart_bite", "lateral_display", "quiver"): 1.0,
+            "frontal_display": 0.25,
+            "none": 0.01,
+        },
+        random_state=random_state,
+        log=log,
+    )
 
 
-# overlapping_predictions_kwargs = OverlappingPredictionsKwargs(
-#     priority_func=score_priority,
-#     prefilter_recipient_bouts=True,
-#     max_bout_gap=60,
-#     max_allowed_bout_overlap=30,
-# )
+def smooth_model_outputs(postprocessing_parameters: dict[str, Any], *, array: NDArray):
+    categories = (
+        "approach",
+        "chase",
+        "dart_bite",
+        "frontal_display",
+        "lateral_display",
+        "none",
+        "quiver",
+    )
+    probabilities_smoothed = np.zeros_like(array)
+    for idx, category in enumerate(categories):
+        window_lower = postprocessing_parameters[
+            f"quantile_range_window_lower-{category}"
+        ]
+        window_upper = postprocessing_parameters[
+            f"quantile_range_window_upper-{category}"
+        ]
+        window_mean = postprocessing_parameters[f"mean_window-{category}"]
+        probabilities_category = array[:, idx]
+        q_lower = probabilities_category
+        if window_lower > 1:
+            q_lower = sliding_quantile(
+                probabilities_category,
+                window_lower,
+                postprocessing_parameters[f"quantile_range_lower-{category}"],
+            )
+        q_upper = probabilities_category
+        if window_upper > 1:
+            q_upper = sliding_quantile(
+                probabilities_category,
+                window_upper,
+                postprocessing_parameters[f"quantile_range_upper-{category}"],
+            )
+        probabilities_category = np.clip(probabilities_category, q_lower, q_upper)
+        if window_mean > 1:
+            probabilities_smoothed[:, idx] = sliding_mean(
+                probabilities_category, window_mean
+            )
+        else:
+            probabilities_smoothed[:, idx] = probabilities_category
+    return probabilities_smoothed
 
 
-# def subsample_train(
-#     dataset: Dataset,
-#     extractor: BaseExtractor[F],
-#     *,
-#     random_state=None,
-#     log,
-# ) -> tuple[F, NDArray]:
-#     if not isinstance(dataset, AnnotatedDataset):
-#         raise ValueError(
-#             f"helper function to sample annotated datasets, got invalid dataset of type {type(dataset)}"
-#         )
+def postprocessing(
+    result: ClassificationResult | _NestedResult,
+    *,
+    postprocessing_parameters: dict[str, Any],
+    decision_thresholds: Iterable[float],
+    default_decision: int | str,
+):
+    return result.smooth(
+        partial(smooth_model_outputs, postprocessing_parameters),
+        decision_thresholds=decision_thresholds,
+        default_decision=default_decision,
+    ).remove_overlapping_predictions(
+        priority_function=postprocessing_parameters["priority_function"],
+        prefilter_recipient_bouts=postprocessing_parameters[
+            "prefilter_recipient_bouts"
+        ],
+        max_bout_gap=postprocessing_parameters["max_bout_gap"],
+        max_allowed_bout_overlap=postprocessing_parameters["max_allowed_bout_overlap"],
+    )
 
-#     X, y = dataset.subsample(
-#         extractor,
-#         {
-#             ("approach", "chase", "dart_bite", "lateral_display", "quiver"): 1.0,
-#             "frontal_display": 0.25,
-#             "none": 0.01,
-#         },
-#         random_state=random_state,
-#         stratify=True,
-#         reset_previous_indices=False,
-#         exclude_previous_indices=False,
-#         store_indices=False,
-#         log=log,
-#     )
 
-#     sampling_frequency = {0: 0.1, 1: 0.1, 2: 0.05, 3: 0.05, 4: 0.05}
+def score_priority(
+    observations: pd.DataFrame,
+    *,
+    weight_max_probability: float,
+    weight_mean_probability: float,
+) -> pd.Series:
+    # lower is better
+    if weight_max_probability + weight_mean_probability == 0:
+        weight_max_probability = 1
+        weight_mean_probability = 1
+    return (
+        (1 - observations["max_probability"]) * weight_max_probability
+        + (1 - observations["mean_probability"]) * weight_mean_probability
+    ) / (weight_max_probability + weight_mean_probability)
 
-#     X_additional = [
-#         permute_recipients(dataset, neighbor_rank=neighbor_rank).subsample(
-#             extractor,
-#             {
-#                 ("approach", "chase", "dart_bite", "lateral_display", "quiver"): 1.0
-#                 * sampling_frequency[neighbor_rank],
-#                 "frontal_display": 0.25 * sampling_frequency[neighbor_rank],
-#             },
-#             random_state=random_state,
-#             stratify=True,
-#             reset_previous_indices=False,
-#             exclude_previous_indices=False,
-#             store_indices=False,
-#             log=log,
-#         )[0]  # only keep samples (X) but not labels (y)
-#         for neighbor_rank in sampling_frequency
-#     ]
 
-#     X_additional = extractor.concatenate(*X_additional, axis=0, ignore_index=True)
-#     # all corresponding labels are "none" because of switched recipients
-#     y_additional = np.repeat("none", X_additional.shape[0])
-#     return (
-#         extractor.concatenate(X, X_additional, axis=0, ignore_index=True),
-#         np.concatenate([y, y_additional]),
-#     )
+def suggest_postprocessing_parameters(
+    trial: optuna.trial.Trial, *, categories: Iterable[str]
+) -> PostprocessingParameters:
+    weight_max_probability = trial.suggest_float("weight_max_probability", 0, 1)
+    weight_mean_probability = weight_max_probability - 1
+    trial.set_user_attr("weight_mean_probability", weight_mean_probability)
+    parameters = {
+        "priority_function": partial(
+            score_priority,
+            weight_max_probability=weight_max_probability,
+            weight_mean_probability=weight_mean_probability,
+        ),
+        "prefilter_recipient_bouts": trial.suggest_categorical(
+            "prefilter_recipient_bouts", [True, False]
+        ),
+        "max_bout_gap": trial.suggest_int("max_bout_gap", 0, 120),
+        "max_allowed_bout_overlap": trial.suggest_int(
+            "max_allowed_bout_overlap", 0, 60
+        ),
+    }
+    for category in categories:
+        parameters[f"quantile_range_window_lower-{category}"] = (
+            trial.suggest_int(f"quantile_range_window_lower-{category}", 0, 90, step=2)
+            + 1
+        )
+        parameters[f"quantile_range_lower-{category}"] = trial.suggest_float(
+            f"quantile_range_lower-{category}", 0, 0.5
+        )
+        parameters[f"quantile_range_window_upper-{category}"] = (
+            trial.suggest_int(f"quantile_range_window_upper-{category}", 0, 90, step=2)
+            + 1
+        )
+        parameters[f"quantile_range_upper-{category}"] = trial.suggest_float(
+            f"quantile_range_upper-{category}", 0.5, 1
+        )
+        parameters[f"mean_window-{category}"] = (
+            trial.suggest_int(f"mean_window-{category}", 0, 90, step=2) + 1
+        )
+    return {
+        "postprocessing_parameters": parameters,
+        "decision_thresholds": [
+            trial.suggest_float(f"threshold-{category}", 0, 1)
+            for category in categories
+        ],
+    }

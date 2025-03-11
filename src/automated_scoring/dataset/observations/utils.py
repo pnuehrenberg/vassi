@@ -190,7 +190,7 @@ def remove_overlapping_observations(
     observations: pd.DataFrame,
     *,
     index_columns: tuple[str, ...],
-    priority_func: Callable[[pd.DataFrame], Iterable[float]],
+    priority_function: Callable[[pd.DataFrame], Iterable[float]],
     max_allowed_overlap: float,
     drop_overlapping: bool = True,
     drop_overlapping_column: bool = True,
@@ -219,7 +219,7 @@ def remove_overlapping_observations(
             observations.at[idx, "overlapping"] = "no"
             continue
         observations_component = observations.iloc[overlapping_idx]
-        priority = np.asarray(priority_func(observations_component))
+        priority = np.asarray(priority_function(observations_component))
         order = np.argsort(priority)  # lower is better!
         prioritized = int(observations_component.index[order][0])
         overlap_prioritized = interval_overlap(
@@ -237,7 +237,7 @@ def remove_overlapping_observations(
             observations_temp = remove_overlapping_observations(
                 observations_temp,
                 index_columns=(),
-                priority_func=priority_func,
+                priority_function=priority_function,
                 max_allowed_overlap=max_allowed_overlap,
                 drop_overlapping=False,
                 drop_overlapping_column=False,
