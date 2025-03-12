@@ -171,14 +171,12 @@ class Dataset(NestedSampleableMixin, SampleableMixin):
             group = self.select(identifier)
             if not isinstance(group, AnnotatedMixin):
                 raise ValueError("unannotated groups do not have observations")
-            observations_group = group._get_observations()
+            observations_group = group.observations
             observations_group["group"] = identifier
             observations.append(observations_group)
         observations = pd.concat(observations, axis=0, ignore_index=True)[
-            list(self.REQUIRED_COLUMNS(self.target))
+            list(self.REQUIRED_COLUMNS(self.target)) + ["duration"]
         ]
-        if TYPE_CHECKING:
-            assert isinstance(observations, pd.DataFrame)
         return observations
 
     @classmethod

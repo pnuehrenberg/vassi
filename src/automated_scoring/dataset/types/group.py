@@ -236,17 +236,15 @@ class Group(NestedSampleableMixin, SampleableMixin):
         for identifier, sampleable in self:
             if not isinstance(sampleable, AnnotatedMixin):
                 raise ValueError("unannotated sampleables do not have observations")
-            observations_sampleable = sampleable._get_observations()
+            observations_sampleable = sampleable.observations
             if not isinstance(identifier, tuple):
                 identifier = (identifier,)
             for column, value in zip(identifier_columns, identifier):
                 observations_sampleable[column] = value
             observations.append(observations_sampleable)
         observations = pd.concat(observations, axis=0, ignore_index=True)[
-            list(self.REQUIRED_COLUMNS(self.target))
+            list(self.REQUIRED_COLUMNS(self.target)) + ["duration"]
         ]
-        if TYPE_CHECKING:
-            assert isinstance(observations, pd.DataFrame)
         return observations
 
 

@@ -18,6 +18,8 @@ def _with_duration(*args, func: Callable[P, pd.DataFrame], **kwargs) -> pd.DataF
         observations.loc[:, "duration"] = duration
     else:
         observations["duration"] = duration
+    for column in ["start", "stop", "duration"]:
+        observations[column] = pd.to_numeric(observations[column], downcast="integer")
     return observations
 
 
@@ -107,6 +109,8 @@ def infill_observations(
     observations = check_observations(
         observations, required_columns=["category", "start", "stop"]
     )
+    dtype_start = observations["start"].dtype
+    dtype_stop = observations["stop"].dtype
     if observation_stop is None:
         observation_stop = np.max(observations["stop"])
     if len(observations) == 0:

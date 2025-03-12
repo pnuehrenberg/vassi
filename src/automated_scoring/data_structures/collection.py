@@ -7,7 +7,7 @@ from numpy.dtypes import StringDType  # type: ignore
 from numpy.typing import NDArray
 
 from .. import config
-from . import _type_checking, instance, utils
+from . import type_checking, instance, utils
 from .base import ConfiguredData
 
 
@@ -373,7 +373,7 @@ class InstanceCollection(ConfiguredData):
         if isinstance(key, str):
             # single key
             return self._get_value(key)
-        valid, _key = _type_checking.is_str_iterable(key)
+        valid, _key = type_checking.is_str_iterable(key)
         if valid:
             # multiple keys
             return tuple(self._get_value(_key) for _key in _key)
@@ -385,11 +385,11 @@ class InstanceCollection(ConfiguredData):
             self._views.append(view)
             view._view_of.append(self)
             return view
-        valid, _key = _type_checking.is_slice_str(key)
+        valid, _key = type_checking.is_slice_str(key)
         if valid:
             # slice single key
             return self._get_value(_key[1])[_key[0]]
-        valid, _key = _type_checking.is_slice_str_iterable(key)
+        valid, _key = type_checking.is_slice_str_iterable(key)
         if valid:
             # slice multiple keys
             return {__key: self._get_value(__key)[_key[0]] for __key in _key[1]}
@@ -400,11 +400,11 @@ class InstanceCollection(ConfiguredData):
                 for _key, value in self.items(copy=False)
             }
             return instance.Instance(cfg=self.cfg, **instance_data, from_scalars=True)
-        valid, _key = _type_checking.is_int_str(key)
+        valid, _key = type_checking.is_int_str(key)
         if valid:
             # instance value at index
             return self._get_value(_key[1], copy=True)[_key[0]]
-        valid, _key = _type_checking.is_int_str_iterable(key)
+        valid, _key = type_checking.is_int_str_iterable(key)
         if valid:
             # instance values at index
             return {
@@ -561,7 +561,7 @@ class InstanceCollection(ConfiguredData):
             If the key-value pair types are not supported.
         """
         # single value
-        valid_value, _value = _type_checking.is_value(value)
+        valid_value, _value = type_checking.is_value(value)
         if valid_value and isinstance(key, str):
             # single key, single value
             if self._validate:
@@ -570,7 +570,7 @@ class InstanceCollection(ConfiguredData):
                 self.validate_data(data)
             self._set_value(key, _value, slice(None))
             return
-        valid_key, _key = _type_checking.is_str_iterable(key)
+        valid_key, _key = type_checking.is_str_iterable(key)
         if valid_value and valid_key:
             # multiple keys, single value
             if self._validate:
@@ -581,7 +581,7 @@ class InstanceCollection(ConfiguredData):
             for __key in _key:
                 self._set_value(__key, _value, slice(None))
             return
-        valid_key, _key = _type_checking.is_slice_str(key)
+        valid_key, _key = type_checking.is_slice_str(key)
         if valid_value and valid_key:
             # single key with slice
             if self._validate:
@@ -590,7 +590,7 @@ class InstanceCollection(ConfiguredData):
                 self.validate_data(data)
             self._set_value(_key[1], _value, _key[0])
             return
-        valid_key, _key = _type_checking.is_slice_str_iterable(key)
+        valid_key, _key = type_checking.is_slice_str_iterable(key)
         if valid_value and valid_key:
             # multiple keys with slice, single value
             if self._validate:
@@ -601,7 +601,7 @@ class InstanceCollection(ConfiguredData):
             for __key in _key[1]:
                 self._set_value(__key, _value, _key[0])
             return
-        valid_key, _key = _type_checking.is_int_str(key)
+        valid_key, _key = type_checking.is_int_str(key)
         if valid_value and valid_key:
             # instance value at index
             if self._validate:
@@ -610,7 +610,7 @@ class InstanceCollection(ConfiguredData):
                 self.validate_data(data)
             self._set_value(_key[1], _value, _key[0])
             return
-        valid_key, _key = _type_checking.is_int_str_iterable(key)
+        valid_key, _key = type_checking.is_int_str_iterable(key)
         if valid_value and valid_key:
             # instance values at index
             if self._validate:
@@ -622,8 +622,8 @@ class InstanceCollection(ConfiguredData):
                 self._set_value(__key, _value, _key[0])
             return
         # corresponding values
-        valid_value, _value = _type_checking.is_value_iterable(value)
-        valid_key, _key = _type_checking.is_str_iterable(key)
+        valid_value, _value = type_checking.is_value_iterable(value)
+        valid_key, _key = type_checking.is_str_iterable(key)
         if valid_value and valid_key:
             # multiple keys and corresponding values
             if self._validate:
@@ -634,9 +634,9 @@ class InstanceCollection(ConfiguredData):
             for __key, __value in zip(_key, _value):
                 self._set_value(__key, __value, slice(None))
             return
-        valid_key, _key = _type_checking.is_slice_str_iterable(key)
+        valid_key, _key = type_checking.is_slice_str_iterable(key)
         if not valid_key:
-            valid_key, _key = _type_checking.is_int_str_iterable(key)
+            valid_key, _key = type_checking.is_int_str_iterable(key)
         if valid_value and valid_key:
             # multiple keys with slice, corresponding values
             # instance values at index, corresponding values
