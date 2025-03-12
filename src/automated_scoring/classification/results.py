@@ -9,6 +9,8 @@ from typing import TYPE_CHECKING, Callable, Literal, Optional, Self, cast
 import numpy as np
 import pandas as pd
 from joblib import Parallel, delayed, parallel_config
+from joblib.parallel import get_active_backend
+
 from numpy.typing import NDArray
 from sklearn.metrics import f1_score
 
@@ -32,6 +34,16 @@ from .utils import (
     to_predictions,
     validate_predictions,
 )
+
+
+def available_resources() -> tuple[int, int]:
+    nesting_level = get_active_backend()[0].nesting_level  # type: ignore
+    num_cpus = cpu_count()
+    if nesting_level > 0:
+        num_cpus = num_cpus // (nesting_level * 4)
+    num_inner_threads = max(1, num_cpus // 4)
+    num_jobs = num_cpus // num_inner_threads
+    return num_jobs, num_inner_threads
 
 
 class _Result:
@@ -287,9 +299,7 @@ class _NestedResult(_Result, ABC):
         default_decision: int | str = "none",
     ) -> Self:
         classification_results = self._flat_classification_results()
-        num_cpus = cpu_count()
-        num_inner_threads = num_cpus // 4
-        num_jobs = num_cpus // num_inner_threads
+        num_jobs, num_inner_threads = available_resources()
         with parallel_config(backend="loky", inner_max_num_threads=num_inner_threads):
             results = Parallel(n_jobs=num_jobs)(
                 delayed(_smooth_probabilities)(
@@ -314,9 +324,7 @@ class _NestedResult(_Result, ABC):
         default_decision: int | str = "none",
     ) -> Self:
         classification_results = self._flat_classification_results()
-        num_cpus = cpu_count()
-        num_inner_threads = num_cpus // 4
-        num_jobs = num_cpus // num_inner_threads
+        num_jobs, num_inner_threads = available_resources()
         with parallel_config(backend="loky", inner_max_num_threads=num_inner_threads):
             results = Parallel(n_jobs=num_jobs)(
                 delayed(_threshold_probabilities)(

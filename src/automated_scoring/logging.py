@@ -6,7 +6,7 @@ from collections.abc import Generator, Iterable, Sized
 from contextlib import contextmanager
 from copy import deepcopy
 from time import perf_counter
-from typing import TYPE_CHECKING, Callable, Literal, Optional, TypeVar, cast
+from typing import TYPE_CHECKING, Callable, Literal, Optional, TypeVar, cast, Any, overload
 
 from loguru import logger
 
@@ -52,8 +52,25 @@ def _formatter(record):
     return f"<green>{{time:YYYY-MM-DD HH:mm:ss.SSS}}</green> <level>[{{level: <8}}]{get_loops_fmt()}{{message}}</level>\n"
 
 
+def _create_log_in_subprocess(
+    options: dict[str, Any],
+    level: int,
+    *,
+    sink=None,
+    format: str | Callable[..., str] = _formatter,
+    enqueue: bool = True,
+) -> Logger:
+    log = set_logging_level(level, sink=sink, format=format, enqueue=enqueue)
+    log._options = options  # type: ignore
+    return log
+
+
+def _prepare_log_for_subprocess(log: Logger) -> tuple[dict[str, Any], int]:
+    return deepcopy(log._options), log._core.min_level  # type: ignore
+
+
 def set_logging_level(
-    level: LOG_LEVEL = "warning",
+    level: LOG_LEVEL | int = "warning",
     *,
     sink=None,
     format: str | Callable[..., str] = _formatter,
@@ -64,7 +81,12 @@ def set_logging_level(
     if sink is None:
         sink = sys.stdout
     logger.remove()
-    logger.add(sink=sink, level=level.upper(), format=format, enqueue=enqueue)
+    logger.add(
+        sink=sink,
+        level=level.upper() if isinstance(level, str) else level,
+        format=format,
+        enqueue=enqueue,
+    )
     return logger
 
 
@@ -168,16 +190,38 @@ def increment_loop(log: Logger, *, name: int | str) -> Logger:
     return log
 
 
-T = TypeVar("T", bound=int | str)
-
-
-def with_loop(
+@overload
+def with_loop[T: int | str](
     log: Logger,
     *,
     name: Optional[T] = None,
     step: int,
     total: Optional[int] = None,
+    prepare_for_subprocess: Literal[False] = False,
 ) -> tuple[Logger, T]:
+    ...
+
+
+@overload
+def with_loop[T: int | str](
+    log: Logger,
+    *,
+    name: Optional[T] = None,
+    step: int,
+    total: Optional[int] = None,
+    prepare_for_subprocess: bool,
+) -> tuple[tuple[dict[str, Any], int], T]:
+    ...
+
+
+def with_loop[T: int | str](
+    log: Logger,
+    *,
+    name: Optional[T] = None,
+    step: int,
+    total: Optional[int] = None,
+    prepare_for_subprocess: bool = False,
+) -> tuple[Logger, T] | tuple[tuple[dict[str, Any], int], T]:
     if isinstance(name, str) and len(name) == 0:
         raise ValueError("name should be non-empty string (or int or None)")
     extra = _get_extra(log)
@@ -200,7 +244,10 @@ def with_loop(
     extra["loops"] = loops
     if TYPE_CHECKING:
         loop = cast(T, loop)
-    return log.bind(**extra), loop
+    log = log.bind(**extra)
+    if not prepare_for_subprocess:
+        return log, loop
+    return _prepare_log_for_subprocess(log), loop
 
 
 def log_loop[T](

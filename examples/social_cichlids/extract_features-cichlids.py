@@ -15,10 +15,7 @@ if __name__ == "__main__":
     cfg.key_keypoints = "pose"
     cfg.key_timestamp = "time_stamp"
 
-    cfg.trajectory_keys = (
-        "pose",
-        "time_stamp",
-    )
+    cfg.trajectory_keys = ("pose", "time_stamp")
 
     dataset_full = load_dataset(
         "cichlids",
@@ -27,15 +24,7 @@ if __name__ == "__main__":
         background_category="none",
     )
 
-    dataset_train, dataset_test = dataset_full.split(
-        0.8,
-        random_state=1,
-    )
-
-    observations = dataset_train.observations
-    observations = observations[observations["category"] != "none"]
     time_scales, slices = get_window_slices(3, time_scales=(91,))
-
     aggregator = ColumnTransformer(
         [
             (

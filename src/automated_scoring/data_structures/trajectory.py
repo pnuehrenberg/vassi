@@ -246,7 +246,9 @@ class Trajectory(TimestampedInstanceCollection):
         """
         if timestep is None:
             timestep = self.timestep
-        interpolated_length = 1 + (self.timestamps[-1] - self.timestamps[0]) / timestep
+        interpolated_length = (
+            1 + (self.timestamps.max() - self.timestamps.min()) / timestep
+        )
         if not isclose(interpolated_length, np.round(interpolated_length)):
             raise ValueError(
                 f"timestep should result in an integer trajectory length and not: {interpolated_length}"

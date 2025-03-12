@@ -129,13 +129,14 @@ class Config(BaseConfig):
         self,
         *,
         trajectory_keys: tuple[str, ...] = tuple(),
-        key_identity: Optional[str] = None,  # depreated!
+        key_identity: Optional[str] = None,
         key_timestamp: Optional[str] = None,
         key_category: Optional[str] = None,
         key_score: Optional[str] = None,
         key_box: Optional[str] = None,
         key_keypoints: Optional[str] = None,
         timestep: Optional[int | float] = None,
+        hash_decimals: int = 9,
         **kwargs,
     ):
         self.trajectory_keys = trajectory_keys
@@ -146,6 +147,7 @@ class Config(BaseConfig):
         self.key_box = key_box
         self.key_keypoints = key_keypoints
         self.timestep = timestep
+        self.hash_decimals = hash_decimals
         super().__init__(**kwargs)
 
 

@@ -1,18 +1,21 @@
 from __future__ import annotations
 
-from collections.abc import Iterable
+import tempfile
+from collections.abc import Callable, Iterable
 from functools import partial
+from multiprocessing import cpu_count
 from typing import TYPE_CHECKING, Any, Optional, Protocol, TypedDict
 
 import numpy as np
 import optuna
 import pandas as pd
+from joblib import Parallel, delayed, parallel_config
 from scipy.stats import gaussian_kde
 
 from ..dataset.types import AnnotatedDataset, SamplingFunction
 from ..features import BaseExtractor, Shaped
 from ..io import to_yaml
-from ..logging import increment_loop, log_time, set_logging_level, with_loop
+from ..logging import increment_loop, log_time, set_logging_level, with_loop, _create_log_in_subprocess
 from ..utils import Experiment, to_int_seed
 from .predict import k_fold_predict
 from .results import ClassificationResult, _NestedResult
@@ -47,15 +50,18 @@ class ParameterSuggestionFunction(Protocol):
     ) -> PostprocessingParameters: ...
 
 
+_log: Logger | None = None
+
+
 def optuna_score_postprocessing_trial(
     classification_result: ClassificationResult | _NestedResult,
     trial: optuna.trial.Trial,
     *,
     postprocessing_function: PostprocessingFunction,
     postprocessing_parameters: PostprocessingParameters | ParameterSuggestionFunction,
-    loop_log: tuple[Logger, str],
+    loop_log: tuple[Logger, str] | tuple[tuple[dict[str, Any], int], str],
 ) -> float:
-    log, loop_name = loop_log
+    global _log
     if callable(postprocessing_parameters):
         postprocessing_parameters = postprocessing_parameters(
             trial, categories=classification_result.categories
@@ -66,8 +72,31 @@ def optuna_score_postprocessing_trial(
         default_decision="none",
     )
     score = float(np.nanmean(classification_result_processed.score()))
+    log, loop_name = loop_log
+    if isinstance(log, tuple) and _log is not None:
+        log = _log
+    elif isinstance(log, tuple) and _log is None:
+        _log = _create_log_in_subprocess(*log)
+        log = _log
+    if TYPE_CHECKING:
+        assert isinstance(log, Logger)
     increment_loop(log, name=loop_name).info(f"score: {score:.3f}")
     return score
+
+
+def _optimize_study(
+    study_name: str,
+    storage: optuna.storages.BaseStorage,
+    objective: Callable,
+    num_trials: int,
+) -> None:
+    global _log
+    optuna.logging.disable_default_handler()
+    study = optuna.create_study(
+        study_name=study_name, storage=storage, load_if_exists=True
+    )
+    study.optimize(objective, n_trials=num_trials)
+    _log = None
 
 
 @log_time(
@@ -82,20 +111,55 @@ def optuna_parameter_optimization(
     random_state: Optional[int | np.random.Generator],
     postprocessing_function: PostprocessingFunction,
     suggest_postprocessing_parameters_function: ParameterSuggestionFunction,
+    parallel_optimization: bool,
     log: Logger,
 ) -> optuna.study.Study:
     random_state = np.random.default_rng(random_state)
-    objective = partial(
-        optuna_score_postprocessing_trial,
-        classification_result,
-        postprocessing_function=postprocessing_function,
-        postprocessing_parameters=suggest_postprocessing_parameters_function,
-        loop_log=with_loop(log, name="optuna trial", step=0, total=num_trials),
-    )
     optuna.logging.disable_default_handler()
     sampler = optuna.samplers.TPESampler(seed=to_int_seed(random_state))
-    study = optuna.create_study(sampler=sampler, direction="maximize")
-    study.optimize(objective, n_trials=num_trials)
+    if not parallel_optimization:
+        study = optuna.create_study(sampler=sampler, direction="maximize")
+        study.optimize(
+            partial(
+                optuna_score_postprocessing_trial,
+                classification_result,
+                postprocessing_function=postprocessing_function,
+                postprocessing_parameters=suggest_postprocessing_parameters_function,
+                loop_log=with_loop(log, name="optuna trial", step=0, total=num_trials),
+            ),
+            n_trials=num_trials,
+        )
+        return study
+    _, storage_file = tempfile.mkstemp(suffix=".optuna-log")
+    storage = optuna.storages.JournalStorage(
+        optuna.storages.journal.JournalFileBackend(storage_file),  # type: ignore
+    )
+    study = optuna.create_study(sampler=sampler, storage=storage, direction="maximize")
+    num_cpus = cpu_count()
+    num_inner_threads = num_cpus // 4
+    num_jobs = num_cpus // num_inner_threads
+    with parallel_config(backend="loky", inner_max_num_threads=num_inner_threads):
+        Parallel(n_jobs=num_jobs)(
+            delayed(_optimize_study)(
+                study.study_name,
+                storage,
+                partial(
+                    optuna_score_postprocessing_trial,
+                    classification_result,
+                    postprocessing_function=postprocessing_function,
+                    postprocessing_parameters=suggest_postprocessing_parameters_function,
+                    loop_log=with_loop(
+                        log,
+                        name=f"job: {job} | optuna trial",
+                        step=0,
+                        total=num_trials // num_jobs,
+                        prepare_for_subprocess=True,
+                    ),
+                ),
+                num_trials=num_trials // num_jobs,
+            )
+            for job in range(num_jobs)
+        )
     return study
 
 
@@ -111,6 +175,7 @@ def postprocessing_optimization_run[F: Shaped](
     postprocessing_function: PostprocessingFunction,
     suggest_postprocessing_parameters_function: ParameterSuggestionFunction,
     random_state: Optional[int | np.random.Generator],
+    parallel_optimization: bool,
     log: Logger,
 ) -> optuna.study.Study:
     k_fold_result = k_fold_predict(
@@ -129,6 +194,7 @@ def postprocessing_optimization_run[F: Shaped](
         random_state=random_state,
         postprocessing_function=postprocessing_function,
         suggest_postprocessing_parameters_function=suggest_postprocessing_parameters_function,
+        parallel_optimization=parallel_optimization,
         log=log,
     )
 
@@ -150,6 +216,7 @@ def optimize_postprocessing_parameters[F: Shaped](
     sampling_function: SamplingFunction,
     balance_sample_weights: bool = True,
     experiment: Experiment,
+    parallel_optimization: bool = False,
     log: Optional[Logger] = None,
 ) -> list[optuna.study.Study] | None:
     if log is None:
@@ -168,6 +235,7 @@ def optimize_postprocessing_parameters[F: Shaped](
                 postprocessing_function=postprocessing_function,
                 suggest_postprocessing_parameters_function=suggest_postprocessing_parameters_function,
                 num_trials=num_trials,
+                parallel_optimization=parallel_optimization,
                 log=log,
             ),
         )

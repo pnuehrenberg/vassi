@@ -82,7 +82,7 @@ def plot_confusion_matrix(
     ax_colorbar = None
     if show_colorbar:
         ax_colorbar = ax.inset_axes((1.05, 0, 0.05, 1))
-    mappable = ax.matshow(cm_prob, vmin=0, vmax=1)
+    mappable = ax.matshow(cm_prob, vmin=0, vmax=1, interpolation="none")
     grid = np.indices(cm_prob.shape)
     for row_idx, col_idx in zip(grid[0].ravel(), grid[1].ravel()):
         ax.text(

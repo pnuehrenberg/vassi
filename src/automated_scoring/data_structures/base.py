@@ -2,6 +2,7 @@ import hashlib
 from collections.abc import Iterable
 from typing import Optional
 
+import numpy as np
 from numpy.typing import NDArray
 
 from .. import config
@@ -25,7 +26,9 @@ class ConfiguredData:
             The SHA1 hexadecimal hash of the configured data.
         """
         items = {
-            key: hashlib.sha1(value).hexdigest()
+            key: hashlib.sha1(
+                np.round(value, decimals=self.cfg.hash_decimals)
+            ).hexdigest()
             for key, value in self.items(copy=False)
         }
         items["cfg"] = hash_dict(self.cfg())
