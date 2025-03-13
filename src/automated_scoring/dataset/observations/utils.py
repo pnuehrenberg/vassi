@@ -62,10 +62,10 @@ def to_y(
         allow_overlapping=False,
         allow_unsorted=False,
     ).copy()
-    for dtype in observations[["start", "stop"]].dtypes:
-        if "int" in str(dtype):
+    for timestamp_dtype in observations[["start", "stop"]].dtypes:
+        if "int" in str(timestamp_dtype):
             continue
-        raise ValueError(f"start and stop columns must be integers, got {dtype}")
+        raise ValueError(f"start and stop columns must be integers, got {timestamp_dtype}")
     observations = observations.loc[observations["stop"] >= start]
     observations.loc[observations["start"] < start, "start"] = int(start)
     if stop is not None:

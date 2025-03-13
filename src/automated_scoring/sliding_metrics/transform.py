@@ -80,6 +80,14 @@ def get_window_slices(
 
 
 class SlidingWindowAggregator(BaseEstimator, TransformerMixin):
+    """
+    Sliding window aggregator for time series data.
+
+    Args:
+        metric_funcs: List of functions to apply to each window.
+        window_size: Size of the sliding window.
+        window_slices: List of slices to use for each window.
+    """
     def __init__(
         self,
         metric_funcs: list[NDArray_to_NDArray],
@@ -94,9 +102,23 @@ class SlidingWindowAggregator(BaseEstimator, TransformerMixin):
         self.window_slices = window_slices
 
     def fit(self, X: NDArray | pd.DataFrame, y: None = None) -> Self:
+        """
+        This method is required by the sklearn API and does not perform any actual fitting.
+
+        Args:
+            X: Ignored.
+            y: Ignored.
+        """
         return self
 
     def transform(self, X: NDArray | pd.DataFrame) -> NDArray:
+        """
+        Transform the input data by applying the metric functions to sliding windows.
+        The transformed data is returned as a 2D array, flattened along all axes except the first.
+
+        Args:
+            X: Input data to transform.
+        """
         # X is not typed in pandas
         X_numpy = validate_data(
             self,
@@ -114,10 +136,14 @@ class SlidingWindowAggregator(BaseEstimator, TransformerMixin):
         )
 
     def get_feature_names_out(self, input_features: Iterable[str] | None = None):
-        """Get output feature names for transformation.
-
-        Reimplemented from https://github.com/scikit-learn/scikit-learn/blob/70fdc843a/sklearn/preprocessing/_polynomial.py#L99
         """
+        Get output feature names for transformation.
+
+
+        Args:
+            input_features: Input feature names.
+        """
+        # https://github.com/scikit-learn/scikit-learn/blob/70fdc843a/sklearn/preprocessing/_polynomial.py#L99
         input_features = _check_feature_names_in(self, input_features)
         if input_features is None:
             raise ValueError
