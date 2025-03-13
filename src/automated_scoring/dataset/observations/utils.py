@@ -19,7 +19,12 @@ def _with_duration(*args, func: Callable[P, pd.DataFrame], **kwargs) -> pd.DataF
     else:
         observations["duration"] = duration
     for column in ["start", "stop", "duration"]:
-        observations[column] = pd.to_numeric(observations[column], downcast="integer")
+        values = pd.to_numeric(observations[column], downcast="integer")
+        if "int" in str(values.dtype):
+            values = values.astype(int)
+        else:
+            values = values.astype(float)
+        observations[column] = values
     return observations
 
 
