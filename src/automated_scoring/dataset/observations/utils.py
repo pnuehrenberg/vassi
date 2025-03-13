@@ -52,8 +52,8 @@ def ensure_single_index(
 def to_y(
     observations: pd.DataFrame,
     *,
-    start: float = 0,
-    stop: float = np.inf,
+    start: int = 0,
+    stop: Optional[int] = None,
     dtype: type = str,
 ) -> NDArray:
     observations = check_observations(
@@ -62,15 +62,16 @@ def to_y(
         allow_overlapping=False,
         allow_unsorted=False,
     ).copy()
+    for dtype in observations[["start", "stop"]].dtypes:
+        if "int" in str(dtype):
+            continue
+        raise ValueError(f"start and stop columns must be integers, got {dtype}")
     observations = observations.loc[observations["stop"] >= start]
-    observations.loc[observations["start"] < start, "start"] = start
-    if stop < np.inf:
+    observations.loc[observations["start"] < start, "start"] = int(start)
+    if stop is not None:
         observations = observations.loc[observations["start"] <= stop]
-        observations.loc[observations["stop"] > stop, "stop"] = stop
-    intervals_float = np.array(observations[["start", "stop"]])
-    intervals = intervals_float.astype(int)
-    if not np.allclose(intervals, intervals_float, rtol=0):
-        raise ValueError("start and stop columns must be integers")
+        observations.loc[observations["stop"] > stop, "stop"] = int(stop)
+    intervals = np.array(observations[["start", "stop"]]).astype(int)
     duration = intervals[:, 1] - intervals[:, 0] + 1
     return np.repeat(np.array(observations["category"], dtype=dtype), duration)
 
