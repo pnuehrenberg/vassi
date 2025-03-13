@@ -35,6 +35,19 @@ def get_window_slices(
     durations: Optional[NDArray] = None,
     time_scale_quantiles: Optional[Iterable[float]] = None,
 ) -> tuple[list[int], list[slice]]:
+    """
+    Find consecutive window slices for time scales, either explicitly specified or derived from durations and quantiles.
+
+    Args:
+        num_windows_per_scale: Number of windows per time scale.
+        time_scales: Explicit time scales.
+        durations: Durations to calculate time scales from.
+        time_scale_quantiles: Quantiles of the durations to derive time scales.
+
+    Raises:
+        ValueError: If neither :code:`time_scales` nor :code:`durations` and :code:`time_scale_quantiles` are specified.
+        ValueError: If :code:`time_scale_quantiles` are specified but :code:`durations` are not.
+    """
     if time_scales is None and durations is not None:
         if time_scale_quantiles is not None:
             time_scales = (
@@ -104,23 +117,6 @@ class SlidingWindowAggregator(BaseEstimator, TransformerMixin):
         """Get output feature names for transformation.
 
         Reimplemented from https://github.com/scikit-learn/scikit-learn/blob/70fdc843a/sklearn/preprocessing/_polynomial.py#L99
-
-        Parameters
-        ----------
-        input_features : array-like of str or None, default=None
-            Input features.
-
-            - If `input_features is None`, then `feature_names_in_` is
-              used as feature names in. If `feature_names_in_` is not defined,
-              then the following input feature names are generated:
-              `["x0", "x1", ..., "x(n_features_in_ - 1)"]`.
-            - If `input_features` is an array-like, then `input_features` must
-              match `feature_names_in_` if `feature_names_in_` is defined.
-
-        Returns
-        -------
-        feature_names_out : ndarray of str objects
-            Transformed feature names.
         """
         input_features = _check_feature_names_in(self, input_features)
         if input_features is None:

@@ -13,6 +13,15 @@ def apply_multiple_to_sliding_windows(
     funcs: Iterable[Callable],
     slices: Optional[Iterable[slice]] = None,
 ) -> NDArray:
+    """
+    Apply multiple functions to sliding windows of a series.
+
+    Args:
+        series: The input series.
+        window_size: The size of the sliding window.
+        funcs: The functions to apply.
+        slices: The slices to apply the functions to (slicing the moving window).
+    """
     if window_size % 2 == 0:
         raise ValueError("window_size must be odd")
     if (ndim := series.ndim) == 1:
@@ -53,22 +62,58 @@ def apply_multiple_to_sliding_windows(
 
 
 def sliding_mean(series: NDArray, window_size: int) -> NDArray:
+    """
+    Calculate the sliding mean of a series.
+
+    Args:
+        series: The input series
+        window_size: The size of the sliding window
+    """
     return apply_multiple_to_sliding_windows(series, window_size, [metrics.mean])
 
 
 def sliding_median(series: NDArray, window_size: int) -> NDArray:
+    """
+    Calculate the sliding median of a series.
+
+    Args:
+        series: The input series
+        window_size: The size of the sliding window
+    """
     return apply_multiple_to_sliding_windows(series, window_size, [metrics.median])
 
 
 def sliding_min(series: NDArray, window_size: int) -> NDArray:
+    """
+    Calculate the sliding minimum of a series.
+
+    Args:
+        series: The input series
+        window_size: The size of the sliding window
+    """
     return apply_multiple_to_sliding_windows(series, window_size, [metrics.min])
 
 
 def sliding_max(series: NDArray, window_size: int) -> NDArray:
+    """
+    Calculate the sliding maximum of a series.
+
+    Args:
+        series: The input series
+        window_size: The size of the sliding window
+    """
     return apply_multiple_to_sliding_windows(series, window_size, [metrics.max])
 
 
 def sliding_quantile(series: NDArray, window_size: int, q: float) -> NDArray:
+    """
+    Calculate a sliding quantile of a series.
+
+    Args:
+        series: The input series
+        window_size: The size of the sliding window
+        q: The quantile to calculate
+    """
     return apply_multiple_to_sliding_windows(
         series, window_size, [lambda series: metrics.quantile(series, q)]
     )
@@ -77,6 +122,14 @@ def sliding_quantile(series: NDArray, window_size: int, q: float) -> NDArray:
 def sliding_quantiles(
     series: NDArray, window_size: int, quantiles: Iterable[float]
 ) -> NDArray:
+    """
+    Calculate sliding quantiles of a series.
+
+    Args:
+        series: The input series
+        window_size: The size of the sliding window
+        quantiles: The quantiles to calculate
+    """
     return apply_multiple_to_sliding_windows(
         series,
         window_size,

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import tempfile
 from collections.abc import Callable, Iterable
 from functools import partial
@@ -130,7 +131,8 @@ def optuna_parameter_optimization(
             n_trials=num_trials,
         )
         return study
-    _, storage_file = tempfile.mkstemp(suffix=".optuna-log")
+    os.makedirs("optuna_logs", exist_ok=True)
+    _, storage_file = tempfile.mkstemp(suffix=".optuna-log", dir="optuna_logs")
     storage = optuna.storages.JournalStorage(
         optuna.storages.journal.JournalFileBackend(storage_file),  # type: ignore
     )
