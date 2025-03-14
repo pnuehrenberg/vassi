@@ -3,7 +3,6 @@ from collections.abc import Iterable
 from typing import Optional
 
 import numpy as np
-from numpy.typing import NDArray
 
 from .. import config
 from ..utils import hash_dict
@@ -12,14 +11,12 @@ from ..utils import hash_dict
 class ConfiguredData:
     """Represents a configured data object with associated configuration and data."""
 
-    _data: Optional[dict[str, NDArray]] = None
+    _data: Optional[dict[str, np.ndarray]] = None
     _cfg: Optional[config.Config] = None
 
     @property
     def sha1(self) -> str:
-        """
-        Calculates the SHA1 hash of the configured data.
-        """
+        """Calculates the SHA1 hash of the configured data."""
         items = {
             key: hashlib.sha1(
                 np.round(value, decimals=self.cfg.hash_decimals)
@@ -42,9 +39,7 @@ class ConfiguredData:
 
     @property
     def cfg(self) -> config.Config:
-        """
-        Property that returns the configuration object.
-        """
+        """Property that returns the configuration object."""
         if self._cfg is None:
             return config.cfg
         return self._cfg
@@ -74,7 +69,7 @@ class ConfiguredData:
         key: str,
         *,
         copy: bool = False,
-    ) -> NDArray:
+    ) -> np.ndarray:
         """
         Gets a value from the internal data store.
 
@@ -100,7 +95,7 @@ class ConfiguredData:
         *,
         exclude: Optional[Iterable[str]] = None,
         copy: bool = True,
-    ) -> tuple[NDArray, ...]:
+    ) -> tuple[np.ndarray, ...]:
         """
         Returns the values of the configured data.
 
@@ -117,7 +112,7 @@ class ConfiguredData:
         *,
         exclude: Optional[Iterable[str]] = None,
         copy: bool = True,
-    ) -> tuple[tuple[str, NDArray], ...]:
+    ) -> tuple[tuple[str, np.ndarray], ...]:
         """
         Returns a tuple of (key, value) pairs for the data, optionally excluding some keys.
 
@@ -130,11 +125,9 @@ class ConfiguredData:
         return tuple((key, value) for key, value in zip(keys, values))
 
     @property
-    def data(self) -> dict[str, NDArray]:
+    def data(self) -> dict[str, np.ndarray]:
         """
-        Returns a dictionary containing the data.
-
-        This property provides access to the internal data stored within the ConfiguredData object. It returns a copy of the data to prevent external modification of the internal state.
+        Returns a dictionary containing the a copy of the stored data.
 
         Raises:
             ValueError: If the data has not been initialized.

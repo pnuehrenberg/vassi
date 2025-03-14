@@ -10,7 +10,6 @@ from typing import (
 )
 
 import numpy as np
-from numpy.typing import NDArray
 
 from ...utils import (
     Identifier,
@@ -60,7 +59,7 @@ class NestedSampleableMixin(ABC):
     @abstractmethod
     def _get_identifiers(self) -> tuple[Identifier, ...]: ...
 
-    def _sample_y(self) -> NDArray:
+    def _sample_y(self) -> np.ndarray:
         if not isinstance(self, AnnotatedMixin):
             raise ValueError("can only sample y for annotated sampleables")
         y = []
@@ -96,10 +95,10 @@ class NestedSampleableMixin(ABC):
         *,
         reset_previous_indices: bool,
         exclude_previous_indices: bool,
-    ) -> tuple[NDArray, NDArray | None, Sequence[NDArray | None], dict]:
-        indices: list[NDArray] = []
-        y: list[NDArray] = []
-        stratification_levels: list[list[NDArray | None]] = []
+    ) -> tuple[np.ndarray, np.ndarray | None, Sequence[np.ndarray | None], dict]:
+        indices: list[np.ndarray] = []
+        y: list[np.ndarray] = []
+        stratification_levels: list[list[np.ndarray | None]] = []
         splits = []
         for identifier, sampleable in self:
             (
@@ -173,7 +172,7 @@ class NestedSampleableMixin(ABC):
                 ]
             ):
                 continue
-            concatenated_stratification: list[NDArray] = []
+            concatenated_stratification: list[np.ndarray] = []
             for idx in range(len(stratification_levels)):
                 stratification = stratification_levels[idx][stratification_level_idx]
                 if TYPE_CHECKING:
@@ -192,11 +191,11 @@ class NestedSampleableMixin(ABC):
     def _select_samples[F: Shaped](
         self,
         extractor: BaseExtractor[F],
-        indices: NDArray,
+        indices: np.ndarray,
         splits: Optional[dict],
         *,
         store_indices: bool,
-    ) -> tuple[F, NDArray | None]:
+    ) -> tuple[F, np.ndarray | None]:
         if splits is None:
             raise ValueError("splits must be specified for nested sampleables")
         samples = [

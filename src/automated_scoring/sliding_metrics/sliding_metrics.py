@@ -2,17 +2,16 @@ from collections.abc import Iterable
 from typing import Callable, Optional
 
 import numpy as np
-from numpy.typing import NDArray
 
 from . import metrics
 
 
 def apply_multiple_to_sliding_windows(
-    series: NDArray,
+    series: np.ndarray,
     window_size: int,
     funcs: Iterable[Callable],
     slices: Optional[Iterable[slice]] = None,
-) -> NDArray:
+) -> np.ndarray:
     """
     Apply multiple functions to sliding windows of a series.
 
@@ -61,7 +60,7 @@ def apply_multiple_to_sliding_windows(
     return result
 
 
-def sliding_mean(series: NDArray, window_size: int) -> NDArray:
+def sliding_mean(series: np.ndarray, window_size: int) -> np.ndarray:
     """
     Calculate the sliding mean of a series.
 
@@ -72,7 +71,7 @@ def sliding_mean(series: NDArray, window_size: int) -> NDArray:
     return apply_multiple_to_sliding_windows(series, window_size, [metrics.mean])
 
 
-def sliding_median(series: NDArray, window_size: int) -> NDArray:
+def sliding_median(series: np.ndarray, window_size: int) -> np.ndarray:
     """
     Calculate the sliding median of a series.
 
@@ -83,7 +82,7 @@ def sliding_median(series: NDArray, window_size: int) -> NDArray:
     return apply_multiple_to_sliding_windows(series, window_size, [metrics.median])
 
 
-def sliding_min(series: NDArray, window_size: int) -> NDArray:
+def sliding_min(series: np.ndarray, window_size: int) -> np.ndarray:
     """
     Calculate the sliding minimum of a series.
 
@@ -94,7 +93,7 @@ def sliding_min(series: NDArray, window_size: int) -> NDArray:
     return apply_multiple_to_sliding_windows(series, window_size, [metrics.min])
 
 
-def sliding_max(series: NDArray, window_size: int) -> NDArray:
+def sliding_max(series: np.ndarray, window_size: int) -> np.ndarray:
     """
     Calculate the sliding maximum of a series.
 
@@ -105,7 +104,7 @@ def sliding_max(series: NDArray, window_size: int) -> NDArray:
     return apply_multiple_to_sliding_windows(series, window_size, [metrics.max])
 
 
-def sliding_quantile(series: NDArray, window_size: int, q: float) -> NDArray:
+def sliding_quantile(series: np.ndarray, window_size: int, q: float) -> np.ndarray:
     """
     Calculate a sliding quantile of a series.
 
@@ -120,8 +119,8 @@ def sliding_quantile(series: NDArray, window_size: int, q: float) -> NDArray:
 
 
 def sliding_quantiles(
-    series: NDArray, window_size: int, quantiles: Iterable[float]
-) -> NDArray:
+    series: np.ndarray, window_size: int, quantiles: Iterable[float]
+) -> np.ndarray:
     """
     Calculate sliding quantiles of a series.
 

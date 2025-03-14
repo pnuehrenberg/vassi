@@ -1,5 +1,5 @@
 from ._base_sampleable import BaseSampleable
-from ._mixins import (
+from .mixins import (
     AnnotatedMixin,
     EncodingFunction,
     NestedSampleableMixin,

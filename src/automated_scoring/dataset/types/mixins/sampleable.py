@@ -6,7 +6,6 @@ from typing import TYPE_CHECKING, Optional, Protocol
 
 import numpy as np
 import pandas as pd
-from numpy.typing import NDArray
 
 from ..._selection import select_indices
 from .annotated import AnnotatedMixin
@@ -27,7 +26,7 @@ class SamplingFunction(Protocol):
         random_state: Optional[np.random.Generator | int],
         log: Optional[Logger],
         **kwargs: ...,
-    ) -> tuple[F, NDArray]: ...
+    ) -> tuple[F, np.ndarray]: ...
 
 
 class SampleableMixin(ABC):
@@ -60,7 +59,7 @@ class SampleableMixin(ABC):
     def sample[F: Shaped](
         self,
         extractor: BaseExtractor[F],
-    ) -> tuple[F, NDArray | None]:
+    ) -> tuple[F, np.ndarray | None]:
         X = self.sample_X(extractor)
         y = None
         if isinstance(self, AnnotatedMixin):
@@ -73,17 +72,17 @@ class SampleableMixin(ABC):
         *,
         reset_previous_indices: bool,
         exclude_previous_indices: bool,
-    ) -> tuple[NDArray, NDArray | None, Sequence[NDArray | None], dict]: ...
+    ) -> tuple[np.ndarray, np.ndarray | None, Sequence[np.ndarray | None], dict]: ...
 
     @abstractmethod
     def _select_samples[F: Shaped](
         self,
         extractor: BaseExtractor[F],
-        indices: NDArray,
+        indices: np.ndarray,
         splits: Optional[dict],
         *,
         store_indices: bool,
-    ) -> tuple[F, NDArray | None]: ...
+    ) -> tuple[F, np.ndarray | None]: ...
 
     def subsample[F: Shaped](
         self,
@@ -96,7 +95,7 @@ class SampleableMixin(ABC):
         exclude_previous_indices: bool = False,
         store_indices: bool = False,
         log: Optional["Logger"] = None,
-    ) -> tuple[F, NDArray | None]:
+    ) -> tuple[F, np.ndarray | None]:
         available_indices, y, stratification_levels, splits = (
             self._get_available_indices(
                 reset_previous_indices=reset_previous_indices,

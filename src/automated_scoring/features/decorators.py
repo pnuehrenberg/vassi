@@ -4,7 +4,6 @@ from typing import Optional
 
 import numpy as np
 import pandas as pd
-from numpy.typing import NDArray
 
 from .. import series_operations
 from ..logging import set_logging_level
@@ -41,7 +40,7 @@ def _get_prefix(func: Feature | functools.partial) -> str:
     return f"{prefix}{_get_prefix(func.keywords['func'])}"
 
 
-def _as_absolute(*args, func: Feature, **kwargs) -> NDArray:
+def _as_absolute(*args, func: Feature, **kwargs) -> np.ndarray:
     return np.abs(func(*args, **kwargs))
 
 
@@ -51,7 +50,7 @@ def as_absolute(func: Feature) -> Feature:
     return decorated
 
 
-def _as_sign_change_latency(*args, func: Feature, **kwargs) -> NDArray:
+def _as_sign_change_latency(*args, func: Feature, **kwargs) -> np.ndarray:
     return series_operations.sign_change_latency(func(*args, **kwargs))
 
 

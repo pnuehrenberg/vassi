@@ -5,7 +5,6 @@ from typing import TYPE_CHECKING, Literal, Optional, cast
 
 import numpy as np
 import pandas as pd
-from numpy.typing import NDArray
 
 from ...data_structures import Trajectory
 from .._selection import get_available_indices
@@ -15,7 +14,7 @@ from ..observations.utils import (
     infill_observations,
     to_y,
 )
-from ._mixins import (
+from .mixins import (
     AnnotatedMixin,
     SampleableMixin,
 )
@@ -29,7 +28,7 @@ class BaseSampleable(SampleableMixin):
         self,
         trajectory: Trajectory,
     ):
-        self._previous_indices: list[NDArray] = []
+        self._previous_indices: list[np.ndarray] = []
         self._observations: pd.DataFrame | None = None
         self.trajectory = self._check_trajectory(trajectory)
 
@@ -76,7 +75,7 @@ class BaseSampleable(SampleableMixin):
             raise ValueError("not AnnotatedMixin, _finalize_init must be called first")
         return self._observations
 
-    def _sample_y(self) -> NDArray:
+    def _sample_y(self) -> np.ndarray:
         if not isinstance(self, AnnotatedMixin):
             raise ValueError(
                 "only implemented for AnnotatedMixin objects inheriting from AnnotatedMixin"
@@ -93,9 +92,9 @@ class BaseSampleable(SampleableMixin):
         reset_previous_indices: bool,
         exclude_previous_indices: bool,
     ) -> tuple[
-        NDArray,
-        NDArray | None,
-        Sequence[NDArray | None],
+        np.ndarray,
+        np.ndarray | None,
+        Sequence[np.ndarray | None],
         dict[Literal["min", "max", "offset"], int],
     ]:
         indices = np.arange(self.size)
@@ -128,11 +127,11 @@ class BaseSampleable(SampleableMixin):
     def _select_samples[F: Shaped](
         self,
         extractor: BaseExtractor[F],
-        indices: NDArray,
+        indices: np.ndarray,
         splits: Optional[dict],
         *,
         store_indices: bool,
-    ) -> tuple[F, NDArray | None]:
+    ) -> tuple[F, np.ndarray | None]:
         if splits is not None:
             if not all([key in splits for key in ["min", "max", "offset"]]):
                 raise ValueError(

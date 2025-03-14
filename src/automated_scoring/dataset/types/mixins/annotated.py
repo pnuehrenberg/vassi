@@ -4,19 +4,18 @@ from typing import Protocol
 
 import numpy as np
 import pandas as pd
-from numpy.typing import NDArray
 
 
 class EncodingFunction(Protocol):
     def __call__(
         self,
-        y: NDArray,
+        y: np.ndarray,
         *args: ...,
         **kwargs: ...,
-    ) -> NDArray[np.int64]: ...
+    ) -> np.ndarray: ...
 
 
-def encode_categories(y: NDArray, *, categories: tuple[str, ...]) -> NDArray:
+def encode_categories(y: np.ndarray, *, categories: tuple[str, ...]) -> np.ndarray:
     y_numeric = np.zeros_like(y, dtype=int)
     for category in categories:
         y_numeric[y == category] = categories.index(category)
@@ -50,7 +49,7 @@ class AnnotatedMixin(ABC):
         y = self.sample_y()
         return {category: int((y == category).sum()) for category in self.categories}
 
-    def sample_y(self) -> NDArray:
+    def sample_y(self) -> np.ndarray:
         return self._sample_y()
 
     @property
@@ -64,4 +63,4 @@ class AnnotatedMixin(ABC):
     def _get_observations(self) -> pd.DataFrame: ...
 
     @abstractmethod
-    def _sample_y(self) -> NDArray: ...
+    def _sample_y(self) -> np.ndarray: ...

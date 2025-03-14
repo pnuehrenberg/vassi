@@ -10,8 +10,6 @@ import numpy as np
 import pandas as pd
 from joblib import Parallel, delayed, parallel_config
 from joblib.parallel import get_active_backend
-
-from numpy.typing import NDArray
 from sklearn.metrics import f1_score
 
 from ..data_structures import Trajectory
@@ -140,13 +138,13 @@ def _threshold_probabilities(
 @dataclass
 class ClassificationResult(_Result):
     categories: tuple[str, ...]
-    timestamps: NDArray[np.integer]
-    y_proba: NDArray
-    y_pred_numeric: NDArray[np.integer]
-    _y_proba_smoothed: Optional[NDArray] = None
+    timestamps: np.ndarray
+    y_proba: np.ndarray
+    y_pred_numeric: np.ndarray
+    _y_proba_smoothed: Optional[np.ndarray] = None
     _predictions: Optional[pd.DataFrame] = None
     _annotations: Optional[pd.DataFrame] = None
-    _y_true_numeric: Optional[NDArray[np.integer]] = None
+    _y_true_numeric: Optional[np.ndarray] = None
 
     def _apply_thresholds(
         self,
@@ -385,28 +383,28 @@ class _NestedResult(_Result, ABC):
         return self
 
     @property
-    def y_proba(self) -> NDArray:
+    def y_proba(self) -> np.ndarray:
         y_proba = []
         for classification_result in self.classification_results.values():
             y_proba.append(classification_result.y_proba)
         return np.concatenate(y_proba, axis=0)
 
     @property
-    def y_pred_numeric(self) -> NDArray:
+    def y_pred_numeric(self) -> np.ndarray:
         y_pred_numeric = []
         for classification_result in self.classification_results.values():
             y_pred_numeric.append(classification_result.y_pred_numeric)
         return np.concatenate(y_pred_numeric, axis=0)
 
     @property
-    def y_proba_smoothed(self) -> NDArray:
+    def y_proba_smoothed(self) -> np.ndarray:
         y_proba_smoothed = []
         for classification_result in self.classification_results.values():
             y_proba_smoothed.append(classification_result.y_proba_smoothed)
         return np.concatenate(y_proba_smoothed, axis=0)
 
     @property
-    def y_true_numeric(self) -> NDArray:
+    def y_true_numeric(self) -> np.ndarray:
         y_true_numeric = []
         for classification_result in self.classification_results.values():
             y_true_numeric.append(classification_result.y_true_numeric)

@@ -1,6 +1,5 @@
 import numpy as np
 from numba import config, njit, prange
-from numpy.typing import NDArray
 
 # set the threading layer before any parallel target compilation
 # this requires tbb!
@@ -8,7 +7,7 @@ config.THREADING_LAYER = "safe"  # type: ignore
 
 
 @njit(parallel=True)
-def mean(array: NDArray) -> NDArray:
+def mean(array: np.ndarray) -> np.ndarray:
     """
     Jitted function to calculate the mean along the last axis of a 3D array.
 
@@ -24,7 +23,7 @@ def mean(array: NDArray) -> NDArray:
 
 
 @njit(parallel=True)
-def median(array: NDArray) -> NDArray:
+def median(array: np.ndarray) -> np.ndarray:
     """
     Jitted function to calculate the median along the last axis of a 3D array.
 
@@ -40,7 +39,7 @@ def median(array: NDArray) -> NDArray:
 
 
 @njit(parallel=True)
-def min(array: NDArray) -> NDArray:
+def min(array: np.ndarray) -> np.ndarray:
     """
     Jitted function to calculate the minimum along the last axis of a 3D array.
 
@@ -56,7 +55,7 @@ def min(array: NDArray) -> NDArray:
 
 
 @njit(parallel=True)
-def max(array: NDArray) -> NDArray:
+def max(array: np.ndarray) -> np.ndarray:
     """
     Jitted function to calculate the maximum along the last axis of a 3D array.
 
@@ -72,7 +71,7 @@ def max(array: NDArray) -> NDArray:
 
 
 @njit(parallel=True)
-def quantile(array: NDArray, q: float) -> NDArray:
+def quantile(array: np.ndarray, q: float) -> np.ndarray:
     """
     Jitted function to calculate a quantile along the last axis of a 3D array.
 
@@ -89,7 +88,7 @@ def quantile(array: NDArray, q: float) -> NDArray:
 
 
 @njit
-def q01(array: NDArray) -> NDArray:
+def q01(array: np.ndarray) -> np.ndarray:
     """
     Convenience function to calculate the 1st percentile along the last axis of a 3D array.
 
@@ -100,7 +99,7 @@ def q01(array: NDArray) -> NDArray:
 
 
 @njit
-def q05(array: NDArray) -> NDArray:
+def q05(array: np.ndarray) -> np.ndarray:
     """
     Convenience function to calculate the 5th percentile along the last axis of a 3D array.
 
@@ -111,7 +110,7 @@ def q05(array: NDArray) -> NDArray:
 
 
 @njit
-def q10(array: NDArray) -> NDArray:
+def q10(array: np.ndarray) -> np.ndarray:
     """
     Convenience function to calculate the 10th percentile along the last axis of a 3D array.
 
@@ -122,7 +121,7 @@ def q10(array: NDArray) -> NDArray:
 
 
 @njit
-def q90(array: NDArray) -> NDArray:
+def q90(array: np.ndarray) -> np.ndarray:
     """
     Convenience function to calculate the 90th percentile along the last axis of a 3D array.
 
@@ -133,7 +132,7 @@ def q90(array: NDArray) -> NDArray:
 
 
 @njit
-def q95(array: NDArray) -> NDArray:
+def q95(array: np.ndarray) -> np.ndarray:
     """
     Convenience function to calculate the 95th percentile along the last axis of a 3D array.
 
@@ -144,7 +143,7 @@ def q95(array: NDArray) -> NDArray:
 
 
 @njit
-def q99(array: NDArray) -> NDArray:
+def q99(array: np.ndarray) -> np.ndarray:
     """
     Convenience function to calculate the 99th percentile along the last axis of a 3D array.
 

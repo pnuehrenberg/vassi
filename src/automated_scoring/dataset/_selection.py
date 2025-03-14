@@ -5,7 +5,6 @@ from typing import (
 )
 
 import numpy as np
-from numpy.typing import NDArray
 from sklearn.model_selection import train_test_split
 
 from ..logging import set_logging_level
@@ -18,10 +17,10 @@ if TYPE_CHECKING:
 def _get_indices_by_category(
     category: str | tuple[str, ...],
     *,
-    indices: NDArray,
-    y: NDArray,
-    stratification_levels: Sequence[NDArray | None],
-) -> tuple[NDArray, NDArray, Sequence[NDArray | None]]:
+    indices: np.ndarray,
+    y: np.ndarray,
+    stratification_levels: Sequence[np.ndarray | None],
+) -> tuple[np.ndarray, np.ndarray, Sequence[np.ndarray | None]]:
     if isinstance(category, str):
         mask = y == category
     else:
@@ -35,12 +34,12 @@ def _get_indices_by_category(
 
 
 def get_available_indices(
-    previous_indices: list[NDArray],
+    previous_indices: list[np.ndarray],
     *,
-    indices: NDArray,
-    y: Optional[NDArray],
-    intervals: Optional[NDArray],
-) -> tuple[NDArray, NDArray | None, NDArray | None]:
+    indices: np.ndarray,
+    y: Optional[np.ndarray],
+    intervals: Optional[np.ndarray],
+) -> tuple[np.ndarray, np.ndarray | None, np.ndarray | None]:
     previous_indices_flat = np.concatenate(previous_indices)
     mask = ~np.isin(indices, previous_indices_flat)
     indices = indices[mask]
@@ -52,13 +51,13 @@ def get_available_indices(
 
 
 def _subselect_indices(
-    indices: NDArray,
+    indices: np.ndarray,
     *,
     size: int | float,
     random_state: np.random.Generator,
     stratify: bool,
-    stratification_levels: Optional[Iterable[NDArray | None]],
-) -> NDArray:
+    stratification_levels: Optional[Iterable[np.ndarray | None]],
+) -> np.ndarray:
     if len(indices) == 0:
         return indices
     if isinstance(size, int):
@@ -107,16 +106,16 @@ def _subselect_indices(
 
 
 def select_indices(
-    indices: NDArray,
-    y: Optional[NDArray],
+    indices: np.ndarray,
+    y: Optional[np.ndarray],
     *,
     size: int | float | Mapping[str | tuple[str, ...], int | float],
     random_state: Optional[int | np.random.Generator],
     stratify: bool,
-    stratification_levels: Sequence[NDArray | None],
+    stratification_levels: Sequence[np.ndarray | None],
     categories: Optional[tuple[str, ...]],
     log: Optional["Logger"],
-) -> NDArray:
+) -> np.ndarray:
     random_state = np.random.default_rng(random_state)
     if log is None:
         log = set_logging_level()

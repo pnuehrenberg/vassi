@@ -5,7 +5,6 @@ import json
 from typing import Any, Iterable, Optional, Protocol, Self
 
 import numpy as np
-from numpy.typing import NDArray
 
 Keypoint = int
 KeypointPair = tuple[Keypoint, Keypoint]
@@ -101,27 +100,27 @@ def hash_dict(dictionary: dict) -> str:
     ).hexdigest()
 
 
-class To_NDArray(Protocol):
-    def __call__(self, *args, **kwargs) -> NDArray: ...
+class ToArray(Protocol):
+    def __call__(self, *args, **kwargs) -> np.ndarray: ...
 
 
-class NDArray_to_NDArray(Protocol):
+class ArrayToArray(Protocol):
     __name__: str  # named for sliding window aggregation (alternatively, use a dictionary naming scheme as implemented for the fature extractor)
 
-    def __call__(self, array: NDArray, *args, **kwargs) -> NDArray: ...
+    def __call__(self, array: np.ndarray, *args, **kwargs) -> np.ndarray: ...
 
 
-class PairedNDArrays_to_NDArray(Protocol):
+class PairedArraysToArray(Protocol):
     def __call__(
-        self, array_1: NDArray, array_2: NDArray, /, *args, **kwargs
-    ) -> NDArray: ...
+        self, array_1: np.ndarray, array_2: np.ndarray, /, *args, **kwargs
+    ) -> np.ndarray: ...
 
 
 class SmoothingFunction(Protocol):
-    def __call__(self, *args, array: NDArray, **kwargs) -> NDArray: ...
+    def __call__(self, *args, array: np.ndarray, **kwargs) -> np.ndarray: ...
 
 
-def flatten(array: NDArray, ensure_2d: bool = True) -> NDArray:
+def flatten(array: np.ndarray, ensure_2d: bool = True) -> np.ndarray:
     if array.ndim < 2:
         raise ValueError("Can only flatten arrays with at least 2 dimensions.")
     if array.ndim == 2:
@@ -133,9 +132,9 @@ def flatten(array: NDArray, ensure_2d: bool = True) -> NDArray:
 
 
 def perform_operation(
-    operation_func: PairedNDArrays_to_NDArray,
-    array_1: NDArray,
-    array_2: NDArray,
+    operation_func: PairedArraysToArray,
+    array_1: np.ndarray,
+    array_2: np.ndarray,
     element_wise: bool,
     flat: bool,
     expand_dims_for_broadcasting: bool = True,
@@ -163,7 +162,7 @@ def perform_operation(
     return result
 
 
-def pad_values(array: NDArray, step: int, value: int | float | str) -> NDArray:
+def pad_values(array: np.ndarray, step: int, value: int | float | str) -> np.ndarray:
     if value == "same":
         value = array[step]
     if step >= 0:

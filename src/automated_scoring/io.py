@@ -7,7 +7,6 @@ import numpy as np
 import pandas as pd
 import yaml
 from numpy.dtypes import StringDType  # type: ignore
-from numpy.typing import NDArray
 
 from .data_structures.trajectory import Trajectory
 from .dataset.types import (
@@ -62,7 +61,7 @@ def from_yaml(file_name: str) -> Any:
         return yaml.load(yaml_file, Loader=_TupleLoader)
 
 
-def _is_string_array(array: NDArray):
+def _is_string_array(array: np.ndarray):
     """
     Returns whether an array is of dtype np.dtypes.StringDType or np.str_.
     """
@@ -73,14 +72,14 @@ def _is_string_array(array: NDArray):
     return False
 
 
-BaseData = dict[str, NDArray] | NDArray
+BaseData = dict[str, np.ndarray] | np.ndarray
 Data = BaseData | dict[str, "Data"]
 
 
 def load_data(
     data_file: str, data_path: str | None = None, exclude: list[str] | None = None
 ) -> Data:
-    def read_dataset(dataset: h5py.Dataset) -> NDArray:
+    def read_dataset(dataset: h5py.Dataset) -> np.ndarray:
         if dataset.dtype == "O":
             value = dataset.asstr()[:]
             if not isinstance(value, np.ndarray):
@@ -117,7 +116,7 @@ def load_data(
 
 def save_data(
     data_file: str,
-    data: Mapping[str, NDArray],
+    data: Mapping[str, np.ndarray],
     data_path: str | None = None,
     exclude: list[str] | None = None,
 ) -> None:

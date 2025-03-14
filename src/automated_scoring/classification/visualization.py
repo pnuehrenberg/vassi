@@ -12,7 +12,6 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 from matplotlib.axes import Axes
-from numpy.typing import NDArray
 from sklearn.metrics import confusion_matrix
 
 # Little helper class, only used for array type annotations.
@@ -28,8 +27,8 @@ class Array(np.ndarray, Generic[DType]):
 
 
 def plot_confusion_matrix(
-    y_true: NDArray[np.integer] | Iterable[NDArray[np.integer]],
-    y_pred: NDArray[np.integer] | Iterable[NDArray[np.integer]],
+    y_true: np.ndarray | Iterable[np.ndarray],
+    y_pred: np.ndarray | Iterable[np.ndarray],
     *,
     ax: Optional[Axes] = None,
     figsize: tuple[float, float] = (3, 3),
@@ -116,9 +115,9 @@ def plot_classification_timeline(
     categories: Iterable[str],
     *,
     annotations: Optional[pd.DataFrame] = None,
-    timestamps: Optional[NDArray] = None,
-    y_proba: Optional[NDArray] = None,
-    y_proba_smoothed: Optional[NDArray] = None,
+    timestamps: Optional[np.ndarray] = None,
+    y_proba: Optional[np.ndarray] = None,
+    y_proba_smoothed: Optional[np.ndarray] = None,
     axes: Optional[Array[Axes]] = None,
     figsize: tuple[float, float] = (10, 3),
     dpi: float = 100,

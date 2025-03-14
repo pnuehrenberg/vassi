@@ -1,5 +1,4 @@
 import numpy as np
-from numpy.typing import NDArray
 
 from . import utils
 from .base import ConfiguredData
@@ -9,21 +8,18 @@ class Instance(ConfiguredData):
     """
     Represents an instance of configured data, handling data initialization and access.
 
-    Parameters
-    ----------
-    cfg : config.Config, optional
-        The configuration object (default is None).
-    from_scalars : bool, optional
-        Whether to convert scalar inputs to arrays (default is False).
-    **kwargs : dict
-        Keyword arguments representing the data to initialize the instance with.
+    Implements the :code:`__getitem__` and :code:`__setitem__` methods to provide dictionary-like access to the data.
 
-    Raises
-    ------
-    ValueError
-        If a required key is missing, or if a value is not a NumPy array when `from_scalars` is False, or if a value does not have at least one dimension, or if a value does not own its data.
-    KeyError
-        If a key in `kwargs` is not a defined key.
+    Args:
+        cfg: The configuration object (default is None).
+        from_scalars: Whether to convert scalar inputs to arrays (default is False).
+        **kwargs: Keyword arguments representing the data to initialize the instance with.
+
+    Raises:
+        ValueError: If a required key is missing.
+        ValueError: If a value is not a numpy array when :code:`from_scalars=False`.
+        ValueError: If a value does not have at least one dimension, or if a value does not own its data.
+        KeyError: If a key in :code:`kwargs` is not a defined key.
     """
 
     def __init__(self, cfg=None, from_scalars: bool = False, **kwargs):
@@ -48,33 +44,10 @@ class Instance(ConfiguredData):
                 value = value.copy()
             self._data[key] = value
 
-    def __getitem__(self, key: str) -> NDArray:
-        """
-        Gets the value associated with a given key.
-
-        Parameters
-        ----------
-        key : str
-            The key to retrieve the value for.
-
-        Returns
-        -------
-        NDArray
-            The value associated with the key.
-        """
+    def __getitem__(self, key: str) -> np.ndarray:
         return self._get_value(key)
 
     def __setitem__(self, key: str, value: utils.Value) -> None:
-        """
-        Sets the value of an instance attribute.
-
-        Parameters
-        ----------
-        key : str
-            The name of the attribute to set.
-        value : utils.Value
-            The new value for the attribute.
-        """
         _value = self._get_value(key)
         with utils.writeable(_value):
             _value[:] = value

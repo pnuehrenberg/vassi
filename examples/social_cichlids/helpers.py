@@ -4,13 +4,12 @@ from typing import Any, Iterable
 import numpy as np
 import optuna
 import pandas as pd
-from numpy.typing import NDArray
 
 from automated_scoring.classification.postprocessing import PostprocessingParameters
 from automated_scoring.classification.results import ClassificationResult, _NestedResult
 from automated_scoring.dataset.permute import permute_recipients
 from automated_scoring.dataset.types import AnnotatedDataset, AnnotatedGroup
-from automated_scoring.dataset.types._mixins import (
+from automated_scoring.dataset.types.mixins import (
     AnnotatedSampleableMixin,
     SampleableMixin,
 )
@@ -24,7 +23,7 @@ def subsample_train[F: Shaped](
     *,
     random_state,
     log,
-) -> tuple[F, NDArray]:
+) -> tuple[F, np.ndarray]:
     if not isinstance(sampleable, AnnotatedSampleableMixin):
         raise ValueError("sampleable must be annotated")
     X, y = sampleable.subsample(
@@ -67,7 +66,7 @@ def subsample_train[F: Shaped](
     )
 
 
-def smooth_model_outputs(postprocessing_parameters: dict[str, Any], *, array: NDArray):
+def smooth_model_outputs(postprocessing_parameters: dict[str, Any], *, array: np.ndarray):
     categories = (
         "approach",
         "chase",

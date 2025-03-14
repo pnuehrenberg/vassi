@@ -4,7 +4,6 @@ from collections.abc import Mapping
 from typing import TYPE_CHECKING, Optional
 
 import numpy as np
-from numpy.typing import NDArray
 
 from .annotated import AnnotatedMixin
 from .sampleable import SampleableMixin
@@ -21,7 +20,7 @@ class AnnotatedSampleableMixin(SampleableMixin, AnnotatedMixin):
         def sample[F: Shaped](
             self,
             extractor: BaseExtractor[F],
-        ) -> tuple[F, NDArray]: ...
+        ) -> tuple[F, np.ndarray]: ...
 
         def subsample[F: Shaped](
             self,
@@ -34,4 +33,4 @@ class AnnotatedSampleableMixin(SampleableMixin, AnnotatedMixin):
             exclude_previous_indices: bool = False,
             store_indices: bool = False,
             log: Optional["Logger"] = None,
-        ) -> tuple[F, NDArray]: ...
+        ) -> tuple[F, np.ndarray]: ...

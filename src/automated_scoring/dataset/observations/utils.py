@@ -4,7 +4,6 @@ from typing import TYPE_CHECKING, Callable, Iterable, Optional, ParamSpec
 import networkx as nx
 import numpy as np
 import pandas as pd
-from numpy.typing import NDArray
 
 from ..utils import interval_contained, interval_overlap
 
@@ -24,7 +23,7 @@ def _with_duration(*args, func: Callable[P, pd.DataFrame], **kwargs) -> pd.DataF
             values = values.astype(int)
         else:
             values = values.astype(float)
-        observations[column] = values
+        observations.loc[:, column] = values
     return observations
 
 
@@ -60,7 +59,7 @@ def to_y(
     start: int = 0,
     stop: Optional[int] = None,
     dtype: type = str,
-) -> NDArray:
+) -> np.ndarray:
     observations = check_observations(
         observations,
         required_columns=("start", "stop", "category"),
@@ -83,10 +82,10 @@ def to_y(
 
 @with_duration
 def to_observations(
-    y: NDArray[np.integer],
+    y: np.ndarray,
     category_names: Iterable[str],
     drop: Optional[Iterable[str]] = None,
-    timestamps: Optional[NDArray[np.integer | np.floating]] = None,
+    timestamps: Optional[np.ndarray] = None,
 ) -> pd.DataFrame:
     if not y.ndim == 1:
         raise ValueError("y should be a 1D array of category labels (int).")
@@ -115,8 +114,6 @@ def infill_observations(
     observations = check_observations(
         observations, required_columns=["category", "start", "stop"]
     )
-    dtype_start = observations["start"].dtype
-    dtype_stop = observations["stop"].dtype
     if observation_stop is None:
         observation_stop = np.max(observations["stop"])
     if len(observations) == 0:

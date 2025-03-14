@@ -5,7 +5,6 @@ from typing import TYPE_CHECKING, Any, Callable, Literal, Optional, Protocol, Se
 
 import numpy as np
 import pandas as pd
-from numpy.typing import NDArray
 
 from ..data_structures.utils import get_interval_slice
 from ..dataset.observations import (
@@ -27,9 +26,9 @@ if TYPE_CHECKING:
 
 
 class Classifier(Protocol):
-    def predict(self, *args, **kwargs) -> NDArray: ...
+    def predict(self, *args, **kwargs) -> np.ndarray: ...
 
-    def predict_proba(self, *args, **kwargs) -> NDArray: ...
+    def predict_proba(self, *args, **kwargs) -> np.ndarray: ...
 
     def get_params(self) -> dict[str, Any]: ...
 
@@ -47,10 +46,10 @@ def init_new_classifier(
 
 def fit_classifier(
     classifier: Classifier,
-    X: NDArray,
-    y: NDArray,
+    X: np.ndarray,
+    y: np.ndarray,
     *,
-    sample_weight: Optional[NDArray] = None,
+    sample_weight: Optional[np.ndarray] = None,
     log: Optional[Logger] = None,
 ):
     if sample_weight is None:
@@ -59,10 +58,10 @@ def fit_classifier(
 
 
 def to_predictions(
-    y: NDArray[np.integer],
-    y_proba: NDArray[np.floating],
+    y: np.ndarray,
+    y_proba: np.ndarray,
     category_names: Iterable[str],
-    timestamps: NDArray[np.integer | np.floating],
+    timestamps: np.ndarray,
 ) -> pd.DataFrame:
     predictions = to_observations(y, category_names, timestamps=timestamps)
     y_max_proba = y_proba.max(axis=1)
@@ -133,7 +132,7 @@ def validate_predictions(
 
 def score_category_counts(
     annotations: pd.DataFrame, predictions: pd.DataFrame, categories: Iterable[str]
-) -> NDArray:
+) -> np.ndarray:
     categories = tuple(categories)
     counts_annotated = np.asarray(
         [(annotations["category"] == category).sum() for category in categories]

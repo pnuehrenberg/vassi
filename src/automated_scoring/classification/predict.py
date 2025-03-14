@@ -3,7 +3,6 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Iterable, Optional, overload
 
 import numpy as np
-from numpy.typing import NDArray
 from sklearn.utils.class_weight import compute_sample_weight
 
 from ..dataset import (
@@ -48,9 +47,9 @@ def _predict_sampleable[F: Shaped](
     log: Logger,
 ) -> ClassificationResult:
     X, y = sampleable.sample(extractor)
-    y_pred_numeric: NDArray = classifier.predict(X)
-    y_proba: NDArray = classifier.predict_proba(X).astype(float)
-    y_true_numeric: Optional[NDArray] = None
+    y_pred_numeric: np.ndarray = classifier.predict(X)
+    y_proba: np.ndarray = classifier.predict_proba(X).astype(float)
+    y_true_numeric: Optional[np.ndarray] = None
     if encoding_function is None and isinstance(sampleable, AnnotatedMixin):
         encoding_function = sampleable.encode
     elif encoding_function is None:

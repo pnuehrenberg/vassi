@@ -1,7 +1,6 @@
 from typing import Optional
 
 import numpy as np
-from numpy.typing import NDArray
 
 from .. import math
 from ..data_structures import InstanceCollection, Trajectory
@@ -19,7 +18,7 @@ def keypoints(
     keypoints: Keypoints,
     flat: bool = False,
     suffixes: tuple[str, ...] = ("x", "y"),
-) -> NDArray:
+) -> np.ndarray:
     """2D coordinates of trajectory keypoints."""
     if collection.cfg.key_keypoints is None:
         raise ValueError("key_keypoints is not defined.")
@@ -33,7 +32,7 @@ def position(
     collection: InstanceCollection,
     *,
     suffixes: tuple[str, ...] = ("x", "y"),
-) -> NDArray:
+) -> np.ndarray:
     if collection.cfg.key_keypoints is None:
         raise ValueError("key_keypoints is not defined.")
     num_keypoints = collection[collection.cfg.key_keypoints].shape[1]
@@ -46,7 +45,7 @@ def posture_segments(
     keypoint_pairs: KeypointPairs,
     flat: bool = False,
     suffixes: tuple[str, ...] = ("x1", "y1", "x2", "y2"),
-) -> NDArray:
+) -> np.ndarray:
     """2D line segments between trajectory keypoints."""
     if trajectory.cfg.key_keypoints is None:
         raise ValueError("key_keypoints is not defined.")
@@ -63,7 +62,7 @@ def posture_vectors(
     as_unit_vectors: bool = False,
     flat: bool = False,
     suffixes: tuple[str, ...] = ("x", "y"),
-) -> NDArray:
+) -> np.ndarray:
     """2D vectors between trajectory keypoints.
 
     Alternatively, return vectors as unit vectors with as_unit_vectors=True.
@@ -85,7 +84,7 @@ def posture_angles(
     keypoint_pairs_2: KeypointPairs,
     element_wise: bool = False,
     flat: bool = False,
-) -> NDArray:
+) -> np.ndarray:
     """Signed angles in radians between posture vectors."""
     if trajectory_other is None:
         trajectory_other = trajectory
@@ -106,7 +105,7 @@ def posture_alignment(
     keypoint_pairs_2: KeypointPairs,
     element_wise: bool = False,
     flat: bool = False,
-) -> NDArray:
+) -> np.ndarray:
     """Alignment of posture vectors, ranging beteen 0 (anti-parallel), 0.5 (orthogonal) and 1 (parallel)."""
     if trajectory_other is None:
         trajectory_other = trajectory
@@ -128,7 +127,7 @@ def keypoint_distances(
     keypoints_2: Keypoints,
     element_wise: bool = False,
     flat: bool = False,
-) -> NDArray:
+) -> np.ndarray:
     """Euclidean distances between keypoints."""
     if trajectory_other is None:
         trajectory_other = trajectory
@@ -150,7 +149,7 @@ def target_vectors(
     element_wise: bool = False,
     flat: bool = False,
     suffixes: tuple[str, ...] = ("x", "y"),
-) -> NDArray:
+) -> np.ndarray:
     """Vectors from keypoints_1 to keypoints_2."""
     if trajectory_other is None:
         trajectory_other = trajectory
@@ -171,7 +170,7 @@ def target_angles(
     keypoints_2: Keypoints,
     element_wise: bool = False,
     flat: bool = False,
-) -> NDArray:
+) -> np.ndarray:
     """Signed angles in radians between posture vectors and target vectors (from posture segment end keypoints to keypoints_2)."""
     origin_keypoints = tuple([keypoint_pair[1] for keypoint_pair in keypoint_pairs_1])
     orientation_vectors = posture_vectors(trajectory, keypoint_pairs=keypoint_pairs_1)

@@ -3,10 +3,9 @@ from typing import Any, Iterable
 
 import numpy as np
 import optuna
-from numpy.typing import NDArray
 
 from automated_scoring.classification.postprocessing import PostprocessingParameters
-from automated_scoring.dataset.types._mixins import (
+from automated_scoring.dataset.types.mixins import (
     AnnotatedSampleableMixin,
     SampleableMixin,
 )
@@ -20,7 +19,7 @@ def subsample_train[F: Shaped](
     *,
     random_state,
     log,
-) -> tuple[F, NDArray]:
+) -> tuple[F, np.ndarray]:
     if not isinstance(sampleable, AnnotatedSampleableMixin):
         raise ValueError("sampleable must be annotated")
     return sampleable.subsample(
@@ -34,7 +33,7 @@ def subsample_train[F: Shaped](
     )
 
 
-def smooth_model_outputs(postprocessing_parameters: dict[str, Any], *, array: NDArray):
+def smooth_model_outputs(postprocessing_parameters: dict[str, Any], *, array: np.ndarray):
     categories = ("attack", "investigation", "mount", "none")
     probabilities_smoothed = np.zeros_like(array)
     for idx, category in enumerate(categories):

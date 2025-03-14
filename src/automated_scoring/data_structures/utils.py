@@ -5,7 +5,6 @@ from functools import reduce
 from math import gcd
 
 import numpy as np
-from numpy.typing import NDArray
 
 Value = np.ndarray | int | float | str | np.integer | np.floating
 MultipleValues = Iterable[Value]
@@ -19,26 +18,13 @@ def validate_keys(
     """
     Validates that a set of keys conforms to a reference set, optionally allowing missing keys.
 
-    This function checks if a given set of keys is a subset of a reference set. It raises a KeyError if any keys are undefined (not in the reference set) or if any keys are missing from the input set and `allow_missing` is False.
+    Args:
+        keys: The set of keys to validate.
+        keys_reference: The reference set of valid keys.
+        allow_missing: Whether to allow missing keys.
 
-    Parameters
-    ----------
-    keys : Iterable[str]
-        The set of keys to validate.
-    keys_reference : Iterable[str]
-        The reference set of valid keys.
-    allow_missing : bool
-        Whether to allow missing keys (default is False).
-
-    Returns
-    -------
-    bool
-        True if all keys are valid (or missing keys are allowed), False otherwise.
-
-    Raises
-    ------
-    KeyError
-        If any keys are undefined or if missing keys are not allowed.
+    Raises:
+        KeyError: If any keys are undefined or if missing keys are not allowed.
     """
     keys = set(keys)
     keys_reference = set(keys_reference)
@@ -57,22 +43,13 @@ def validate_keys(
 
 def validated_length(*values: Value) -> int | None:
     """
-    Returns the length of all iterable values if they are all the same length, otherwise raises a ValueError.
+    Returns the length of all iterable values if they are all the same length. Returns :code:`None` if all values are scalars.
 
-    Parameters
-    ----------
-    values : Iterable
-        An iterable of values to check the length of.
+    Args:
+        *values: An iterable of values to check the length of.
 
-    Returns
-    -------
-    int or None
-        The length of the values if all iterable values have the same length, otherwise None.
-
-    Raises
-    ------
-    ValueError
-        If the values have unequal lengths or contain unsized iterables objects.
+    Raises:
+        ValueError: If the values have unequal lengths or contain unsized iterables objects.
     """
     try:
         lengths = set([len(value) for value in values if isinstance(value, Iterable)])
@@ -89,24 +66,14 @@ def validated_length(*values: Value) -> int | None:
 
 def validate_timestamps(timestamps: Value) -> bool:
     """
-    Validates that a sequence of timestamps contains no duplicates.
+    Validates that a sequence of timestamps contains no duplicates. Always returns :code:`True` if the timestamps are valid, otherwise raises a :code:`ValueError`.
 
-    This function checks for duplicate timestamps within a given iterable. It leverages NumPy's efficient unique value counting to identify any repetitions.
+    Args:
+        timestamps: The timestamps to validate.
 
-    Parameters
-    ----------
-    timestamps : Value
-        An iterable containing the timestamps to validate.
-
-    Returns
-    -------
-    bool
-        True if the timestamps are valid (no duplicates), False otherwise.
-
-    Raises
-    ------
-    ValueError
-        If the input is not iterable or if any timestamps are duplicated.
+    Raises:
+        ValueError: If timestamps is a scalar.
+        ValueError: If any timestamps are duplicated.
     """
     if not isinstance(timestamps, Iterable):
         raise ValueError("duplicated timestamps from broadcasting singular timestamp")
@@ -117,23 +84,15 @@ def validate_timestamps(timestamps: Value) -> bool:
 
 
 def greatest_common_denominator(
-    values: list[int | float] | NDArray[np.int64 | np.float64],
+    values: Iterable[float],
     return_inverse: bool = True,
 ) -> float:
     """
     Finds the greatest common denominator (GCD) of a list of numbers and optionally returns its inverse.
 
-    Parameters
-    ----------
-    values : list of int or float or numpy.ndarray
-        A list or NumPy array of numerical values.
-    return_inverse : bool, optional
-        Whether to return the inverse of the greatest common denominator. Defaults to True.
-
-    Returns
-    -------
-    float
-        The greatest common denominator or its inverse.
+    Args:
+        values: The values to find the GCD of.
+        return_inverse: Whether to return the inverse of the GCD.
     """
     denominators = [Fraction(value).limit_denominator().denominator for value in values]
     common_denominator = reduce(lambda a, b: a * b // gcd(a, b), denominators)
@@ -149,24 +108,15 @@ class OutOfInterval(Exception):
 
 
 def get_interval_slice(
-    timestamps: NDArray[np.floating | np.integer], start: int | float, stop: int | float
+    timestamps: np.ndarray, start: int | float, stop: int | float
 ) -> slice:
     """
     Gets a slice object representing the indices of timestamps within a specified interval.
 
-    Parameters
-    ----------
-    timestamps : numpy.ndarray
-        An array of timestamps.
-    start : int or float
-        The start of the interval (inclusive).
-    stop : int or float
-        The end of the interval (inclusive).
-
-    Returns
-    -------
-    slice
-        A slice object representing the indices of the timestamps within the interval.
+    Args:
+        timestamps: The timestamps to get the slice for.
+        start: The start of the interval (inclusive).
+        stop: The end of the interval (inclusive).
     """
     interval_indices = np.argwhere((timestamps >= start) & (timestamps <= stop)).ravel()
     if interval_indices.size == 0:
@@ -175,26 +125,17 @@ def get_interval_slice(
 
 
 @contextmanager
-def writeable(*arrays: NDArray) -> Generator:
+def writeable(*arrays: np.ndarray) -> Generator:
     """
-    A context manager that temporarily makes NumPy arrays writeable.
+    A context manager that temporarily makes numpy arrays writeable.
 
-    This context manager is useful when you need to modify the contents of a read-only NumPy array within a specific block of code. It ensures that the writeable flag is restored to its original state after the block, even if exceptions occur.
+    This context manager is useful when you need to modify the contents of a read-only array within a specific block of code. It ensures that the writeable flag is restored to its original state after the block, even if exceptions occur.
 
-    Parameters
-    ----------
-    arrays : tuple of numpy.ndarray
-        The NumPy arrays to make writeable.
+    Args:
+        arrays: The arrays to make writeable.
 
-    Yields
-    ------
-    None
-        The context manager yields control to the enclosed block of code.
-
-    Raises
-    ------
-    Exception
-        Any exception raised within the context is re-raised.
+    Raises:
+        Exception: Any exception raised within the context is re-raised.
     """
     writeable: list[bool] = []
     for array in arrays:

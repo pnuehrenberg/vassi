@@ -2,12 +2,11 @@ from typing import TYPE_CHECKING, Iterable, Optional, Self, overload
 
 import numpy as np
 import pandas as pd
-from numpy.typing import NDArray
 from sklearn.base import BaseEstimator, TransformerMixin
 from sklearn.utils.validation import _check_feature_names_in, validate_data
 
 from ..logging import set_logging_level
-from ..utils import NDArray_to_NDArray, closest_odd_divisible, flatten
+from ..utils import ArrayToArray, closest_odd_divisible, flatten
 from .sliding_metrics import apply_multiple_to_sliding_windows
 
 
@@ -23,7 +22,7 @@ def get_window_slices(
 def get_window_slices(
     num_windows_per_scale: int,
     *,
-    durations: NDArray,
+    durations: np.ndarray,
     time_scale_quantiles: Iterable[float],
 ) -> tuple[list[int], list[slice]]: ...
 
@@ -32,7 +31,7 @@ def get_window_slices(
     num_windows_per_scale: int,
     *,
     time_scales: Optional[Iterable[int]] = None,
-    durations: Optional[NDArray] = None,
+    durations: Optional[np.ndarray] = None,
     time_scale_quantiles: Optional[Iterable[float]] = None,
 ) -> tuple[list[int], list[slice]]:
     """
@@ -90,7 +89,7 @@ class SlidingWindowAggregator(BaseEstimator, TransformerMixin):
     """
     def __init__(
         self,
-        metric_funcs: list[NDArray_to_NDArray],
+        metric_funcs: list[ArrayToArray],
         window_size: int | Iterable[int],
         window_slices: list[slice] | None = None,
     ):
@@ -101,7 +100,7 @@ class SlidingWindowAggregator(BaseEstimator, TransformerMixin):
             self.window_size = max(window_size)
         self.window_slices = window_slices
 
-    def fit(self, X: NDArray | pd.DataFrame, y: None = None) -> Self:
+    def fit(self, X: np.ndarray | pd.DataFrame, y: None = None) -> Self:
         """
         This method is required by the sklearn API and does not perform any actual fitting.
 
@@ -111,7 +110,7 @@ class SlidingWindowAggregator(BaseEstimator, TransformerMixin):
         """
         return self
 
-    def transform(self, X: NDArray | pd.DataFrame) -> NDArray:
+    def transform(self, X: np.ndarray | pd.DataFrame) -> np.ndarray:
         """
         Transform the input data by applying the metric functions to sliding windows.
         The transformed data is returned as a 2D array, flattened along all axes except the first.

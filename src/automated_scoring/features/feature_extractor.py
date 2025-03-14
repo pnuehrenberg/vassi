@@ -12,7 +12,6 @@ from typing import (
 
 import numpy as np
 import pandas as pd
-from numpy.typing import NDArray
 from sklearn.pipeline import Pipeline
 
 from ..data_structures import Trajectory
@@ -502,30 +501,30 @@ class BaseExtractor[F: Shaped](ABC):
         )
 
 
-class FeatureExtractor(BaseExtractor[NDArray]):
+class FeatureExtractor(BaseExtractor[np.ndarray]):
     """
     A subclass to extract features as numpy arrays.
     """
 
     @classmethod
-    def concatenate(cls, *args: NDArray, axis: int = 1, **kwargs: Any) -> NDArray:
+    def concatenate(cls, *args: np.ndarray, axis: int = 1, **kwargs: Any) -> np.ndarray:
         """
         Concatenate the computed features as a numpy array.
 
         Parameters
         ----------
-        *args : NDArray
+        *args : np.ndarray
             The computed features.
         axis : int, optional
             The axis to concatenate along, by default 1.
 
         Returns
         -------
-        NDArray
+        np.ndarray
             The concatenated features.
         """
 
-        def prepare_array(array: NDArray, num_features: int | None) -> NDArray:
+        def prepare_array(array: np.ndarray, num_features: int | None) -> np.ndarray:
             if array.size == 0:
                 if num_features is None:
                     raise ValueError("num_features can not be None when array is empty")
@@ -541,7 +540,7 @@ class FeatureExtractor(BaseExtractor[NDArray]):
         return np.concatenate(prepared_args, axis=axis, **kwargs)
 
     @classmethod
-    def empty(cls) -> NDArray:
+    def empty(cls) -> np.ndarray:
         return np.array([])
 
     if TYPE_CHECKING:
@@ -552,11 +551,11 @@ class FeatureExtractor(BaseExtractor[NDArray]):
             trajectory_other: Optional[Trajectory] = None,
             *,
             category: FeatureCategory,
-        ) -> NDArray: ...
+        ) -> np.ndarray: ...
 
         def extract(
             self, trajectory: Trajectory, trajectory_other: Optional[Trajectory] = None
-        ) -> NDArray: ...
+        ) -> np.ndarray: ...
 
 
 class DataFrameFeatureExtractor(BaseExtractor[pd.DataFrame]):

@@ -2,14 +2,13 @@ from collections.abc import Iterable
 from copy import deepcopy
 
 import numpy as np
-from numpy.typing import NDArray
 
 from . import math, sliding_metrics, utils
 
 
 def sample_1d(
-    array: NDArray, timestamps_array: NDArray, timestamps: NDArray, *, keep_dtype: bool
-) -> NDArray:
+    array: np.ndarray, timestamps_array: np.ndarray, timestamps: np.ndarray, *, keep_dtype: bool
+) -> np.ndarray:
     dtype = array.dtype
     interpolated = np.interp(timestamps, timestamps_array, array)
     if keep_dtype:
@@ -17,7 +16,7 @@ def sample_1d(
     return interpolated
 
 
-def sign_change_latency_1d(array: NDArray) -> NDArray:
+def sign_change_latency_1d(array: np.ndarray) -> np.ndarray:
     sign_change_idx = (
         np.argwhere(np.sign(array) != np.sign(math.shift(array, 1))).ravel() + 1
     )
@@ -31,8 +30,8 @@ def sign_change_latency_1d(array: NDArray) -> NDArray:
 
 
 def filter_sliding_quantile_range_1d(
-    array: NDArray, window_size: int, q_lower: float, q_upper: float
-) -> NDArray:
+    array: np.ndarray, window_size: int, q_lower: float, q_upper: float
+) -> np.ndarray:
     quantiles = sliding_metrics.sliding_quantiles(
         array, window_size, (q_lower, q_upper)
     )
@@ -44,17 +43,17 @@ def filter_sliding_quantile_range_1d(
 
 
 def smooth_1d(
-    array: NDArray, filter_funcs: Iterable[utils.SmoothingFunction]
-) -> NDArray:
+    array: np.ndarray, filter_funcs: Iterable[utils.SmoothingFunction]
+) -> np.ndarray:
     for filter_func in filter_funcs:
         array = filter_func(array=array)
     return array
 
 
 def sample(
-    series: NDArray,
-    timestamps_series: NDArray,
-    timestamps: NDArray,
+    series: np.ndarray,
+    timestamps_series: np.ndarray,
+    timestamps: np.ndarray,
     *,
     keep_dtype: bool,
 ):
@@ -92,7 +91,7 @@ def sample(
     return sampled
 
 
-def sign_change_latency(series: NDArray):
+def sign_change_latency(series: np.ndarray):
     return np.apply_along_axis(
         sign_change_latency_1d,
         0,
@@ -101,7 +100,7 @@ def sign_change_latency(series: NDArray):
 
 
 def filter_sliding_quantile_range(
-    series: NDArray, window_size: int, q_lower: float, q_upper: float, copy: bool = True
+    series: np.ndarray, window_size: int, q_lower: float, q_upper: float, copy: bool = True
 ):
     if copy:
         series = deepcopy(series)
@@ -116,10 +115,10 @@ def filter_sliding_quantile_range(
 
 
 def smooth(
-    series: NDArray,
+    series: np.ndarray,
     filter_funcs: Iterable[utils.SmoothingFunction],
     copy: bool = True,
-) -> NDArray:
+) -> np.ndarray:
     if copy:
         series = deepcopy(series)
     return np.apply_along_axis(

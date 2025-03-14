@@ -6,7 +6,16 @@ from collections.abc import Generator, Iterable, Sized
 from contextlib import contextmanager
 from copy import deepcopy
 from time import perf_counter
-from typing import TYPE_CHECKING, Callable, Literal, Optional, TypeVar, cast, Any, overload
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Callable,
+    Literal,
+    Optional,
+    TypeVar,
+    cast,
+    overload,
+)
 
 from loguru import logger
 

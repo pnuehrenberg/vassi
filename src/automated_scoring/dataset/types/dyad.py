@@ -6,7 +6,7 @@ import pandas as pd
 
 from ...data_structures import Trajectory
 from ._base_sampleable import BaseSampleable
-from ._mixins import (
+from .mixins import (
     AnnotatedMixin,
     AnnotatedSampleableMixin,
 )

@@ -1,5 +1,4 @@
 import numpy as np
-from numpy.typing import NDArray
 
 from .. import math
 from ..data_structures import Trajectory
@@ -21,7 +20,7 @@ def translation(
     keypoints: Keypoints,
     flat: bool = False,
     suffixes: tuple[str, ...] = ("x", "y"),
-) -> NDArray:
+) -> np.ndarray:
     """2D translation of trajectory keypoints from t - step to t."""
     points = features.keypoints(trajectory, keypoints=keypoints)
     translation = points - math.shift(points, step)
@@ -39,7 +38,7 @@ def velocity(
     keypoints: Keypoints,
     flat: bool = False,
     suffixes: tuple[str, ...] = ("x", "y"),
-) -> NDArray:
+) -> np.ndarray:
     """2D velocity of trajectory keypoints (translation / step duration).
 
     Note that this not calculating the cumulative distance between all instances during the step,
@@ -60,7 +59,7 @@ def speed(
     pad_value: int | float | str = "same",
     keypoints: Keypoints,
     flat: bool = False,
-) -> NDArray:
+) -> np.ndarray:
     """Speed of trajectory keypoints (magnitude of velocity)."""
     speed = math.magnitude(velocity(trajectory, step=step, keypoints=keypoints))
     speed = pad_values(speed, step, pad_value)
@@ -76,7 +75,7 @@ def orientation_change(
     pad_value: int | float | str = "same",
     keypoint_pairs: KeypointPairs,
     flat: bool = False,
-) -> NDArray:
+) -> np.ndarray:
     """Signed angles between posture vectors of instance at t - step and instance at t."""
     orientation_vectors = features.posture_vectors(
         trajectory, keypoint_pairs=keypoint_pairs
@@ -98,7 +97,7 @@ def angular_speed(
     pad_value: int | float | str = "same",
     keypoint_pairs: KeypointPairs,
     flat: bool = False,
-) -> NDArray:
+) -> np.ndarray:
     """Angular speed of posture segments (orientation change / step duration)."""
     duration = trajectory.timestep * np.abs(step)
     angular_speed = (
@@ -121,7 +120,7 @@ def projected_velocity(
     element_wise: bool = False,
     flat: bool = False,
     suffixes: tuple[str, ...] = ("proj", "rej"),
-) -> NDArray:
+) -> np.ndarray:
     """Keypoint velocity projected onto posture vectors (keypoint_pairs_2) at t - step."""
     velocity_vectors = velocity(trajectory, step=step, keypoints=keypoints_1)
     posture_vectors = features.posture_vectors(
@@ -163,7 +162,7 @@ def target_velocity(
     target_on_other: bool = True,
     flat: bool = False,
     suffixes: tuple[str, ...] = ("proj", "rej"),
-) -> NDArray:
+) -> np.ndarray:
     """Keypoint velocity projected onto target vectors between origin and target keypoints (keypoint_pairs_2).
 
     Note the default values origin_on_other=False and target_on_other=True.

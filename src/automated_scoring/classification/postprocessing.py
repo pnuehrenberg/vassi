@@ -16,7 +16,13 @@ from scipy.stats import gaussian_kde
 from ..dataset.types import AnnotatedDataset, SamplingFunction
 from ..features import BaseExtractor, Shaped
 from ..io import to_yaml
-from ..logging import increment_loop, log_time, set_logging_level, with_loop, _create_log_in_subprocess
+from ..logging import (
+    _create_log_in_subprocess,
+    increment_loop,
+    log_time,
+    set_logging_level,
+    with_loop,
+)
 from ..utils import Experiment, to_int_seed
 from .predict import k_fold_predict
 from .results import ClassificationResult, _NestedResult

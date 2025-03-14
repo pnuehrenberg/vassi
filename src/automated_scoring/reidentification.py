@@ -4,7 +4,6 @@ from typing import Callable, Optional
 import networkx as nx
 import numpy as np
 from numpy.dtypes import StringDType  # type: ignore
-from numpy.typing import NDArray
 from scipy.optimize import linear_sum_assignment
 from tqdm.auto import tqdm
 
@@ -13,7 +12,7 @@ from .data_structures import TimestampedInstanceCollection
 from .features.utils import Feature
 from .utils import perform_operation
 
-FeatureDistance = Callable[[NDArray, NDArray], NDArray]
+FeatureDistance = Callable[[np.ndarray, np.ndarray], np.ndarray]
 
 
 def assign_identities(

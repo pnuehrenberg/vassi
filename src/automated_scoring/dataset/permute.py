@@ -3,7 +3,6 @@ from typing import TYPE_CHECKING
 
 import numpy as np
 import pandas as pd
-from numpy.typing import NDArray
 
 from ..data_structures.utils import get_interval_slice
 from ..features import keypoint_distances
@@ -11,7 +10,7 @@ from .types import AnnotatedDataset, AnnotatedGroup, Dyad, Group
 from .utils import IndividualIdentifier
 
 
-def get_proximitry_matrix(group: Group | AnnotatedGroup) -> tuple[NDArray, NDArray]:
+def get_proximitry_matrix(group: Group | AnnotatedGroup) -> tuple[np.ndarray, np.ndarray]:
     steps = set(trajectory.timestep for trajectory in group.trajectories.values())
     if len(steps) != 1:
         raise ValueError("all trajectories must have the same timestep")
@@ -53,8 +52,8 @@ def _non_recipient_neighbor(
     *,
     rank: int,
     identities: Sequence[IndividualIdentifier],
-    proximitry_matrix: NDArray,
-    timestamps: NDArray,
+    proximitry_matrix: np.ndarray,
+    timestamps: np.ndarray,
 ) -> IndividualIdentifier:
     identities = list(identities)
     if rank >= len(identities) - 2:

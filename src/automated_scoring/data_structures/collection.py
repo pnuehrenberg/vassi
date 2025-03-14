@@ -4,28 +4,23 @@ from typing import Mapping, Optional, Self, overload
 
 import numpy as np
 from numpy.dtypes import StringDType  # type: ignore
-from numpy.typing import NDArray
 
+#
 from .. import config
-from . import type_checking, instance, utils
+from . import instance, type_checking, utils
 from .base import ConfiguredData
 
 
 class InstanceCollection(ConfiguredData):
     """
-    Represents a collection of instances, each containing data associated with a configuration.
+    The base class to represent an unordered collection of instances, possibly from more than one animal.
 
-    This class extends `ConfiguredData` and provides methods for managing, validating, and manipulating instance data. It supports operations such as data validation, slicing, selection, and concatenation.
-    It also handles view creation and management, allowing for efficient data access and modification.
+    Implements the :code:`__getitem__` and :code:`__setitem__` methods to provide indexing, slicing, and dictionary-like access to the data.
 
-    Parameters
-    ----------
-    data : Mapping of str and numpy.ndarray, optional
-        A dictionary containing the data for the collection (default is None).
-    cfg : config.Config, optional
-        The configuration object (default is None).
-    validate_on_init : bool, optional
-        Whether to validate the data during initialization (default is True).
+    Args:
+        data: A dictionary containing the data for the collection.
+        cfg: The configuration object.
+        validate_on_init: Whether to validate the data during initialization.
     """
 
     _view_of: list[Self]
@@ -35,7 +30,7 @@ class InstanceCollection(ConfiguredData):
     def __init__(
         self,
         *,
-        data: Optional[Mapping[str, NDArray]] = None,
+        data: Optional[Mapping[str, np.ndarray]] = None,
         cfg: Optional[config.Config] = None,
         validate_on_init: bool = True,
     ) -> None:
@@ -51,12 +46,10 @@ class InstanceCollection(ConfiguredData):
     @contextmanager
     def validate(self, validate: bool) -> Generator:
         """
-        Yields a context where validation is enabled or disabled.
+        Yields a context where data validation is enabled or disabled.
 
-        Parameters
-        ----------
-        validate : bool
-            Whether to enable validation.
+        Args:
+            validate: Whether to enable validation.
         """
         _validate = self._validate
         self._validate = validate
@@ -69,14 +62,7 @@ class InstanceCollection(ConfiguredData):
 
     @property
     def length(self) -> int:
-        """
-        Returns the number of instances in the collection.
-
-        Returns
-        -------
-        int
-            The number of instances.
-        """
+        """Returns the number of instances in the collection."""
         if self._data is None:
             return 0
         if not self._validate:
@@ -86,18 +72,6 @@ class InstanceCollection(ConfiguredData):
         return length
 
     def __len__(self) -> int:
-        """
-        Returns the number of instances in the collection.
-
-        Parameters
-        ----------
-        None
-
-        Returns
-        -------
-        int
-            The number of instances.
-        """
         return self.length
 
     def validate_data(
@@ -110,32 +84,17 @@ class InstanceCollection(ConfiguredData):
         require_array_like=False,
     ) -> bool:
         """
-        Validates the input data against the collection's requirements.
+        Validates the input data against the specified requirements.
 
-        This method checks the data for key completeness, array-like value types, timestamp uniqueness, and length consistency. It uses utility functions to perform these checks and raises ValueErrors if any validation fails.
+        Args:
+            data: The data to validate.
+            allow_duplicated_timestamps: Whether to allow duplicated timestamps.
+            allow_missing_keys: Whether to allow missing keys.
+            try_broadcasting: Whether to try broadcasting.
+            require_array_like: Whether to require array-like values.
 
-        Parameters
-        ----------
-        data : Mapping[str, utils.Value]
-            The data to validate, where keys are strings and values are of type utils.Value.
-        allow_duplicated_timestamps : bool, optional
-            Whether to allow duplicated timestamps (default is True).
-        allow_missing_keys : bool, optional
-            Whether to allow missing keys (default is False).
-        try_broadcasting : bool, optional
-            Whether to try broadcasting if lengths mismatch (default is True).
-        require_array_like : bool, optional
-            Whether to require all values to be array-like (default is False).
-
-        Returns
-        -------
-        bool
-            True if the data is valid, False otherwise.
-
-        Raises
-        ------
-        ValueError
-            If the data fails any of the validation checks, such as key mismatches, length mismatches, or invalid timestamp or identity data types.
+        Raises:
+            ValueError: If the data fails any of the validation checks, such as key mismatches, length mismatches, or invalid timestamp or identity data types.
         """
         complete_keys = utils.validate_keys(
             data.keys(), self.keys(), allow_missing=allow_missing_keys
@@ -180,48 +139,33 @@ class InstanceCollection(ConfiguredData):
         return True
 
     @property
-    def data(self) -> dict[str, NDArray]:
+    def data(self) -> dict[str, np.ndarray]:
         """
         Property that returns the underlying data dictionary.
-
-        Parameters
-        ----------
-        data : Mapping[str, NDArray]
-            The data to set for the collection.
+        The property can be set to update the data if the data passes validation.
         """
         return super().data
 
     @data.setter
-    def data(self, data: Mapping[str, NDArray]) -> None:
+    def data(self, data: Mapping[str, np.ndarray]) -> None:
         if self._validate:
             self.validate_data(data, require_array_like=True)
         self._data = {key: value for key, value in data.items()}
 
-    def _init_other(
+    def init_other(
         self,
         *,
-        data: dict[str, NDArray],
+        data: dict[str, np.ndarray],
         copy_config: bool = False,
         validate_on_init: bool = False,
     ) -> Self:
         """
-        Initializes a new InstanceCollection from provided data and configuration.
+        Initializes a new collection from provided data with the same configuration.
 
-        This method allows for the creation of a new InstanceCollection, optionally copying the configuration from the current instance. It also provides an option to validate the data during initialization.
-
-        Parameters
-        ----------
-        data : dict of str and numpy.ndarray
-            A dictionary containing the data for the new InstanceCollection.
-        copy_config : bool, optional
-            Whether to copy the configuration from the current instance, defaults to False.
-        validate_on_init : bool, optional
-            Whether to validate the data during initialization, defaults to False.
-
-        Returns
-        -------
-        Self
-            A new InstanceCollection instance.
+        Args:
+            data: A dictionary containing the data for the new InstanceCollection.
+            copy_config: Whether to copy or use the configuration from the current instance.
+            validate_on_init: Whether to validate the data during initialization.
         """
         cfg = self.cfg
         if copy_config:
@@ -236,17 +180,10 @@ class InstanceCollection(ConfiguredData):
         """
         Copies the InstanceCollection.
 
-        Parameters
-        ----------
-        copy_config : bool, optional
-            Whether to copy the configuration, defaults to False.
-
-        Returns
-        -------
-        Self
-            A copy of the InstanceCollection.
+        Args:
+            copy_config: Whether to copy the configuration.
         """
-        return self._init_other(
+        return self.init_other(
             data=self.data, copy_config=copy_config, validate_on_init=False
         )
 
@@ -257,23 +194,17 @@ class InstanceCollection(ConfiguredData):
         at: slice | int | np.integer,
     ) -> None:
         """
-        Sets a value in the underlying data structure at a specified location.
+        Sets a value in the underlying data structure at a specified location (index or slice).
 
-        This method allows modification of the data stored within the `InstanceCollection`. It handles potential view relationships and ensures data integrity during the update.
+        This method allows modification of the stored data. If the data is a view, the base data is also modified. No data validation is performed.
 
-        Parameters
-        ----------
-        key : str
-            The key associated with the value to be set.
-        value : utils.Value
-            The value to set.
-        at : slice or int or numpy.integer
-            The index or slice where the value should be set.
+        Args:
+            key: The key associated with the value to be set.
+            value: The value to set.
+            at: The index or slice where the value should be set.
 
-        Raises
-        ------
-        ValueError
-            If the underlying data structure is not initialized.
+        Raises:
+            ValueError: If the underlying data structure is not initialized.
         """
         if self._data is None:
             raise ValueError("not initialized")
@@ -285,12 +216,12 @@ class InstanceCollection(ConfiguredData):
             _value[at] = value
 
     @overload
-    def __getitem__(self, key: str) -> NDArray:
+    def __getitem__(self, key: str) -> np.ndarray:
         # single key
         ...
 
     @overload
-    def __getitem__(self, key: tuple[str, ...] | list[str]) -> tuple[NDArray, ...]:
+    def __getitem__(self, key: tuple[str, ...] | list[str]) -> tuple[np.ndarray, ...]:
         # multiple keys
         ...
 
@@ -300,14 +231,14 @@ class InstanceCollection(ConfiguredData):
         ...
 
     @overload
-    def __getitem__(self, key: tuple[slice, str]) -> NDArray:
+    def __getitem__(self, key: tuple[slice, str]) -> np.ndarray:
         # slice single key
         ...
 
     @overload
     def __getitem__(
         self, key: tuple[slice, tuple[str, ...] | list[str]]
-    ) -> dict[str, NDArray]:
+    ) -> dict[str, np.ndarray]:
         # slice multiple keys
         ...
 
@@ -343,33 +274,14 @@ class InstanceCollection(ConfiguredData):
             | tuple[int | np.integer, tuple[str, ...] | list[str]]
         ),
     ) -> (
-        NDArray
-        | tuple[NDArray, ...]
+        np.ndarray
+        | tuple[np.ndarray, ...]
         | Self
-        | NDArray
-        | dict[str, NDArray]
+        | dict[str, np.ndarray]
         | instance.Instance
         | utils.Value
         | dict[str, utils.Value]
     ):
-        """
-        Gets an item or a slice of items from the collection.
-
-        Parameters
-        ----------
-        key : str | Iterable[str] | slice | tuple[slice, str] | tuple[slice, Iterable[str]] | int | tuple[int, str] | tuple[int, Iterable[str]]
-            The key or slice to retrieve the item(s) (required).
-
-        Returns
-        -------
-        NDArray | tuple[NDArray, ...] | Self | dict[str, NDArray] | instance.Instance | utils.Value | dict[str, utils.Value]
-            The retrieved item(s) based on the key.
-
-        Raises
-        ------
-        KeyError
-            If the key type is not supported.
-        """
         if isinstance(key, str):
             # single key
             return self._get_value(key)
@@ -379,7 +291,7 @@ class InstanceCollection(ConfiguredData):
             return tuple(self._get_value(_key) for _key in _key)
         if isinstance(key, slice):
             # slice
-            view = self._init_other(
+            view = self.init_other(
                 data={_key: self._get_value(_key)[key] for _key in self.keys()}
             )
             self._views.append(view)
@@ -520,46 +432,20 @@ class InstanceCollection(ConfiguredData):
             str
             | tuple[str, ...]
             | list[str]
-            | tuple[str, ...]
-            | list[str]
             | slice
             | tuple[slice, str]
-            | tuple[slice, tuple[str, ...] | list[str]]
             | tuple[slice, tuple[str, ...] | list[str]]
             | int
             | tuple[int, str]
             | tuple[int, tuple[str, ...] | list[str]]
-            | tuple[int, tuple[str, ...] | list[str]]
         ),
         value: (
             utils.Value
-            | utils.Value
             | utils.MultipleValues
             | Self
-            | utils.Value
-            | utils.Value
-            | utils.MultipleValues
             | instance.Instance
-            | utils.Value
-            | utils.Value
-            | utils.MultipleValues
         ),
     ) -> None:
-        """
-        Sets the value of one or more instances within the collection.
-
-        Parameters
-        ----------
-        key : str | Iterable[str] | slice | tuple[slice, str] | tuple[slice, Iterable[str]] | int | tuple[int, str] | tuple[int, Iterable[str]]
-            The key or keys to set the value for.
-        value : utils.Value | utils.MultipleValues | Self | instance.Instance
-            The value to set.
-
-        Raises
-        ------
-        ValueError
-            If the key-value pair types are not supported.
-        """
         # single value
         valid_value, _value = type_checking.is_value(value)
         if valid_value and isinstance(key, str):
@@ -674,24 +560,18 @@ class InstanceCollection(ConfiguredData):
             f"unsupported key value pair of types ({type(key)} {type(value)})"
         )
 
-    def select_index(self, index: NDArray) -> Self:
+    def select_index(self, index: np.ndarray) -> Self:
         """
         Selects a subset of the data based on the provided index.
+        Allows indexing as in :code:`numpy`, and will return a view if possible.
 
-        Parameters
-        ----------
-        index : numpy.ndarray
-            The indices to select.
-
-        Returns
-        -------
-        Self
-            A new InstanceCollection containing the selected data.
+        Args:
+            index: The indices to select.
         """
         # advanced indexing with boolean array always triggers copy, not view
         # # TODO check index (at least 1d numpy array if int, else boolean with length of collection)
         # # otherwise coerce to array with appropriate type or raise
-        return self._init_other(
+        return self.init_other(
             data={key: value[index] for key, value in self.items(copy=False)}
         )
 
@@ -704,22 +584,12 @@ class InstanceCollection(ConfiguredData):
         """
         Selects a subset of instances based on timestamp and/or identity.
 
-        Parameters
-        ----------
-        timestamp : utils.Value, optional
-            The timestamp value to filter by (default is None).
-        identity : utils.Value, optional
-            The identity value to filter by (default is None).
+        Args:
+            timestamp: The timestamp value to filter by.
+            identity: The identity value to filter by.
 
-        Returns
-        -------
-        Self
-            A new InstanceCollection containing the selected instances.
-
-        Raises
-        ------
-        ValueError
-            If the collection is not initialized or if timestamp/identity selection is attempted without the corresponding keys defined in the configuration.
+        Raises:
+            ValueError: If timestamp/identity selection is attempted without the corresponding keys defined in the configuration.
         """
         if self._data is None:
             raise ValueError("not initialized")
@@ -746,7 +616,7 @@ class InstanceCollection(ConfiguredData):
             return self.copy()
         selection = np.argwhere(selection).ravel()
         # advanced indexing with boolean array always triggers copy, not view
-        return self._init_other(
+        return self.init_other(
             data={key: value[selection] for key, value in self.items(copy=False)}
         )
 
@@ -758,28 +628,16 @@ class InstanceCollection(ConfiguredData):
         validate: bool = True,
     ) -> Self:
         """
-        Concatenates multiple InstanceCollection objects into a single InstanceCollection.
+        Concatenates multiple collections into a single one.
 
-        Parameters
-        ----------
-        collections : InstanceCollection
-            The InstanceCollection objects to concatenate.
-        copy_config : bool, optional
-            Whether to copy the configuration of the first collection, defaults to False.
-        validate : bool, optional
-            Whether to validate the configurations of the collections, defaults to True.
+        Args:
+            collections: The collections to concatenate.
+            copy_config: Whether to copy the configuration of the first collection.
+            validate: Whether to validate equality of configurations and concatenated data on the resulting collection.
 
-        Returns
-        -------
-        Self
-            A new InstanceCollection object containing the concatenated data.
-
-        Raises
-        ------
-        AssertionError
-            If no collections are provided, or if the configurations of the collections are not equal when validation is enabled.
-        ValueError
-            If the identity types of the collections are not compatible.
+        Raises:
+            AssertionError: If no collections are provided, or if the configurations of the collections are not equal when validation is enabled.
+            ValueError: If the identity types of the collections are not compatible.
         """
         if len(collections) == 0:
             raise AssertionError("need at least one collection to concatenate")

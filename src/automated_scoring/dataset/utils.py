@@ -1,5 +1,4 @@
 import numpy as np
-from numpy.typing import NDArray
 
 IndividualIdentifier = str | int
 DyadIdentifier = tuple[IndividualIdentifier, IndividualIdentifier]
@@ -16,12 +15,12 @@ def get_actor(identifier: Identifier) -> IndividualIdentifier:
 
 
 def interval_overlap(
-    intervals_1: NDArray,
-    intervals_2: NDArray,
+    intervals_1: np.ndarray,
+    intervals_2: np.ndarray,
     clip_negative: bool = True,
     element_wise: bool = False,
     mask_diagonal: bool = True,
-) -> NDArray:
+) -> np.ndarray:
     if not element_wise:
         overlap = np.minimum(
             intervals_1[:, 1, np.newaxis] + 1, intervals_2[:, 1][np.newaxis] + 1
@@ -38,8 +37,8 @@ def interval_overlap(
 
 
 def interval_contained(
-    intervals_1: NDArray,
-    intervals_2: NDArray,
+    intervals_1: np.ndarray,
+    intervals_2: np.ndarray,
     element_wise: bool = False,
 ):
     overlap = interval_overlap(intervals_1, intervals_2, element_wise=element_wise)

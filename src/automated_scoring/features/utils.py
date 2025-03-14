@@ -2,8 +2,8 @@ import functools
 from inspect import signature
 from typing import Any, Callable, Iterable, Optional, Protocol, overload
 
+import numpy as np
 import pandas as pd
-from numpy.typing import NDArray
 
 from ..data_structures import InstanceCollection, Trajectory
 from ..utils import KeypointPair, KeypointPairs, Keypoints
@@ -13,10 +13,10 @@ class Feature(Protocol):
     __name__: str
 
     @overload
-    def __call__(self, collection: InstanceCollection, *args, **kwargs) -> NDArray: ...
+    def __call__(self, collection: InstanceCollection, *args, **kwargs) -> np.ndarray: ...
 
     @overload
-    def __call__(self, trajectory: Trajectory, *args, **kwargs) -> NDArray: ...
+    def __call__(self, trajectory: Trajectory, *args, **kwargs) -> np.ndarray: ...
 
 
 class DataFrameFeature(Protocol):
