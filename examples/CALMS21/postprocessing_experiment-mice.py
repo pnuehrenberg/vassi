@@ -50,7 +50,5 @@ if __name__ == "__main__":
         log=log,
     )
 
-    experiment.barrier()
-
     if experiment.is_root:
         summarize_experiment(studies, log=log)
