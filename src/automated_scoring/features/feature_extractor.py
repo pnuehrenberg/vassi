@@ -82,7 +82,7 @@ class BaseExtractor[F: Shaped](ABC):
         *,
         features: list[tuple[utils.Feature, Mapping[str, Any]]] | None = None,
         dyadic_features: list[tuple[utils.Feature, Mapping[str, Any]]] | None = None,
-        cache: bool = True,
+        cache_mode: Literal["cached"] | bool = True,
         cache_directory: Optional[str] = None,
         pipeline: Optional[Pipeline] = None,
         refit_pipeline: bool = False,
@@ -97,10 +97,10 @@ class BaseExtractor[F: Shaped](ABC):
             self._init_features(features, category="individual")
         if dyadic_features is not None:
             self._init_features(dyadic_features, category="dyadic")
-        self.cache = cache
-        if self.cache:
+        self.cache_mode = cache_mode
+        if self.cache_mode:
             if cache_directory is None:
-                raise ValueError("cache_directory must be specified when cache is True")
+                raise ValueError(f"cache_directory must be specified with cache={self.cache_mode}")
             self.cache_directory = cache_directory
             if not os.path.exists(self.cache_directory):
                 os.makedirs(self.cache_directory, exist_ok=True)

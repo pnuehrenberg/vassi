@@ -28,6 +28,8 @@ def from_cache(cache_file: str):
     Args:
         cache_file: The path to the cache file.
     """
+    if not os.path.isfile(cache_file):
+        raise FileNotFoundError(f"Cache file {cache_file} not found")
     with open(cache_file, "rb") as cached:
         return pickle.load(cached)
 
@@ -75,20 +77,19 @@ def cache[**P, T](func: Callable[P, T]) -> Callable[P, T]:
         extractor = args[0]
         if TYPE_CHECKING:
             assert isinstance(extractor, BaseExtractor)
-        if not extractor.cache:
+        if not extractor.cache_mode:
             return func(*args, **kwargs)
         hash_value = hash_args(*args, **kwargs)
         if TYPE_CHECKING:
             assert isinstance(extractor.cache_directory, str)
         cache_file = os.path.join(extractor.cache_directory, hash_value)
-        if extractor.cache:
-            try:
-                return from_cache(cache_file)
-            except FileNotFoundError:
-                pass
+        if extractor.cache_mode == "cached":
+            from_cache(cache_file)
+        try:
+            return from_cache(cache_file)
+        except FileNotFoundError:
+            pass
         value = func(*args, **kwargs)
-        if not extractor.cache:
-            return value
         to_cache(value, cache_file)
         return value
 
