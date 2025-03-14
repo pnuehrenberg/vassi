@@ -62,9 +62,12 @@ if __name__ == "__main__":
         cache_directory="cichlids_cache",
         pipeline=pipeline,
         refit_pipeline=True,
+        cache_mode="cached",
     ).read_yaml("config_file-cichlids.yaml")
 
     log = set_logging_level("info")
+
+    experiment = DistributedExperiment(20, random_state=1)
 
     studies = optimize_postprocessing_parameters(
         dataset_train,
@@ -76,9 +79,11 @@ if __name__ == "__main__":
         k=5,
         sampling_function=subsample_train,
         balance_sample_weights=True,
-        experiment=DistributedExperiment(20, random_state=1),
+        experiment=experiment,
+        optimize_across_runs=True,
+        parallel_optimization=True,
         log=log,
     )
 
-    if studies is not None:
+    if experiment.is_root:
         summarize_experiment(studies, log=log)
