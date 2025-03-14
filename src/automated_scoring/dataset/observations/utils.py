@@ -1,4 +1,5 @@
 import functools
+import inspect
 from typing import TYPE_CHECKING, Callable, Iterable, Optional, ParamSpec
 
 import networkx as nx
@@ -7,30 +8,19 @@ import pandas as pd
 
 from ..utils import interval_contained, interval_overlap
 
-P = ParamSpec("P")
 
-
-def _with_duration(*args, func: Callable[P, pd.DataFrame], **kwargs) -> pd.DataFrame:
-    observations = func(*args, **kwargs)
-    duration = observations["stop"] - observations["start"] + 1
-    if "duration" in observations.columns:
-        observations.loc[:, "duration"] = duration
-    else:
+def with_duration[**P](func: Callable[P, pd.DataFrame]) -> Callable[P, pd.DataFrame]:
+    @functools.wraps(func)
+    def _with_duration(*args: P.args, **kwargs: P.kwargs) -> pd.DataFrame:
+        observations = func(*args, **kwargs).copy()  # may be a slice etc.
+        duration = observations["stop"] - observations["start"] + 1
         observations["duration"] = duration
-    for column in ["start", "stop", "duration"]:
-        values = pd.to_numeric(observations[column], downcast="integer")
-        if "int" in str(values.dtype):
-            values = values.astype(int)
-        else:
-            values = values.astype(float)
-        observations.loc[:, column] = values
-    return observations
-
-
-def with_duration(func: Callable[P, pd.DataFrame]) -> Callable[P, pd.DataFrame]:
-    result_func = functools.partial(_with_duration, func=func)
-    decorated = functools.wraps(func)(result_func)
-    return decorated
+        for column in ["start", "stop", "duration"]:
+            values = pd.to_numeric(observations[column], downcast="integer")
+            dtype = int if "int" in str(values.dtype) else float
+            observations[column] = observations[column].astype(dtype)
+        return observations
+    return _with_duration
 
 
 def ensure_single_index(

@@ -12,6 +12,7 @@ import numpy as np
 import pandas as pd
 
 from ...data_structures import Trajectory
+from ..observations.utils import check_observations, with_duration
 from ..utils import DyadIdentifier, Identifier, IndividualIdentifier, get_actor
 from ._base_sampleable import BaseSampleable
 from .dyad import Dyad
@@ -228,6 +229,7 @@ class Group(NestedSampleableMixin, SampleableMixin):
                 background_category=self.background_category,
             )
 
+    @with_duration
     def _get_observations(self) -> pd.DataFrame:
         observations = []
         identifier_columns = (
@@ -242,10 +244,7 @@ class Group(NestedSampleableMixin, SampleableMixin):
             for column, value in zip(identifier_columns, identifier):
                 observations_sampleable[column] = value
             observations.append(observations_sampleable)
-        observations = pd.concat(observations, axis=0, ignore_index=True)[
-            list(self.REQUIRED_COLUMNS(self.target)) + ["duration"]
-        ]
-        return observations
+        return pd.concat(observations, axis=0, ignore_index=True)
 
 
 class AnnotatedGroup(Group, AnnotatedSampleableMixin):

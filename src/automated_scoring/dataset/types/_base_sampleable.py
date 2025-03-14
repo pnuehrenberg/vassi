@@ -9,6 +9,7 @@ import pandas as pd
 from ...data_structures import Trajectory
 from .._selection import get_available_indices
 from ..observations.utils import (
+    with_duration,
     check_observations,
     ensure_single_index,
     infill_observations,
@@ -70,6 +71,7 @@ class BaseSampleable(SampleableMixin):
         )
         self._observations = observations
 
+    @with_duration
     def _get_observations(self) -> pd.DataFrame:
         if self._observations is None:
             raise ValueError("not AnnotatedMixin, _finalize_init must be called first")

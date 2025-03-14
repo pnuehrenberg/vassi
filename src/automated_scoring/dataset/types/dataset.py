@@ -11,7 +11,7 @@ import pandas as pd
 from sklearn.model_selection import KFold, StratifiedKFold, train_test_split
 
 from ...utils import to_int_seed
-from ..observations.utils import check_observations
+from ..observations.utils import check_observations, with_duration
 from ..utils import GroupIdentifier, IndividualIdentifier, SubjectIdentifier
 from .group import Group
 from .mixins import (
@@ -165,6 +165,7 @@ class Dataset(NestedSampleableMixin, SampleableMixin):
                 background_category=self.background_category,
             )
 
+    @with_duration
     def _get_observations(self) -> pd.DataFrame:
         observations = []
         for identifier, group in self:
@@ -174,10 +175,7 @@ class Dataset(NestedSampleableMixin, SampleableMixin):
             observations_group = group.observations
             observations_group["group"] = identifier
             observations.append(observations_group)
-        observations = pd.concat(observations, axis=0, ignore_index=True)[
-            list(self.REQUIRED_COLUMNS(self.target)) + ["duration"]
-        ]
-        return observations
+        return pd.concat(observations, axis=0, ignore_index=True)
 
     @classmethod
     def _empty_like(cls, group: Group) -> Self:
