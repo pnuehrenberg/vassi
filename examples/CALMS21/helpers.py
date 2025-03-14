@@ -33,7 +33,9 @@ def subsample_train[F: Shaped](
     )
 
 
-def smooth_model_outputs(postprocessing_parameters: dict[str, Any], *, array: np.ndarray):
+def smooth_model_outputs(
+    postprocessing_parameters: dict[str, Any], *, array: np.ndarray
+):
     categories = ("attack", "investigation", "mount", "none")
     probabilities_smoothed = np.zeros_like(array)
     for idx, category in enumerate(categories):

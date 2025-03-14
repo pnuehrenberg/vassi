@@ -207,8 +207,7 @@ def with_loop[T: int | str](
     step: int,
     total: Optional[int] = None,
     prepare_for_subprocess: Literal[False] = False,
-) -> tuple[Logger, T]:
-    ...
+) -> tuple[Logger, T]: ...
 
 
 @overload
@@ -219,8 +218,7 @@ def with_loop[T: int | str](
     step: int,
     total: Optional[int] = None,
     prepare_for_subprocess: bool,
-) -> tuple[tuple[dict[str, Any], int], T]:
-    ...
+) -> tuple[tuple[dict[str, Any], int], T]: ...
 
 
 def with_loop[T: int | str](

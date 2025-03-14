@@ -14,14 +14,14 @@ import pandas as pd
 from ...data_structures import Trajectory
 from ..utils import DyadIdentifier, Identifier, IndividualIdentifier, get_actor
 from ._base_sampleable import BaseSampleable
+from .dyad import Dyad
+from .individual import Individual
 from .mixins import (
     AnnotatedMixin,
     AnnotatedSampleableMixin,
     NestedSampleableMixin,
     SampleableMixin,
 )
-from .dyad import Dyad
-from .individual import Individual
 
 
 class Group(NestedSampleableMixin, SampleableMixin):

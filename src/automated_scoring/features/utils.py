@@ -13,7 +13,9 @@ class Feature(Protocol):
     __name__: str
 
     @overload
-    def __call__(self, collection: InstanceCollection, *args, **kwargs) -> np.ndarray: ...
+    def __call__(
+        self, collection: InstanceCollection, *args, **kwargs
+    ) -> np.ndarray: ...
 
     @overload
     def __call__(self, trajectory: Trajectory, *args, **kwargs) -> np.ndarray: ...

@@ -21,7 +21,6 @@ from ..utils import hash_dict
 from . import decorators, features, temporal_features, utils
 from .caching import cache
 
-
 FeatureCategory = Literal["individual", "dyadic"]
 
 
@@ -57,7 +56,6 @@ class Shaped(Protocol):
     def shape(self) -> tuple[int, ...]: ...
 
 
-
 class BaseExtractor[F: Shaped](ABC):
     """
     The base class for feature extractors.
@@ -89,7 +87,9 @@ class BaseExtractor[F: Shaped](ABC):
         pipeline: Optional[Pipeline] = None,
         refit_pipeline: bool = False,
     ):
-        self._feature_functions_individual: list[tuple[utils.Feature, dict[str, Any]]] = []
+        self._feature_functions_individual: list[
+            tuple[utils.Feature, dict[str, Any]]
+        ] = []
         self._feature_functions_dyadic: list[tuple[utils.Feature, dict[str, Any]]] = []
         self._feature_names_individual: list[str] = []
         self._feature_names_dyadic: list[str] = []
@@ -215,10 +215,16 @@ class BaseExtractor[F: Shaped](ABC):
                 discard=kwargs["discard"] if "discard" in kwargs else None,
             )
             _feature_names.extend(pruned_names)
-            _feature_functions.append((function, {key: value for key, value in kwargs.items()}))
+            _feature_functions.append(
+                (function, {key: value for key, value in kwargs.items()})
+            )
 
     @property
-    def config(self) -> dict[Literal["individual", "dyadic"], tuple[tuple[str, dict[str, Hashable]], ...]]:
+    def config(
+        self,
+    ) -> dict[
+        Literal["individual", "dyadic"], tuple[tuple[str, dict[str, Hashable]], ...]
+    ]:
         """The configuration of the extractor, returned as a dictionary."""
         config = {}
         for feature_category in ("individual", "dyadic"):

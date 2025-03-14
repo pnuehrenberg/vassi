@@ -16,11 +16,22 @@ class Experiment:
     def __init__(
         self, num_runs: int, *, random_state: Optional[np.random.Generator | int] = None
     ):
+        self._is_distributed = False
         self._num_runs = num_runs
         self._run = None
         self._seed = to_int_seed(np.random.default_rng(random_state))
         self._random_state = None
         self.data = {}
+
+    def broadcast[T](self, data: T) -> T:
+        return data
+
+    def barrier(self) -> None:
+        return
+
+    @property
+    def is_distributed(self) -> bool:
+        return self._is_distributed
 
     @property
     def num_runs(self) -> int:

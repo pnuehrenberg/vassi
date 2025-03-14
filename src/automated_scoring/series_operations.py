@@ -7,7 +7,11 @@ from . import math, sliding_metrics, utils
 
 
 def sample_1d(
-    array: np.ndarray, timestamps_array: np.ndarray, timestamps: np.ndarray, *, keep_dtype: bool
+    array: np.ndarray,
+    timestamps_array: np.ndarray,
+    timestamps: np.ndarray,
+    *,
+    keep_dtype: bool,
 ) -> np.ndarray:
     dtype = array.dtype
     interpolated = np.interp(timestamps, timestamps_array, array)
@@ -100,7 +104,11 @@ def sign_change_latency(series: np.ndarray):
 
 
 def filter_sliding_quantile_range(
-    series: np.ndarray, window_size: int, q_lower: float, q_upper: float, copy: bool = True
+    series: np.ndarray,
+    window_size: int,
+    q_lower: float,
+    q_upper: float,
+    copy: bool = True,
 ):
     if copy:
         series = deepcopy(series)

@@ -44,6 +44,7 @@ def hash_args(*args, **kwargs) -> str:
     Returns:
         str: The hash of the arguments.
     """
+
     def to_hash_string(arg):
         if arg is None:
             return "none"

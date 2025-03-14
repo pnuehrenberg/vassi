@@ -1,4 +1,4 @@
-from typing import Any, Optional
+from typing import TYPE_CHECKING, Any, Literal, Optional, overload
 
 import numpy as np
 
@@ -24,6 +24,18 @@ class DistributedExperiment(Experiment):
         self.comm = MPI.COMM_WORLD
         self.rank = self.comm.Get_rank()
         self.size = self.comm.Get_size()
+        if self.size > 1:
+            self._is_distributed = True
+
+    def broadcast[T](self, data: T) -> T:
+        if self.comm is None:
+            raise RuntimeError("No MPI communicator available")
+        return self.comm.bcast(data, root=0)
+
+    def barrier(self) -> None:
+        if self.comm is None:
+            raise RuntimeError("No MPI communicator available")
+        return self.comm.barrier()
 
     @property
     def performs_run(self) -> bool:
@@ -41,14 +53,25 @@ class DistributedExperiment(Experiment):
             return
         self.comm.send(data, dest=0, tag=self.run)
 
-    def collect(self) -> dict[int, Any]:
+    @overload
+    def collect(self, broadcast: Literal[True] = True) -> dict[int, Any]: ...
+
+    @overload
+    def collect(self, broadcast: bool) -> dict[int, Any] | None: ...
+
+    def collect(self, broadcast: bool = True) -> dict[int, Any] | None:
         if self.comm is None:
             return self.data
-        if not self.is_root:
-            raise RuntimeError("collect should only be called from root mpi process")
-        for run in range(1, self.num_runs):
-            rank = run % self.size
-            if rank == self.rank:
-                continue
-            self.data[run] = self.comm.recv(source=rank, tag=run)
-        return dict(sorted(self.data.items()))
+        data = None
+        if self.is_root:
+            for run in range(1, self.num_runs):
+                rank = run % self.size
+                if rank == self.rank:
+                    continue
+                self.data[run] = self.comm.recv(source=rank, tag=run)
+            data = dict(sorted(self.data.items()))
+        if broadcast:
+            data = self.broadcast(data)
+            if TYPE_CHECKING:
+                assert data is not None
+        return data

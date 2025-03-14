@@ -87,6 +87,7 @@ class SlidingWindowAggregator(BaseEstimator, TransformerMixin):
         window_size: Size of the sliding window.
         window_slices: List of slices to use for each window.
     """
+
     def __init__(
         self,
         metric_funcs: list[ArrayToArray],

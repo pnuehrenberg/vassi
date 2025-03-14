@@ -439,12 +439,7 @@ class InstanceCollection(ConfiguredData):
             | tuple[int, str]
             | tuple[int, tuple[str, ...] | list[str]]
         ),
-        value: (
-            utils.Value
-            | utils.MultipleValues
-            | Self
-            | instance.Instance
-        ),
+        value: (utils.Value | utils.MultipleValues | Self | instance.Instance),
     ) -> None:
         # single value
         valid_value, _value = type_checking.is_value(value)

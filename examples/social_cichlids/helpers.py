@@ -66,7 +66,9 @@ def subsample_train[F: Shaped](
     )
 
 
-def smooth_model_outputs(postprocessing_parameters: dict[str, Any], *, array: np.ndarray):
+def smooth_model_outputs(
+    postprocessing_parameters: dict[str, Any], *, array: np.ndarray
+):
     categories = (
         "approach",
         "chase",

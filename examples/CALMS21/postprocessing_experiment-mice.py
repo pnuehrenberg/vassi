@@ -23,6 +23,7 @@ if __name__ == "__main__":
         target="dyad",
         background_category="none",
     )
+    dataset_train = dataset_train.exclude_individuals(["intruder"])
 
     extractor = DataFrameFeatureExtractor(
         cache_directory="feature_cache_mice"
@@ -30,19 +31,23 @@ if __name__ == "__main__":
 
     log = set_logging_level("info")
 
+    experiment = DistributedExperiment(20, random_state=1)
+
     studies = optimize_postprocessing_parameters(
-        dataset_train.exclude_individuals(["intruder"]),
+        dataset_train,
         extractor,
         XGBClassifier(n_estimators=1000),
         postprocessing_function=postprocessing,
         suggest_postprocessing_parameters_function=suggest_postprocessing_parameters,
-        num_trials=2000,
+        num_trials=512,
         k=5,
         sampling_function=subsample_train,
         balance_sample_weights=True,
-        experiment=DistributedExperiment(20, random_state=1),
+        experiment=experiment,
+        optimize_across_runs=True,
+        parallel_optimization=True,
         log=log,
     )
 
-    if studies is not None:
+    if experiment.is_root:
         summarize_experiment(studies, log=log)

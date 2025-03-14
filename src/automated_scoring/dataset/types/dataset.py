@@ -13,13 +13,13 @@ from sklearn.model_selection import KFold, StratifiedKFold, train_test_split
 from ...utils import to_int_seed
 from ..observations.utils import check_observations
 from ..utils import GroupIdentifier, IndividualIdentifier, SubjectIdentifier
+from .group import Group
 from .mixins import (
     AnnotatedMixin,
     AnnotatedSampleableMixin,
     NestedSampleableMixin,
     SampleableMixin,
 )
-from .group import Group
 
 
 def include(
