@@ -293,6 +293,7 @@ def optimize_postprocessing_parameters[F: Shaped](
         experiment=experiment,
         log=log,
     )
+    experiment.barrier()
     return study
 
 

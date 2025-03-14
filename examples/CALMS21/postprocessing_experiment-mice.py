@@ -26,7 +26,8 @@ if __name__ == "__main__":
     dataset_train = dataset_train.exclude_individuals(["intruder"])
 
     extractor = DataFrameFeatureExtractor(
-        cache_directory="feature_cache_mice"
+        cache_directory="feature_cache_mice",
+        cache_mode="cached",
     ).read_yaml("config_file.yaml")
 
     log = set_logging_level("info")
@@ -39,7 +40,7 @@ if __name__ == "__main__":
         XGBClassifier(n_estimators=1000),
         postprocessing_function=postprocessing,
         suggest_postprocessing_parameters_function=suggest_postprocessing_parameters,
-        num_trials=512,
+        num_trials=800,
         k=5,
         sampling_function=subsample_train,
         balance_sample_weights=True,
@@ -48,6 +49,8 @@ if __name__ == "__main__":
         parallel_optimization=True,
         log=log,
     )
+
+    experiment.barrier()
 
     if experiment.is_root:
         summarize_experiment(studies, log=log)
