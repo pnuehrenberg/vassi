@@ -1,6 +1,6 @@
 import os
 from abc import ABC, abstractmethod
-from collections.abc import Mapping
+from collections.abc import Hashable, Mapping
 from typing import (
     TYPE_CHECKING,
     Any,
@@ -19,29 +19,24 @@ from ..io import from_yaml, to_yaml
 from ..logging import set_logging_level
 from ..utils import hash_dict
 from . import decorators, features, temporal_features, utils
-from ._caching import cache
+from .caching import cache
+
 
 FeatureCategory = Literal["individual", "dyadic"]
 
 
 def load_feature_func(func_name: str) -> utils.Feature:
     """
-    Helper function to get a feature function (from features module) from its name.
+    Helper function to get a feature function (from :module:`~automated_scoring.features.features`) from its name.
 
-    Parameters
-    ----------
-    func_name : str
-        The name of the feature function.
+    Args:
+        func_name: The name of the feature function.
 
-    Returns
-    -------
-    utils.Feature
-        The feature function.
+    Returns:
+        utils.Feature: The feature function.
 
-    Raises
-    ------
-    ValueError
-        If the feature function is not implemented in the features module.
+    Raises:
+        ValueError: If the feature function is not implemented in the features module.
     """
     try:
         return getattr(features, func_name)
@@ -56,25 +51,26 @@ def load_feature_func(func_name: str) -> utils.Feature:
 
 
 class Shaped(Protocol):
+    """The minimum requirement of extracted features. Both numpy arrays and pandas DataFrames are supported."""
+
     @property
     def shape(self) -> tuple[int, ...]: ...
+
 
 
 class BaseExtractor[F: Shaped](ABC):
     """
     The base class for feature extractors.
 
-    Additional keyword arguments can be passed to the feature functions.
-    For the BaseExtractor class, this is ("as_absolute", "as_sign_change_latency").
+    Allows the following keyword arguments in feature functions:
+        - as_absolute: Whether to return the absolute value of the feature.
+        - as_sign_change_latency: Whether to return the latency of sign changes in the feature.
+        - reversed_dyad: Whether to reverse the order of the dyad for feature computation.
 
-    Parameters
-    ----------
-    features : list[tuple[utils.Feature, Mapping[str, Any]]] | None, optional
-        The features to extract, by default None.
-    dyadic_features : list[tuple[utils.Feature, Mapping[str, Any]]] | None, optional
-        The dyadic features to extract, by default None.
-    cache_directory : str, optional
-        The directory to use for caching, by default "cache".
+    Args:
+        features: The features to extract.
+        dyadic_features: The dyadic features to extract.
+        cache_directory: The directory to use for caching.
     """
 
     allowed_additional_kwargs: tuple[str, ...] = (
@@ -93,8 +89,8 @@ class BaseExtractor[F: Shaped](ABC):
         pipeline: Optional[Pipeline] = None,
         refit_pipeline: bool = False,
     ):
-        self._feature_funcs_individual: list[tuple[utils.Feature, dict[str, Any]]] = []
-        self._feature_funcs_dyadic: list[tuple[utils.Feature, dict[str, Any]]] = []
+        self._feature_functions_individual: list[tuple[utils.Feature, dict[str, Any]]] = []
+        self._feature_functions_dyadic: list[tuple[utils.Feature, dict[str, Any]]] = []
         self._feature_names_individual: list[str] = []
         self._feature_names_dyadic: list[str] = []
         if features is not None:
@@ -115,40 +111,22 @@ class BaseExtractor[F: Shaped](ABC):
 
     @property
     def sha1(self):
-        """
-        The SHA1 hash (digest) of the extractor configuration.
-        """
-        d = self.config
+        """The SHA1 hash (digest) of the extractor configuration."""
+        d: dict[str, Hashable] = {**self.config}
         d["type"] = str(type(self))
         return hash_dict(d)
 
     def __hash__(self) -> int:
-        """
-        Return the hash of the extractor configuration.
-        """
         return hash(self.sha1)
 
     def __eq__(self, other: object) -> bool:
-        """
-        Return whether the extractor is equal to another object (by comparing the configuration).
-        """
         if not isinstance(other, type(self)):
             return False
         return hash(self) == hash(other)
 
-    def _get_func(self, func_name: str) -> utils.Feature:
-        """
-        Helper function to get a feature function (from features module) from its name.
-
-        See also
-        --------
-        load_feature_func
-        """
-        return load_feature_func(func_name)
-
-    def _adjust_func(
+    def adjust_function(
         self,
-        func: utils.Feature,
+        function: utils.Feature,
         as_absolute: bool = False,
         as_sign_change_latency: bool = False,
         **kwargs: Any,  # Additional keyword arguments are allowed, but ignored
@@ -156,83 +134,45 @@ class BaseExtractor[F: Shaped](ABC):
         """
         Adjust a feature function to be either absolute or sign change latency.
 
-        Parameters
-        ----------
-        func : utils.Feature
-            The feature function to adjust.
-        as_absolute : bool, optional
-            Whether to adjust the feature function to be absolute.
-        as_sign_change_latency : bool, optional
-            Whether to adjust the feature function to be sign change latency.
+        Args:
+            function: The feature function to adjust.
+            as_absolute: Whether to adjust the feature function to be absolute.
+            as_sign_change_latency: Whether to adjust the feature function to be sign change latency.
 
-        Returns
-        -------
-        utils.Feature
-            The adjusted feature function.
+        Raises:
+            ValueError: If both :code:`as_absolute=True` and :code:`as_sign_change_latency=True`.
         """
         if as_absolute and as_sign_change_latency:
             raise ValueError(
                 "Only specify one of as_absolute and as_sign_change_latency."
             )
         if as_absolute:
-            return decorators.as_absolute(func)
+            return decorators.as_absolute(function)
         if as_sign_change_latency:
-            return decorators.as_sign_change_latency(func)
-        return func
+            return decorators.as_sign_change_latency(function)
+        return function
 
     @property
     def feature_names(self) -> list[str]:
-        """
-        The names of all features (both individual and dyadic).
-        """
+        """The names of all features (both individual and dyadic)."""
         return self._get_feature_names("individual") + self._get_feature_names("dyadic")
 
-    def _get_feature_funcs(
+    def _get_feature_functions(
         self, category: FeatureCategory, *, clear: bool = False
     ) -> list[tuple[utils.Feature, dict[str, Any]]]:
-        """
-        Get the feature functions for a given category.
-
-        Parameters
-        ----------
-        category : Literal["individual", "dyadic"]
-            The category of the feature functions to get.
-        clear : bool, optional
-            Whether to clear the feature functions before returning them.
-
-        Returns
-        -------
-        list[tuple[utils.Feature, Mapping[str, Any]]]
-            The feature functions for the specified category.
-        """
         if category == "individual":
-            feature_funcs = self._feature_funcs_individual
+            feature_functions = self._feature_functions_individual
         elif category == "dyadic":
-            feature_funcs = self._feature_funcs_dyadic
+            feature_functions = self._feature_functions_dyadic
         else:
             raise ValueError(
                 f"Undefined feature category {category}, specify either 'individual' and 'dyadic'."
             )
         if clear:
-            feature_funcs.clear()
-        return feature_funcs
+            feature_functions.clear()
+        return feature_functions
 
     def _get_feature_names(self, category: FeatureCategory, *, clear: bool = False):
-        """
-        Get the names of the features for a given category.
-
-        Parameters
-        ----------
-        category : Literal["individual", "dyadic"]
-            The category of the feature names to get.
-        clear : bool, optional
-            Whether to clear the feature names before returning them.
-
-        Returns
-        -------
-        list[str]
-            The feature names for the specified category.
-        """
         if category == "individual":
             feature_names = self._feature_names_individual
         elif category == "dyadic":
@@ -247,33 +187,23 @@ class BaseExtractor[F: Shaped](ABC):
 
     def _init_features(
         self,
-        feature_funcs: list[tuple[utils.Feature, Mapping[str, Any]]],
+        feature_functions: list[tuple[utils.Feature, Mapping[str, Any]]],
         *,
         category: FeatureCategory,
     ) -> None:
-        """
-        Initialize the features for a given category.
-
-        Parameters
-        ----------
-        feature_funcs : list[tuple[utils.Feature, Mapping[str, Any]]]
-            The feature functions to initialize.
-        category : Literal["individual", "dyadic"]
-            The category of the features to initialize.
-        """
-        _feature_funcs = self._get_feature_funcs(category, clear=True)
+        _feature_functions = self._get_feature_functions(category, clear=True)
         _feature_names = self._get_feature_names(category, clear=True)
-        for func, kwargs in feature_funcs:
-            func = self._adjust_func(
-                func,
+        for function, kwargs in feature_functions:
+            function = self.adjust_function(
+                function,
                 **{
                     kwarg: kwargs[kwarg]
                     for kwarg in self.allowed_additional_kwargs
                     if kwarg in kwargs
                 },
             )
-            feature = decorators._inner(func)
-            prefix = decorators._get_prefix(func)
+            feature = decorators.get_inner(function)
+            prefix = decorators.get_prefix(function)
             if "reversed_dyad" in kwargs and kwargs["reversed_dyad"]:
                 prefix = f"r_{prefix}"
             names = [
@@ -285,26 +215,23 @@ class BaseExtractor[F: Shaped](ABC):
                 discard=kwargs["discard"] if "discard" in kwargs else None,
             )
             _feature_names.extend(pruned_names)
-            _feature_funcs.append((func, {key: value for key, value in kwargs.items()}))
+            _feature_functions.append((function, {key: value for key, value in kwargs.items()}))
 
     @property
-    def config(self):
-        """
-        The configuration of the extractor.
-        """
+    def config(self) -> dict[Literal["individual", "dyadic"], tuple[tuple[str, dict[str, Hashable]], ...]]:
+        """The configuration of the extractor, returned as a dictionary."""
         config = {}
-        feature_categories: list[FeatureCategory] = ["individual", "dyadic"]
-        for feature_category in feature_categories:
-            features = self._get_feature_funcs(feature_category)
+        for feature_category in ("individual", "dyadic"):
+            features = self._get_feature_functions(feature_category)
             if len(features) == 0:
                 continue
             config[feature_category] = []
-            for func, kwargs in features:
+            for function, kwargs in features:
                 kwargs = kwargs.copy()
                 if "flat" in kwargs:
                     kwargs.pop("flat")
                 config[feature_category].append(
-                    (decorators._inner(func).__name__, kwargs)
+                    (decorators.get_inner(function).__name__, kwargs)
                 )
         return config
 
@@ -312,10 +239,8 @@ class BaseExtractor[F: Shaped](ABC):
         """
         Save the extractor configuration to a yaml file.
 
-        Parameters
-        ----------
-        features_config_file : str
-            The path to the yaml file to save the configuration to.
+        Args:
+            features_config_file: The path to the yaml file to save the configuration to.
         """
         to_yaml(self.config, file_name=features_config_file)
 
@@ -323,15 +248,8 @@ class BaseExtractor[F: Shaped](ABC):
         """
         Load the extractor configuration from a yaml file.
 
-        Parameters
-        ----------
-        features_config_file : str
-            The path to the yaml file to load the configuration from.
-
-        Returns
-        -------
-        Self
-            The extractor with the loaded configuration.
+        Args:
+            features_config_file: The path to the yaml file to load the configuration from.
         """
         self.load(from_yaml(features_config_file))
         return self
@@ -343,15 +261,8 @@ class BaseExtractor[F: Shaped](ABC):
         """
         Load the extractor configuration from a dictionary.
 
-        Parameters
-        ----------
-        features_config : dict[Literal["individual", "dyadic"], list[tuple[str, Mapping[str, Any]]]]
-            The configuration to load.
-
-        Returns
-        -------
-        Self
-            The extractor with the loaded configuration.
+        Args:
+            features_config: The configuration to load.
         """
 
         def ensure_flat(kwargs: Mapping[str, Any]) -> dict[str, Any]:
@@ -359,11 +270,11 @@ class BaseExtractor[F: Shaped](ABC):
             kwargs["flat"] = True
             return kwargs
 
-        for category, feature_funcs in features_config.items():
+        for category, feature_functions in features_config.items():
             self._init_features(
                 [
-                    (self._get_func(func_name), ensure_flat(kwargs))
-                    for func_name, kwargs in feature_funcs
+                    (load_feature_func(func_name), ensure_flat(kwargs))
+                    for func_name, kwargs in feature_functions
                 ],
                 category=category,
             )
@@ -385,22 +296,13 @@ class BaseExtractor[F: Shaped](ABC):
         category: FeatureCategory,
     ) -> Any:
         """
-        Extract features of one category (individual or dyadic) from a trajectory.
-        If the category is dyadic, the trajectory_other argument should be provided.
+        Extract features of one category (:code:`'individual'` or :code:`'dyadic'`) from a trajectory.
+        If the category is :code:`'dyadic'`, the :code:`trajectory_other` argument must be provided.
 
-        Parameters
-        ----------
-        trajectory : Trajectory
-            The trajectory to extract features from.
-        trajectory_other : Trajectory, optional
-            The other trajectory in a dyad, by default None.
-        category : Literal["individual", "dyadic"]
-            The category of the features to extract.
-
-        Returns
-        -------
-        Any
-            The computed features. The type depends on the subclass.
+        Args:
+            trajectory: The trajectory to extract features from.
+            trajectory_other: The other trajectory in a dyad, by default None.
+            category: The category of the features to extract.
         """
 
         def prepare_args(
@@ -431,13 +333,13 @@ class BaseExtractor[F: Shaped](ABC):
                 kwargs["trajectory_other"] = input_trajectory_other
             return input_trajectory, kwargs
 
-        feature_funcs = self._get_feature_funcs(category)
-        if len(feature_funcs) == 0:
+        feature_functions = self._get_feature_functions(category)
+        if len(feature_functions) == 0:
             raise ValueError("No features specified.")
         features = []
-        for func, kwargs in feature_funcs:
+        for function, kwargs in feature_functions:
             input_trajectory, kwargs = prepare_args(kwargs)
-            features.append(func(input_trajectory, **kwargs))
+            features.append(function(input_trajectory, **kwargs))
         features = type(self).concatenate(*features)
         if isinstance(features, pd.DataFrame):
             features.columns = self._get_feature_names(category)
@@ -485,15 +387,15 @@ class BaseExtractor[F: Shaped](ABC):
                 )
             raise ValueError(f"Invalid feature category {category}.")
 
-        if trajectory_other is None and len(self._feature_funcs_dyadic) > 0:
+        if trajectory_other is None and len(self._feature_functions_dyadic) > 0:
             set_logging_level().warning(
                 "Extracting only non-dyadic features, although dyadic features are specified."
             )
         if trajectory_other is None:
             return extract_category("individual")
-        if len(self._feature_funcs_dyadic) == 0:
+        if len(self._feature_functions_dyadic) == 0:
             return extract_category("individual")
-        if len(self._feature_funcs_individual) == 0:
+        if len(self._feature_functions_individual) == 0:
             return extract_category("dyadic")
         return type(self).concatenate(
             extract_category("individual"),
@@ -574,9 +476,9 @@ class DataFrameFeatureExtractor(BaseExtractor[pd.DataFrame]):
         "discard",
     )
 
-    def _adjust_func(  # type: ignore
+    def adjust_function(  # type: ignore
         self,
-        func: utils.Feature,
+        function: utils.Feature,
         as_absolute: bool = False,
         as_sign_change_latency: bool = False,
         keep: list[str] | str | None = None,
@@ -588,7 +490,7 @@ class DataFrameFeatureExtractor(BaseExtractor[pd.DataFrame]):
 
         Parameters
         ----------
-        func : utils.Feature
+        function : utils.Feature
             The feature function to adjust.
         as_absolute : bool, optional
             Whether to adjust the feature function to be absolute.
@@ -606,7 +508,7 @@ class DataFrameFeatureExtractor(BaseExtractor[pd.DataFrame]):
             The adjusted feature function.
         """
         return decorators.as_dataframe(
-            super()._adjust_func(func, as_absolute, as_sign_change_latency),
+            super().adjust_function(function, as_absolute, as_sign_change_latency),
             keep=keep,
             discard=discard,
         )
