@@ -1,6 +1,7 @@
 import os
 import pickle
-from typing import TYPE_CHECKING, Any, Callable
+import tempfile
+from typing import TYPE_CHECKING, Any, Callable, Optional
 
 from ..data_structures import Trajectory
 from ..utils import hash_dict
@@ -9,7 +10,7 @@ if TYPE_CHECKING:
     from .feature_extractor import BaseExtractor
 
 
-def to_cache(obj: Any, cache_file: str) -> None:
+def to_cache(obj: Any, cache_file: Optional[str] = None) -> str:
     """
     Helper function to write an object to a cache file using pickle.
 
@@ -17,8 +18,11 @@ def to_cache(obj: Any, cache_file: str) -> None:
         obj: The object to write.
         cache_file: The path to the cache file.
     """
+    if cache_file is None:
+        _, cache_file = tempfile.mkstemp(suffix=".cache", dir=".")
     with open(cache_file, "wb") as cached:
         pickle.dump(obj, cached)
+    return cache_file
 
 
 def from_cache(cache_file: str):

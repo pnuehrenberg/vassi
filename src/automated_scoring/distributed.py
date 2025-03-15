@@ -1,5 +1,4 @@
 import os
-import tempfile
 from typing import TYPE_CHECKING, Any, Literal, Optional, overload
 
 import numpy as np
@@ -35,8 +34,7 @@ class DistributedExperiment(Experiment):
             raise RuntimeError("No MPI communicator available")
         temp_file = None
         if self.is_root:
-            _, temp_file = tempfile.mkstemp(suffix=".cache", dir=".")
-            to_cache(data, temp_file)
+            temp_file = to_cache(data)
         self.barrier()
         temp_file_broadcast: str = self.comm.bcast(temp_file, root=0)
         data = from_cache(temp_file_broadcast)

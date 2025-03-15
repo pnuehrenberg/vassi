@@ -15,6 +15,7 @@ from scipy.stats import gaussian_kde
 
 from ..dataset.types import AnnotatedDataset, SamplingFunction
 from ..features import BaseExtractor, Shaped
+from ..features.caching import from_cache, to_cache
 from ..io import to_yaml
 from ..logging import (
     _create_log_in_subprocess,
@@ -60,8 +61,14 @@ class ParameterSuggestionFunction(Protocol):
 _log: Logger | None = None
 
 
+def _result_from_cache[T: ClassificationResult | _NestedResult](result: str | T) -> T:
+    if isinstance(result, str):
+        return from_cache(result)
+    return result
+
+
 def optuna_score_postprocessing_trial[T: ClassificationResult | _NestedResult](
-    classification_result: T | list[T],
+    classification_result: T | str | list[T | str],
     trial: optuna.trial.Trial,
     *,
     postprocessing_function: PostprocessingFunction[T],
@@ -69,24 +76,23 @@ def optuna_score_postprocessing_trial[T: ClassificationResult | _NestedResult](
     loop_log: tuple[Logger, str] | tuple[tuple[dict[str, Any], int], str],
 ) -> float:
     global _log
+    if not isinstance(classification_result, list):
+        classification_result = [_result_from_cache(classification_result)]
+    classification_result_uncached = [
+        _result_from_cache(result) for result in classification_result
+    ]
     if callable(postprocessing_parameters):
         postprocessing_parameters = postprocessing_parameters(
             trial,
-            categories=(
-                classification_result.categories
-                if not isinstance(classification_result, list)
-                else classification_result[0].categories
-            ),
+            categories=classification_result_uncached[0].categories,
         )
-    if not isinstance(classification_result, list):
-        classification_result = [classification_result]
     classification_result_processed = [
         postprocessing_function(
-            classification_result,
+            result,
             **postprocessing_parameters,
             default_decision="none",
         )
-        for classification_result in classification_result
+        for result in classification_result_uncached
     ]
     score = float(
         np.mean(
@@ -161,7 +167,7 @@ def _execute_parallel_study[T: ClassificationResult | _NestedResult](
     description="optuna optimization study",
 )
 def optuna_parameter_optimization[T: ClassificationResult | _NestedResult](
-    classification_result: T | list[T],
+    classification_result: T | str | list[T | str],
     *,
     num_trials: int,
     random_state: Optional[int | np.random.Generator],
@@ -262,6 +268,9 @@ def optimize_postprocessing_parameters[F: Shaped](
             balance_sample_weights=balance_sample_weights,
             log=_log,
         )
+        k_fold_result = (
+            k_fold_result if not parallel_optimization else to_cache(k_fold_result)
+        )
         if not optimize_across_runs:
             study = optuna_parameter_optimization(
                 k_fold_result,
@@ -278,7 +287,7 @@ def optimize_postprocessing_parameters[F: Shaped](
         experiment.add(k_fold_result)
     if not optimize_across_runs:
         return list(experiment.collect().values())
-    k_fold_results: list[DatasetClassificationResult] = list(
+    k_fold_results: list[str | DatasetClassificationResult] = list(
         experiment.collect().values()
     )
     study = optuna_parameter_optimization(
