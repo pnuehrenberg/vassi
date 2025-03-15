@@ -5,11 +5,12 @@ import tempfile
 from collections.abc import Callable, Iterable
 from functools import partial
 from multiprocessing import cpu_count
-from typing import TYPE_CHECKING, Any, Optional, Protocol, TypedDict
+from typing import TYPE_CHECKING, Any, Optional, Protocol, TypedDict, cast
 
 import numpy as np
 import optuna
 import pandas as pd
+from filelock import FileLock
 from joblib import Parallel, delayed, parallel_config
 from scipy.stats import gaussian_kde
 
@@ -59,11 +60,23 @@ class ParameterSuggestionFunction(Protocol):
 
 
 _log: Logger | None = None
+_cache: dict[str, ClassificationResult | _NestedResult] | None = None
 
 
 def _result_from_cache[T: ClassificationResult | _NestedResult](result: str | T) -> T:
+    global _cache
     if isinstance(result, str):
-        return from_cache(result)
+        if _cache is None:
+            _cache = {}
+        if result in _cache:
+            cached = _cache[result]
+        else:
+            with FileLock(f"{result}.lock"):
+                cached = from_cache(result)
+            _cache[result] = cached
+        if TYPE_CHECKING:
+            cached = cast(T, cached)
+        return cached
     return result
 
 

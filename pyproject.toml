@@ -6,6 +6,7 @@ build-backend = "setuptools.build_meta"
 name = "automated-scoring"
 version = "0.0.1"
 dependencies = [
+    "filelock",
     "tbb",
     "numba",
     "numpy>=2.0",
