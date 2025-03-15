@@ -1,6 +1,10 @@
 from typing import TYPE_CHECKING, Any, Literal, Optional, overload
 
 import numpy as np
+import tempfile
+import os
+
+from build.lib.automated_scoring.dataset.observations.utils import to_y
 
 try:
     from mpi4py import MPI
@@ -8,6 +12,7 @@ except ImportError:
     MPI = None
 
 from .utils import Experiment
+from .features.caching import to_cache, from_cache
 
 
 class DistributedExperiment(Experiment):
@@ -30,7 +35,16 @@ class DistributedExperiment(Experiment):
     def broadcast[T](self, data: T) -> T:
         if self.comm is None:
             raise RuntimeError("No MPI communicator available")
-        return self.comm.bcast(data, root=0)
+        temp_file = None
+        if self.is_root:
+            _, temp_file = tempfile.mkstemp(suffix=".cache", dir=".")
+            to_cache(data, temp_file)
+        self.barrier()
+        temp_file_broadcast: str = self.comm.bcast(temp_file, root=0)
+        data = from_cache(temp_file_broadcast)
+        self.barrier()
+        os.remove(temp_file_broadcast)
+        return data
 
     def barrier(self) -> None:
         if self.comm is None:
@@ -71,7 +85,6 @@ class DistributedExperiment(Experiment):
                 self.data[run] = self.comm.recv(source=rank, tag=run)
             data = dict(sorted(self.data.items()))
         if broadcast:
-            self.barrier()
             data = self.broadcast(data)
             if TYPE_CHECKING:
                 assert data is not None
