@@ -100,7 +100,9 @@ class BaseExtractor[F: Shaped](ABC):
         self.cache_mode = cache_mode
         if self.cache_mode:
             if cache_directory is None:
-                raise ValueError(f"cache_directory must be specified with cache={self.cache_mode}")
+                raise ValueError(
+                    f"cache_directory must be specified with cache={self.cache_mode}"
+                )
             self.cache_directory = cache_directory
             if not os.path.exists(self.cache_directory):
                 os.makedirs(self.cache_directory, exist_ok=True)

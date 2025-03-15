@@ -1,18 +1,16 @@
+import os
+import tempfile
 from typing import TYPE_CHECKING, Any, Literal, Optional, overload
 
 import numpy as np
-import tempfile
-import os
-
-from build.lib.automated_scoring.dataset.observations.utils import to_y
 
 try:
     from mpi4py import MPI
 except ImportError:
     MPI = None
 
+from .features.caching import from_cache, to_cache
 from .utils import Experiment
-from .features.caching import to_cache, from_cache
 
 
 class DistributedExperiment(Experiment):

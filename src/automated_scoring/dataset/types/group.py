@@ -12,7 +12,7 @@ import numpy as np
 import pandas as pd
 
 from ...data_structures import Trajectory
-from ..observations.utils import check_observations, with_duration
+from ..observations.utils import with_duration
 from ..utils import DyadIdentifier, Identifier, IndividualIdentifier, get_actor
 from ._base_sampleable import BaseSampleable
 from .dyad import Dyad

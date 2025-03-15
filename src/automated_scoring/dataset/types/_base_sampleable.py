@@ -9,11 +9,11 @@ import pandas as pd
 from ...data_structures import Trajectory
 from .._selection import get_available_indices
 from ..observations.utils import (
-    with_duration,
     check_observations,
     ensure_single_index,
     infill_observations,
     to_y,
+    with_duration,
 )
 from .mixins import (
     AnnotatedMixin,

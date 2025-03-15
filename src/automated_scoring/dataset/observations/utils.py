@@ -1,6 +1,5 @@
 import functools
-import inspect
-from typing import TYPE_CHECKING, Callable, Iterable, Optional, ParamSpec
+from typing import TYPE_CHECKING, Callable, Iterable, Optional
 
 import networkx as nx
 import numpy as np
@@ -20,6 +19,7 @@ def with_duration[**P](func: Callable[P, pd.DataFrame]) -> Callable[P, pd.DataFr
             dtype = int if "int" in str(values.dtype) else float
             observations[column] = observations[column].astype(dtype)
         return observations
+
     return _with_duration
 
 
