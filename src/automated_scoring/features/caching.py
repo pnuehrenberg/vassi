@@ -10,6 +10,14 @@ if TYPE_CHECKING:
     from .feature_extractor import BaseExtractor
 
 
+def remove_cache(cache_file: str) -> bool:
+    try:
+        os.remove(cache_file)
+        return True
+    except FileNotFoundError:
+        return False
+
+
 def to_cache(obj: Any, cache_file: Optional[str] = None) -> str:
     """
     Helper function to write an object to a cache file using pickle.

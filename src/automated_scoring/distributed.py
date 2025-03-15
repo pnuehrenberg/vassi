@@ -8,7 +8,7 @@ try:
 except ImportError:
     MPI = None
 
-from .features.caching import from_cache, to_cache
+from .features.caching import from_cache, to_cache, remove_cache
 from .utils import Experiment
 
 
@@ -39,8 +39,7 @@ class DistributedExperiment(Experiment):
         temp_file_broadcast: str = self.comm.bcast(temp_file, root=0)
         data = from_cache(temp_file_broadcast)
         self.barrier()
-        if self.is_root:
-            os.remove(temp_file_broadcast)
+        remove_cache(temp_file_broadcast)
         return data
 
     def barrier(self) -> None:

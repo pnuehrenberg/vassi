@@ -10,13 +10,12 @@ from typing import TYPE_CHECKING, Any, Optional, Protocol, TypedDict, cast
 import numpy as np
 import optuna
 import pandas as pd
-from filelock import FileLock
 from joblib import Parallel, delayed, parallel_config
 from scipy.stats import gaussian_kde
 
 from ..dataset.types import AnnotatedDataset, SamplingFunction
 from ..features import BaseExtractor, Shaped
-from ..features.caching import from_cache, to_cache
+from ..features.caching import from_cache, to_cache, remove_cache
 from ..io import to_yaml
 from ..logging import (
     _create_log_in_subprocess,
@@ -64,8 +63,7 @@ _log: Logger | None = None
 
 def _result_from_cache[T: ClassificationResult | _NestedResult](result: str | T) -> T:
     if isinstance(result, str):
-        with FileLock(f"{result}.lock"):
-            cached = from_cache(result)
+        cached = from_cache(result)
         if TYPE_CHECKING:
             cached = cast(T, cached)
         return cached
@@ -302,11 +300,10 @@ def optimize_postprocessing_parameters[F: Shaped](
         log=log,
     )
     experiment.barrier()
-    if experiment.is_root:
-        for result in k_fold_results:
-            if not isinstance(result, str):
-                continue
-            os.remove(result)
+    for result in k_fold_results:
+        if not isinstance(result, str):
+            continue
+        remove_cache(result)
     return study
 
 
