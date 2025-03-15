@@ -60,20 +60,12 @@ class ParameterSuggestionFunction(Protocol):
 
 
 _log: Logger | None = None
-_cache: dict[str, ClassificationResult | _NestedResult] | None = None
 
 
 def _result_from_cache[T: ClassificationResult | _NestedResult](result: str | T) -> T:
-    global _cache
     if isinstance(result, str):
-        if _cache is None:
-            _cache = {}
-        if result in _cache:
-            cached = _cache[result]
-        else:
-            with FileLock(f"{result}.lock"):
-                cached = from_cache(result)
-            _cache[result] = cached
+        with FileLock(f"{result}.lock"):
+            cached = from_cache(result)
         if TYPE_CHECKING:
             cached = cast(T, cached)
         return cached
@@ -91,30 +83,24 @@ def optuna_score_postprocessing_trial[T: ClassificationResult | _NestedResult](
     global _log
     if not isinstance(classification_result, list):
         classification_result = [_result_from_cache(classification_result)]
-    classification_result_uncached = [
-        _result_from_cache(result) for result in classification_result
-    ]
+    result = _result_from_cache(classification_result[0])
     if callable(postprocessing_parameters):
         postprocessing_parameters = postprocessing_parameters(
             trial,
-            categories=classification_result_uncached[0].categories,
+            categories=result.categories,
         )
-    classification_result_processed = [
-        postprocessing_function(
-            result,
-            **postprocessing_parameters,
-            default_decision="none",
+    scores = []
+    for result in [result] + classification_result[1:]:
+        scores.append(
+            np.nanmean(
+                postprocessing_function(
+                    _result_from_cache(result),
+                    **postprocessing_parameters,
+                    default_decision="none",
+                ).score()
+            )
         )
-        for result in classification_result_uncached
-    ]
-    score = float(
-        np.mean(
-            [
-                np.nanmean(classification_result_processed.score())
-                for classification_result_processed in classification_result_processed
-            ]
-        )
-    )
+    score = float(np.mean(scores))
     log, loop_name = loop_log
     if isinstance(log, tuple) and _log is not None:
         log = _log
