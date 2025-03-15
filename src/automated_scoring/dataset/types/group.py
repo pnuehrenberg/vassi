@@ -231,7 +231,7 @@ class Group(NestedSampleableMixin, SampleableMixin):
 
     @with_duration
     def _get_observations(self) -> pd.DataFrame:
-        observations = []
+        observations: list[pd.DataFrame] = []
         identifier_columns = (
             ["actor", "recipient"] if self.target == "dyad" else ["actor"]
         )

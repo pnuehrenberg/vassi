@@ -71,6 +71,7 @@ class DistributedExperiment(Experiment):
                 self.data[run] = self.comm.recv(source=rank, tag=run)
             data = dict(sorted(self.data.items()))
         if broadcast:
+            self.barrier()
             data = self.broadcast(data)
             if TYPE_CHECKING:
                 assert data is not None

@@ -167,7 +167,7 @@ class Dataset(NestedSampleableMixin, SampleableMixin):
 
     @with_duration
     def _get_observations(self) -> pd.DataFrame:
-        observations = []
+        observations: list[pd.DataFrame] = []
         for identifier, group in self:
             group = self.select(identifier)
             if not isinstance(group, AnnotatedMixin):
