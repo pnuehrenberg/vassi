@@ -303,6 +303,11 @@ def optimize_postprocessing_parameters[F: Shaped](
         log=log,
     )
     experiment.barrier()
+    if experiment.is_root:
+        for result in k_fold_results:
+            if not isinstance(result, str):
+                continue
+            os.remove(result)
     return study
 
 
