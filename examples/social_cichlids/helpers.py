@@ -153,7 +153,7 @@ def suggest_postprocessing_parameters(
     trial: optuna.trial.Trial, *, categories: Iterable[str]
 ) -> PostprocessingParameters:
     weight_max_probability = trial.suggest_float("weight_max_probability", 0, 1)
-    weight_mean_probability = weight_max_probability - 1
+    weight_mean_probability = 1 - weight_max_probability
     trial.set_user_attr("weight_mean_probability", weight_mean_probability)
     parameters = {
         "priority_function": partial(
