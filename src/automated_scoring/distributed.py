@@ -1,4 +1,3 @@
-import os
 from typing import TYPE_CHECKING, Any, Literal, Optional, overload
 
 import numpy as np
@@ -8,7 +7,7 @@ try:
 except ImportError:
     MPI = None
 
-from .features.caching import from_cache, to_cache, remove_cache
+from .features.caching import from_cache, remove_cache, to_cache
 from .utils import Experiment
 
 

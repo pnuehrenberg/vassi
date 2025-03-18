@@ -10,7 +10,11 @@ from automated_scoring.dataset.types.mixins import (
     SampleableMixin,
 )
 from automated_scoring.features import BaseExtractor, Shaped
-from automated_scoring.sliding_metrics import sliding_mean, sliding_quantile
+from automated_scoring.sliding_metrics import (
+    sliding_mean,
+    sliding_median,
+    sliding_quantile,
+)
 
 
 def subsample_train[F: Shaped](
@@ -45,7 +49,6 @@ def smooth_model_outputs(
         window_upper = postprocessing_parameters[
             f"quantile_range_window_upper-{category}"
         ]
-        window_mean = postprocessing_parameters[f"mean_window-{category}"]
         probabilities_category = array[:, idx]
         q_lower = probabilities_category
         if window_lower > 1:
@@ -62,9 +65,17 @@ def smooth_model_outputs(
                 postprocessing_parameters[f"quantile_range_upper-{category}"],
             )
         probabilities_category = np.clip(probabilities_category, q_lower, q_upper)
-        if window_mean > 1:
-            probabilities_smoothed[:, idx] = sliding_mean(
-                probabilities_category, window_mean
+        smoothing_window = postprocessing_parameters[f"smoothing_window-{category}"]
+        if smoothing_window > 1:
+            match postprocessing_parameters["smoothing_function"]:
+                case "mean":
+                    smoothing_function = sliding_mean
+                case "median":
+                    smoothing_function = sliding_median
+                case _:
+                    raise ValueError("Invalid smoothing function")
+            probabilities_smoothed[:, idx] = smoothing_function(
+                probabilities_category, smoothing_window
             )
         else:
             probabilities_smoothed[:, idx] = probabilities_category
@@ -89,6 +100,9 @@ def suggest_postprocessing_parameters(
     trial: optuna.trial.Trial, *, categories: Iterable[str]
 ) -> PostprocessingParameters:
     parameters = {}
+    parameters["smoothing_function"] = trial.suggest_categorical(
+        "smoothing_function", ["mean", "median"]
+    )
     for category in categories:
         parameters[f"quantile_range_window_lower-{category}"] = (
             trial.suggest_int(f"quantile_range_window_lower-{category}", 0, 90, step=2)
@@ -104,8 +118,8 @@ def suggest_postprocessing_parameters(
         parameters[f"quantile_range_upper-{category}"] = trial.suggest_float(
             f"quantile_range_upper-{category}", 0.5, 1
         )
-        parameters[f"mean_window-{category}"] = (
-            trial.suggest_int(f"mean_window-{category}", 0, 90, step=2) + 1
+        parameters[f"smoothing_window-{category}"] = (
+            trial.suggest_int(f"smoothing_window-{category}", 0, 90, step=2) + 1
         )
     return {
         "postprocessing_parameters": parameters,

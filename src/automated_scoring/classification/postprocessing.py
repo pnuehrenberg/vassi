@@ -15,7 +15,7 @@ from scipy.stats import gaussian_kde
 
 from ..dataset.types import AnnotatedDataset, SamplingFunction
 from ..features import BaseExtractor, Shaped
-from ..features.caching import from_cache, to_cache, remove_cache
+from ..features.caching import from_cache, remove_cache, to_cache
 from ..io import to_yaml
 from ..logging import (
     _create_log_in_subprocess,
@@ -88,6 +88,17 @@ def optuna_score_postprocessing_trial[T: ClassificationResult | _NestedResult](
             categories=result.categories,
         )
     scores = []
+    if "scores" in postprocessing_parameters["postprocessing_parameters"]:
+        score_selection: list[str] | slice = postprocessing_parameters[
+            "postprocessing_parameters"
+        ]["scores"]
+        score_levels = ["timestamp", "annotation", "prediction"]
+        if not isinstance(score_selection, list) or not all(
+            [level in score_levels for level in score_selection]
+        ):
+            raise ValueError(f"scores must be a list constrained to {score_levels}")
+    else:
+        score_selection = slice(None)
     for result in [result] + classification_result[1:]:
         scores.append(
             np.nanmean(
@@ -95,7 +106,9 @@ def optuna_score_postprocessing_trial[T: ClassificationResult | _NestedResult](
                     _result_from_cache(result),
                     **postprocessing_parameters,
                     default_decision="none",
-                ).score()
+                )
+                .score()
+                .loc[slice(None), score_selection]
             )
         )
     score = float(np.mean(scores))
@@ -330,7 +343,7 @@ def summarize_experiment(
         {
             "best": study.best_trial.number,
             "best_value": study.best_value,
-            "best_params": {**study.best_params, **study.user_attrs},
+            "best_params": {**study.best_params},
         }
         for study in studies
     ]
@@ -353,10 +366,10 @@ def summarize_experiment(
             density = gaussian_kde(best_values)(values)
             best = np.argmax(density)
             best_value = values[best]
-            if "window" in parameter:
-                best_value = int(best_value + 1)
-            else:
-                best_value = float(best_value)
+        if "window" in parameter:
+            best_value = int(best_value + 1)
+        else:
+            best_value = float(best_value)
         best_parameters[parameter] = best_value
     all_trials.to_csv(trials_file, index=False)
     to_yaml(results, file_name=results_file)
