@@ -108,7 +108,7 @@ def optuna_score_postprocessing_trial[T: ClassificationResult | _NestedResult](
                     default_decision="none",
                 )
                 .score()
-                .loc[slice(None), score_selection]
+                .loc[score_selection, slice(None)]
             )
         )
     score = float(np.mean(scores))
