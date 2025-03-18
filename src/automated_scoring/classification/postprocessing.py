@@ -369,7 +369,10 @@ def summarize_experiment(
         if "window" in parameter:
             best_value = int(best_value + 1)
         else:
-            best_value = float(best_value)
+            try:
+                best_value = float(best_value)
+            except ValueError:
+                best_value = str(best_value)
         best_parameters[parameter] = best_value
     all_trials.to_csv(trials_file, index=False)
     to_yaml(results, file_name=results_file)
