@@ -196,17 +196,24 @@ def optuna_parameter_optimization[T: ClassificationResult | _NestedResult](
     )
     optuna.logging.disable_default_handler()
     if not parallel_optimization:
-        study = optuna.create_study(
-            sampler=optuna.samplers.TPESampler(seed=to_int_seed(random_state)),
-            direction="maximize",
-        )
-        study.optimize(
-            partial(
-                objective,
-                loop_log=with_loop(log, name="optuna trial", step=0, total=num_trials),
-            ),
-            n_trials=num_trials,
-        )
+        study = None
+        if experiment is None or experiment.is_root:
+            study = optuna.create_study(
+                sampler=optuna.samplers.TPESampler(seed=to_int_seed(random_state)),
+                direction="maximize",
+            )
+            study.optimize(
+                partial(
+                    objective,
+                    loop_log=with_loop(log, name="optuna trial", step=0, total=num_trials),
+                ),
+                n_trials=num_trials,
+            )
+            if experiment is None:
+                return study
+        study = experiment.broadcast(study)
+        if TYPE_CHECKING:
+            assert study is not None
         return study
     if experiment is not None and experiment.is_distributed:
         num_trials = num_trials // experiment.num_runs
