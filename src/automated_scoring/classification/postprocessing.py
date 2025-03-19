@@ -5,7 +5,16 @@ import tempfile
 from collections.abc import Callable, Iterable
 from functools import partial
 from multiprocessing import cpu_count
-from typing import TYPE_CHECKING, Any, Optional, Protocol, TypedDict, cast
+from typing import (
+    TYPE_CHECKING,
+    Any,
+    Literal,
+    Optional,
+    Protocol,
+    TypedDict,
+    cast,
+    overload,
+)
 
 import numpy as np
 import optuna
@@ -71,7 +80,7 @@ def _result_from_cache[T: ClassificationResult | _NestedResult](result: str | T)
 
 
 def optuna_score_postprocessing_trial[T: ClassificationResult | _NestedResult](
-    classification_result: T | str | list[T | str],
+    classification_result: T | str | list[T] | list[str],
     trial: optuna.trial.Trial,
     *,
     postprocessing_function: PostprocessingFunction[T],
@@ -177,7 +186,7 @@ def _execute_parallel_study[T: ClassificationResult | _NestedResult](
     description="optuna optimization study",
 )
 def optuna_parameter_optimization[T: ClassificationResult | _NestedResult](
-    classification_result: T | str | list[T | str],
+    classification_result: T | str | list[T] | list[str],
     *,
     num_trials: int,
     random_state: Optional[int | np.random.Generator],
@@ -205,7 +214,9 @@ def optuna_parameter_optimization[T: ClassificationResult | _NestedResult](
             study.optimize(
                 partial(
                     objective,
-                    loop_log=with_loop(log, name="optuna trial", step=0, total=num_trials),
+                    loop_log=with_loop(
+                        log, name="optuna trial", step=0, total=num_trials
+                    ),
                 ),
                 n_trials=num_trials,
             )
@@ -250,6 +261,86 @@ def optuna_parameter_optimization[T: ClassificationResult | _NestedResult](
     return optuna.load_study(storage=storage, study_name="optuna_study")
 
 
+@overload
+def run_k_fold_experiment[F: Shaped](
+    dataset: AnnotatedDataset,
+    extractor: BaseExtractor[F],
+    classifier: Any,
+    *,
+    k: int,
+    sampling_function: SamplingFunction,
+    balance_sample_weights: bool = True,
+    experiment: Experiment,
+    log: Optional[Logger] = None,
+    cache: Literal[True],
+) -> list[str]: ...
+
+
+@overload
+def run_k_fold_experiment[F: Shaped](
+    dataset: AnnotatedDataset,
+    extractor: BaseExtractor[F],
+    classifier: Any,
+    *,
+    k: int,
+    sampling_function: SamplingFunction,
+    balance_sample_weights: bool = True,
+    experiment: Experiment,
+    log: Optional[Logger] = None,
+    cache: Literal[False] = False,
+) -> list[DatasetClassificationResult]: ...
+
+
+@log_time(
+    level_start="info",
+    level_finish="success",
+    description="k-fold experiment",
+)
+def run_k_fold_experiment[F: Shaped](
+    dataset: AnnotatedDataset,
+    extractor: BaseExtractor[F],
+    classifier: Any,
+    *,
+    k: int,
+    sampling_function: SamplingFunction,
+    balance_sample_weights: bool = True,
+    experiment: Experiment,
+    log: Optional[Logger] = None,
+    cache: bool = True,
+) -> list[DatasetClassificationResult] | list[str]:
+    if log is None:
+        log = set_logging_level()
+    for run in experiment:
+        _log = with_loop(log, name="run", step=run)[0]
+        k_fold_result = k_fold_predict(
+            dataset,
+            extractor,
+            classifier,
+            k=k,
+            random_state=experiment.random_state,
+            sampling_function=sampling_function,
+            balance_sample_weights=balance_sample_weights,
+            log=_log,
+        )
+        if cache:
+            k_fold_result = to_cache(k_fold_result)
+        experiment.add(k_fold_result)
+    k_fold_results = list(experiment.collect().values())
+    if TYPE_CHECKING and cache:
+        k_fold_results = [
+            k_fold_result
+            for k_fold_result in k_fold_results
+            if isinstance(k_fold_result, str)
+        ]
+    elif TYPE_CHECKING:
+        k_fold_results = [
+            k_fold_result
+            for k_fold_result in k_fold_results
+            if isinstance(k_fold_result, DatasetClassificationResult)
+        ]
+    return k_fold_results
+
+
 @log_time(
     level_start="info",
     level_finish="success",
@@ -273,24 +364,22 @@ def optimize_postprocessing_parameters[F: Shaped](
 ) -> list[optuna.study.Study] | optuna.study.Study:
     if log is None:
         log = set_logging_level()
-    for run in experiment:
-        _log = with_loop(log, name="run", step=run)[0]
-        k_fold_result = k_fold_predict(
-            dataset,
-            extractor,
-            classifier,
-            k=k,
-            random_state=experiment.random_state,
-            sampling_function=sampling_function,
-            balance_sample_weights=balance_sample_weights,
-            log=_log,
-        )
-        k_fold_result = (
-            k_fold_result if not parallel_optimization else to_cache(k_fold_result)
-        )
-        if not optimize_across_runs:
+    k_fold_results = run_k_fold_experiment(
+        dataset,
+        extractor,
+        classifier,
+        k=k,
+        sampling_function=sampling_function,
+        balance_sample_weights=balance_sample_weights,
+        experiment=experiment,
+        log=log,
+        cache=optimize_across_runs | parallel_optimization,
+    )
+    if not optimize_across_runs:
+        for run in experiment:
+            _log = with_loop(log, name="run", step=run)[0]
             study = optuna_parameter_optimization(
-                k_fold_result,
+                k_fold_results[run],
                 num_trials=num_trials,
                 random_state=experiment.random_state,
                 postprocessing_function=postprocessing_function,
@@ -301,12 +390,7 @@ def optimize_postprocessing_parameters[F: Shaped](
             )
             experiment.add(study)
             continue
-        experiment.add(k_fold_result)
-    if not optimize_across_runs:
         return list(experiment.collect().values())
-    k_fold_results: list[str | DatasetClassificationResult] = list(
-        experiment.collect().values()
-    )
     study = optuna_parameter_optimization(
         k_fold_results,
         num_trials=num_trials,
