@@ -7,7 +7,7 @@ try:
 except ImportError:
     MPI = None
 
-from .features.caching import from_cache, remove_cache, to_cache
+from .io import from_cache, remove_cache, to_cache
 from .utils import Experiment
 
 

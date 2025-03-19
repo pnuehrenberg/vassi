@@ -24,8 +24,7 @@ from scipy.stats import gaussian_kde
 
 from ..dataset.types import AnnotatedDataset, SamplingFunction
 from ..features import BaseExtractor, Shaped
-from ..features.caching import from_cache, remove_cache, to_cache
-from ..io import to_yaml
+from ..io import from_cache, remove_cache, to_cache, to_yaml
 from ..logging import (
     _create_log_in_subprocess,
     increment_loop,

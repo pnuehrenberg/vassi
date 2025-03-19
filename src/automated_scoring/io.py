@@ -1,4 +1,6 @@
 import os
+import pickle
+import tempfile
 from collections.abc import ItemsView, Mapping
 from typing import Any, Literal, Optional, overload
 
@@ -19,6 +21,56 @@ from .dataset.utils import (
     IndividualIdentifier,
 )
 from .logging import set_logging_level
+
+
+def remove_cache(cache_file: str) -> bool:
+    """
+    Helper function to remove a cache file.
+
+    Returns whether the file was successfully removed (:code:`False` if the file does not exist).
+
+    Args:
+        cache_file: The path to the cache file.
+    """
+    try:
+        os.remove(cache_file)
+        return True
+    except FileNotFoundError:
+        return False
+
+
+def to_cache(
+    obj: Any, cache_file: Optional[str] = None, directory: Optional[str] = None
+) -> str:
+    """
+    Helper function to write an object to a cache file using pickle.
+
+    Args:
+        obj: The object to write.
+        cache_file: The path to the cache file.
+    """
+    if directory is not None:
+        os.makedirs(directory, exist_ok=True)
+    else:
+        directory = "."
+    if cache_file is None:
+        _, cache_file = tempfile.mkstemp(suffix=".cache", dir=directory)
+    with open(cache_file, "wb") as cached:
+        pickle.dump(obj, cached)
+    return cache_file
+
+
+def from_cache(cache_file: str):
+    """
+    Helper function to read an object from a cache file using pickle.
+
+    Args:
+        cache_file: The path to the cache file.
+    """
+    if not os.path.isfile(cache_file):
+        raise FileNotFoundError(f"Cache file {cache_file} not found")
+    with open(cache_file, "rb") as cached:
+        return pickle.load(cached)
 
 
 class _NoAliasDumper(yaml.SafeDumper):

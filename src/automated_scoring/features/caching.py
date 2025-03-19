@@ -1,49 +1,12 @@
 import os
-import pickle
-import tempfile
-from typing import TYPE_CHECKING, Any, Callable, Optional
+from typing import TYPE_CHECKING, Callable
 
 from ..data_structures import Trajectory
+from ..io import from_cache, to_cache
 from ..utils import hash_dict
 
 if TYPE_CHECKING:
     from .feature_extractor import BaseExtractor
-
-
-def remove_cache(cache_file: str) -> bool:
-    try:
-        os.remove(cache_file)
-        return True
-    except FileNotFoundError:
-        return False
-
-
-def to_cache(obj: Any, cache_file: Optional[str] = None) -> str:
-    """
-    Helper function to write an object to a cache file using pickle.
-
-    Args:
-        obj: The object to write.
-        cache_file: The path to the cache file.
-    """
-    if cache_file is None:
-        _, cache_file = tempfile.mkstemp(suffix=".cache", dir=".")
-    with open(cache_file, "wb") as cached:
-        pickle.dump(obj, cached)
-    return cache_file
-
-
-def from_cache(cache_file: str):
-    """
-    Helper function to read an object from a cache file using pickle.
-
-    Args:
-        cache_file: The path to the cache file.
-    """
-    if not os.path.isfile(cache_file):
-        raise FileNotFoundError(f"Cache file {cache_file} not found")
-    with open(cache_file, "rb") as cached:
-        return pickle.load(cached)
 
 
 def hash_args(*args, **kwargs) -> str:
