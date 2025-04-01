@@ -47,7 +47,8 @@ def to_cache(
 
     Args:
         obj: The object to write.
-        cache_file: The path to the cache file.
+        cache_file: The basename of the cache file.
+        directory: The directory to write the cache file to. If :code:`None`, the current directory is used.
     """
     if directory is not None:
         os.makedirs(directory, exist_ok=True)
@@ -55,6 +56,8 @@ def to_cache(
         directory = "."
     if cache_file is None:
         _, cache_file = tempfile.mkstemp(suffix=".cache", dir=directory)
+    else:
+        cache_file = os.path.join(directory, cache_file)
     with open(cache_file, "wb") as cached:
         pickle.dump(obj, cached)
     return cache_file
