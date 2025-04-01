@@ -36,10 +36,10 @@ def plot_confusion_matrix(
     category_labels: Optional[Sequence[str]] = None,
     show_colorbar: bool = True,
 ):
-    def format_count(count):
-        if count > 10000:
-            return f"{count / 1000:.1f}k"
-        return count
+    def format_count(count) -> str:
+        if count > 100000:
+            return f"{count:.1e}".replace("e+0", "e").replace("e+", "e")
+        return str(count)
 
     y_true = np.asarray(y_true)
     y_pred = np.asarray(y_pred)

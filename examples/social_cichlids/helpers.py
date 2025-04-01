@@ -16,8 +16,8 @@ from automated_scoring.dataset.types.mixins import (
 from automated_scoring.features import BaseExtractor, Shaped
 from automated_scoring.sliding_metrics import (
     sliding_mean,
-    sliding_quantile,
     sliding_median,
+    sliding_quantile,
 )
 
 
@@ -181,7 +181,7 @@ def suggest_postprocessing_parameters(
         ),
         "smoothing_function": trial.suggest_categorical(
             "smoothing_function", ["mean", "median"]
-        )
+        ),
     }
     for category in categories:
         parameters[f"quantile_range_window_lower-{category}"] = (
