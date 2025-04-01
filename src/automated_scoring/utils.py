@@ -14,13 +14,17 @@ Keypoints = Iterable[Keypoint]
 KeypointPairs = Iterable[KeypointPair]
 
 
-def available_resources() -> tuple[int, int]:
+def available_resources(*, ensure_parallel_inner: bool = True) -> tuple[int, int]:
     nesting_level = get_active_backend()[0].nesting_level  # type: ignore
     num_cpus = cpu_count()
     if nesting_level > 0:
         num_cpus = num_cpus // (nesting_level * 4)
     num_inner_threads = max(1, num_cpus // 4)
-    num_jobs = num_cpus // num_inner_threads
+    if ensure_parallel_inner and num_inner_threads == 1:
+        num_jobs = 1
+        num_inner_threads = num_cpus
+    else:
+        num_jobs = num_cpus // num_inner_threads
     return num_jobs, num_inner_threads
 
 
