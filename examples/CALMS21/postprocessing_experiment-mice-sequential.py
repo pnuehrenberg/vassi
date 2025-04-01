@@ -52,7 +52,9 @@ def step_1():
 
 def step_2():
     log = set_logging_level("info")
-    k_fold_results = [from_cache(k_fold_result) for k_fold_result in from_yaml("k_fold_results.yaml")]
+    k_fold_results = [
+        from_cache(k_fold_result) for k_fold_result in from_yaml("k_fold_results.yaml")
+    ]
     studies = optuna_parameter_optimization(
         k_fold_results,
         postprocessing_function=postprocessing,

@@ -458,6 +458,8 @@ def summarize_experiment(
             best_value = values[best]
         if "window" in parameter:
             best_value = int(best_value + 1)
+        elif isinstance(best_value, bool | np.bool_):
+            best_value = bool(best_value)
         else:
             try:
                 best_value = float(best_value)
