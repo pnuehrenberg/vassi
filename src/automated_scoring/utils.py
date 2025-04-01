@@ -2,14 +2,26 @@ from __future__ import annotations
 
 import hashlib
 import json
+from multiprocessing import cpu_count
 from typing import Any, Iterable, Optional, Protocol, Self
 
 import numpy as np
+from joblib.parallel import get_active_backend
 
 Keypoint = int
 KeypointPair = tuple[Keypoint, Keypoint]
 Keypoints = Iterable[Keypoint]
 KeypointPairs = Iterable[KeypointPair]
+
+
+def available_resources() -> tuple[int, int]:
+    nesting_level = get_active_backend()[0].nesting_level  # type: ignore
+    num_cpus = cpu_count()
+    if nesting_level > 0:
+        num_cpus = num_cpus // (nesting_level * 4)
+    num_inner_threads = max(1, num_cpus // 4)
+    num_jobs = num_cpus // num_inner_threads
+    return num_jobs, num_inner_threads
 
 
 class Experiment:

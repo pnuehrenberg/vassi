@@ -3,13 +3,11 @@ from collections.abc import Iterable, Mapping
 from copy import deepcopy
 from dataclasses import dataclass
 from functools import partial
-from multiprocessing import cpu_count
 from typing import TYPE_CHECKING, Callable, Literal, Optional, Self, cast
 
 import numpy as np
 import pandas as pd
 from joblib import Parallel, delayed, parallel_config
-from joblib.parallel import get_active_backend
 from sklearn.metrics import f1_score
 
 from ..data_structures import Trajectory
@@ -26,22 +24,12 @@ from ..dataset.observations import (
 )
 from ..dataset.types import encode_categories
 from ..logging import set_logging_level
-from ..utils import SmoothingFunction
+from ..utils import SmoothingFunction, available_resources
 from .utils import (
     _filter_recipient_bouts,
     to_predictions,
     validate_predictions,
 )
-
-
-def available_resources() -> tuple[int, int]:
-    nesting_level = get_active_backend()[0].nesting_level  # type: ignore
-    num_cpus = cpu_count()
-    if nesting_level > 0:
-        num_cpus = num_cpus // (nesting_level * 4)
-    num_inner_threads = max(1, num_cpus // 4)
-    num_jobs = num_cpus // num_inner_threads
-    return num_jobs, num_inner_threads
 
 
 class _Result:

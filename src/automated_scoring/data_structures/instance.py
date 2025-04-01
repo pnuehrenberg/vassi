@@ -1,5 +1,8 @@
+from typing import Optional
+
 import numpy as np
 
+from .. import config
 from . import utils
 from .base import ConfiguredData
 
@@ -22,7 +25,11 @@ class Instance(ConfiguredData):
         KeyError: If a key in :code:`kwargs` is not a defined key.
     """
 
-    def __init__(self, cfg=None, from_scalars: bool = False, **kwargs):
+    def __init__(
+        self, cfg: Optional[config.Config] = None, from_scalars: bool = False, **kwargs
+    ):
+        if cfg is None:
+            cfg = config.cfg.copy()
         self._cfg = cfg
         self._data = {}
         for key in set(self.keys()) - set(kwargs.keys()):

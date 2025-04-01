@@ -37,8 +37,9 @@ class InstanceCollection(ConfiguredData):
         self._validate = True
         self._view_of = []
         self._views = []
-        if cfg is not None:
-            self._cfg = cfg
+        if cfg is None:
+            cfg = config.cfg.copy()
+        self._cfg = cfg
         if data is not None:
             with self.validate(validate_on_init):
                 self.data = data

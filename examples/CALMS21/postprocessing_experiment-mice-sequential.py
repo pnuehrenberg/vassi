@@ -8,7 +8,7 @@ from automated_scoring.classification.postprocessing import (
 )
 from automated_scoring.config import cfg
 from automated_scoring.features import DataFrameFeatureExtractor
-from automated_scoring.io import from_yaml, from_cache, load_dataset, to_yaml
+from automated_scoring.io import from_cache, from_yaml, load_dataset, to_yaml
 from automated_scoring.logging import set_logging_level
 
 cfg.key_keypoints = "keypoints"

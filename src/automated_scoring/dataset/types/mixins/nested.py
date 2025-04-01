@@ -7,10 +7,13 @@ from typing import (
     Literal,
     Optional,
     Self,
+    cast,
 )
 
 import numpy as np
+from joblib import Parallel, delayed, parallel_config
 
+from ....utils import available_resources
 from ...utils import (
     Identifier,
     IndividualIdentifier,
@@ -21,6 +24,17 @@ from .sampleable import SampleableMixin
 
 if TYPE_CHECKING:
     from ....features import BaseExtractor, Shaped
+
+
+def _select_samples_from_sampleable(
+    sampleable, extractor, indices, splits, store_indices
+):
+    return sampleable._select_samples(
+        extractor,
+        indices,
+        splits,
+        store_indices=store_indices,
+    )
 
 
 def _update_splits(splits: dict, offset: int) -> dict:
@@ -198,15 +212,29 @@ class NestedSampleableMixin(ABC):
     ) -> tuple[F, np.ndarray | None]:
         if splits is None:
             raise ValueError("splits must be specified for nested sampleables")
-        samples = [
-            sampleable._select_samples(
-                extractor,
-                indices,
-                splits[identifier],
-                store_indices=store_indices,
+        num_jobs, num_inner_threads = available_resources()
+        with parallel_config(backend="loky", inner_max_num_threads=num_inner_threads):
+            samples = Parallel(n_jobs=num_jobs)(
+                delayed(_select_samples_from_sampleable)(
+                    sampleable,
+                    extractor,
+                    indices,
+                    splits[identifier],
+                    store_indices=store_indices,
+                )
+                for identifier, sampleable in self
             )
-            for identifier, sampleable in self
-        ]
+        if TYPE_CHECKING:
+            samples = cast(list[tuple[F, np.ndarray | None]], samples)
+        # samples = [
+        #     sampleable._select_samples(
+        #         extractor,
+        #         indices,
+        #         splits[identifier],
+        #         store_indices=store_indices,
+        #     )
+        #     for identifier, sampleable in self
+        # ]
         X = [X_sampleable for X_sampleable, _ in samples]
         y = [y_sampleable for _, y_sampleable in samples]
         num_features = None

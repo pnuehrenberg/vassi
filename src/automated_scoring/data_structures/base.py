@@ -11,8 +11,8 @@ from ..utils import hash_dict
 class ConfiguredData:
     """Represents a configured data object with associated configuration and data."""
 
-    _data: Optional[dict[str, np.ndarray]] = None
-    _cfg: Optional[config.Config] = None
+    _data: Optional[dict[str, np.ndarray]]
+    _cfg: config.Config
 
     @property
     def sha1(self) -> str:
@@ -40,8 +40,6 @@ class ConfiguredData:
     @property
     def cfg(self) -> config.Config:
         """Property that returns the configuration object."""
-        if self._cfg is None:
-            return config.cfg
         return self._cfg
 
     def keys(

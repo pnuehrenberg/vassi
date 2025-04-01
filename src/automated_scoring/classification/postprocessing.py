@@ -4,7 +4,6 @@ import os
 import tempfile
 from collections.abc import Callable, Iterable
 from functools import partial
-from multiprocessing import cpu_count
 from typing import (
     TYPE_CHECKING,
     Any,
@@ -32,7 +31,7 @@ from ..logging import (
     set_logging_level,
     with_loop,
 )
-from ..utils import Experiment, to_int_seed
+from ..utils import Experiment, available_resources, to_int_seed
 from .predict import k_fold_predict
 from .results import ClassificationResult, DatasetClassificationResult, _NestedResult
 
@@ -155,9 +154,7 @@ def _execute_parallel_study[T: ClassificationResult | _NestedResult](
     num_trials: int,
     log: Logger,
 ) -> None:
-    num_cpus = cpu_count()
-    num_inner_threads = num_cpus // 4
-    num_jobs = num_cpus // num_inner_threads
+    num_jobs, num_inner_threads = available_resources()
     with parallel_config(backend="loky", inner_max_num_threads=num_inner_threads):
         Parallel(n_jobs=num_jobs)(
             delayed(_optimize_study)(
