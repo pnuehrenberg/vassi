@@ -1,17 +1,17 @@
+from __future__ import annotations
+
 from collections.abc import Iterable, Mapping, Sequence
 from typing import (
     TYPE_CHECKING,
     Optional,
 )
 
+import loguru
 import numpy as np
 from sklearn.model_selection import train_test_split
 
 from ..logging import set_logging_level
 from ..utils import to_int_seed
-
-if TYPE_CHECKING:
-    from loguru import Logger
 
 
 def _get_indices_by_category(
@@ -114,7 +114,7 @@ def select_indices(
     stratify: bool,
     stratification_levels: Sequence[np.ndarray | None],
     categories: Optional[tuple[str, ...]],
-    log: Optional["Logger"],
+    log: Optional[loguru.Logger],
 ) -> np.ndarray:
     random_state = np.random.default_rng(random_state)
     if log is None:

@@ -1,6 +1,6 @@
 import functools
 from inspect import signature
-from typing import Any, Callable, Iterable, Optional, Protocol, overload
+from typing import Any, Iterable, Optional, Protocol, overload
 
 import numpy as np
 import pandas as pd
@@ -10,6 +10,18 @@ from ..utils import KeypointPair, KeypointPairs, Keypoints
 
 
 class Feature(Protocol):
+    """
+    A feature is a function that takes a :class:`~automated_scoring.data_structures.trajectory.Trajectory` or an :class:`~automated_scoring.data_structures.collection.InstanceCollection` as input and returns a :class:`~numpy.ndarray`.
+
+    Parameters:
+        trajectory (:class:`~automated_scoring.data_structures.trajectory.Trajectory` | :class:`~automated_scoring.data_structures.collection.InstanceCollection`): The trajectory or collection to compute the feature for. Parameter can also be called :code:`collection`.
+        *args: Additional positional arguments.
+        **kwargs: Additional keyword arguments.
+
+    Returns:
+        :class:`~numpy.ndarray`: The computed feature.
+    """
+
     __name__: str
 
     @overload
@@ -22,6 +34,18 @@ class Feature(Protocol):
 
 
 class DataFrameFeature(Protocol):
+    """
+    A dataframe feature is a function that takes a :class:`~automated_scoring.data_structures.trajectory.Trajectory` or an :class:`~automated_scoring.data_structures.collection.InstanceCollection` as input and returns a :class:`~pandas.DataFrame`.
+
+    Parameters:
+        trajectory (:class:`~automated_scoring.data_structures.trajectory.Trajectory` | :class:`~automated_scoring.data_structures.collection.InstanceCollection`): The trajectory or collection to compute the feature for. Parameter can also be called :code:`collection`.
+        *args: Additional positional arguments.
+        **kwargs: Additional keyword arguments.
+
+    Returns:
+        :class:`~pandas.DataFrame`: The computed feature.
+    """
+
     __name__: str
 
     @overload
@@ -34,6 +58,17 @@ class DataFrameFeature(Protocol):
 
 
 def recursive_name(func: Feature | DataFrameFeature | functools.partial) -> str:
+    """
+    Return the name of a feature function.
+
+    If the function is a :func:`~functools.partial` (i.e., decorated), the name of the original function is returned.
+
+    Parameters:
+        func: The feature function to get the name of.
+
+    Returns:
+        The name of the feature function.
+    """
     if not isinstance(func, functools.partial):
         return func.__name__
     decorator_name = func.func.__name__
@@ -42,6 +77,15 @@ def recursive_name(func: Feature | DataFrameFeature | functools.partial) -> str:
 
 
 def pair(keypoint_pair: KeypointPair) -> str:
+    """
+    Return the formatted name of a keypoint pair.
+
+    Parameters:
+        keypoint_pair: The keypoint pair to get the name of.
+
+    Returns:
+        The name of the keypoint pair.
+    """
     return f"{keypoint_pair[0]}_{keypoint_pair[1]}"
 
 
@@ -50,6 +94,17 @@ def names(
     keypoints: Keypoints | None = None,
     keypoint_pairs: KeypointPairs | None = None,
 ) -> list[str]:
+    """
+    Return the formatted feature names of a feature function, and a combination of keypoints and keypoint pairs.
+
+    Parameters:
+        func_name: The name of the feature function.
+        keypoints: The keypoint indices.
+        keypoint_pairs: The keypoint index pairs.
+
+    Returns:
+        The formatted feature names.
+    """
     if keypoints is not None:
         return [f"{func_name}-{keypoint}" for keypoint in keypoints]
     if keypoint_pairs is not None:
@@ -68,6 +123,21 @@ def relational_names(
     keypoint_pairs_2: KeypointPairs | None = None,
     element_wise: bool | None = False,
 ) -> list[str]:
+    """
+    Return the formatted feature names of a relational feature function, and a combination of keypoints and keypoint pairs.
+
+    Parameters:
+        func_name: The name of the feature function.
+        keypoints_1: The first set of keypoints indices.
+        keypoints_2: The second set of keypoints indices.
+        keypoint_pairs_1: The first set of keypoint index pairs.
+        keypoint_pairs_2: The second set of keypoint index pairs.
+        element_wise: Whether to return the names of the feature function for each element-wise combination of keypoints and keypoint pairs.
+
+    Returns:
+        The formatted feature names.
+    """
+
     def name(*args: str | int) -> str:
         return f"{func_name}-{'-'.join([str(arg) for arg in args])}"
 
@@ -124,12 +194,25 @@ def relational_names(
 
 
 def feature_names(
-    func: Callable,
+    func: Feature,
     relational: bool,
     dyadic: bool = False,
     suffixes: Optional[Iterable[str]] = None,
     **kwargs: Any,
 ) -> list[str]:
+    """
+    Generate full feature names for a given function.
+
+    Parameters:
+        func: The function to generate feature names for.
+        relational: Whether the function is relational.
+        dyadic: Whether the function is dyadic.
+        suffixes: Optional suffixes to append to the feature names.
+
+    Returns:
+        The full feature names.
+    """
+
     def get_param(param: str):
         if param not in kwargs:
             return None
@@ -161,7 +244,22 @@ def feature_names(
     return apply_suffixes(names(func_name, **params))
 
 
-def get_feature_names(func, **kwargs) -> list[str]:
+def get_feature_names(func: Feature, **kwargs) -> list[str]:
+    """
+    Entrypoint for feature name generation.
+
+    Parameters:
+        func: The feature function to generate names for.
+        **kwargs: Additional keyword arguments to pass to the feature function.
+
+    Returns:
+        A list of feature names corresponding to the function.
+
+    See also:
+        - :func:`feature_names` to generate feature names, using:
+        - :func:`names` to generate feature names, or,
+        - :func:`relational_names` to generate feature names for relational features
+    """
     relational = any([("keypoints_" in kwarg) for kwarg in kwargs]) or any(
         [("keypoint_pairs_" in kwarg) for kwarg in kwargs]
     )
@@ -181,6 +279,17 @@ def prune_feature_names(
     keep: Optional[Iterable[str] | str] = None,
     discard: Optional[Iterable[str] | str] = None,
 ) -> list[str]:
+    """Discard (or keep) feature names based on a list of names to keep or discard.
+
+    Parameters
+        names: The feature names to prune.
+        keep: A list of feature name patterns to keep, irregardless of the match :code:`discard`.
+        discard: A list of feature name patterns to discard.
+
+    Returns
+        A list of feature names after pruning.
+    """
+
     def _as_str_list(arg: Iterable[str] | str | None) -> list[str]:
         if isinstance(arg, list):
             return arg

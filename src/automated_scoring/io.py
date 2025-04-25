@@ -21,6 +21,7 @@ from .dataset.utils import (
     IndividualIdentifier,
 )
 from .logging import set_logging_level
+from .utils import to_scalars
 
 
 def remove_cache(cache_file: str) -> bool:
@@ -253,7 +254,7 @@ def load_trajectories(
         # fall back to h5_data keys as identities
         pass
     trajectories = {}
-    for identity in np.asarray(identities).tolist():
+    for identity in to_scalars(identities):
         data = load_data(
             trajectory_file, os.path.join(data_path, str(identity)), exclude=exclude
         )

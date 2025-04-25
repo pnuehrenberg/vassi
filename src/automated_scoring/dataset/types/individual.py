@@ -16,6 +16,13 @@ if TYPE_CHECKING:
 
 
 class Individual(BaseSampleable):
+    """
+    An individual is a sampleable that holds one trajectory.
+
+    Parameters:
+        trajectory: The trajectory of the individual.
+    """
+
     def _sample_X[F: Shaped](
         self,
         extractor: BaseExtractor[F],
@@ -29,6 +36,17 @@ class Individual(BaseSampleable):
         categories: tuple[str, ...],
         background_category: str,
     ) -> "AnnotatedIndividual":
+        """
+        Annotates the individual with the given observations.
+
+        Parameters:
+            observations: The observations.
+            categories: Categories of the observations.
+            background_category: The background category of the observations.
+
+        Returns:
+            The annotated individual.
+        """
         return AnnotatedIndividual(
             trajectory=self.trajectory,
             observations=observations,
@@ -38,6 +56,16 @@ class Individual(BaseSampleable):
 
 
 class AnnotatedIndividual(Individual, AnnotatedSampleableMixin):
+    """
+    Annotated individual.
+
+    Parameters:
+        trajectory: The trajectory of the individual.
+        observations: The observations corresponding to the trajectory.
+        categories: Categories of the observations.
+        background_category: The background category of the observations.
+    """
+
     def __init__(
         self,
         trajectory: Trajectory,

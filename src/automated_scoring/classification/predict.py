@@ -1,7 +1,8 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Iterable, Optional, overload
+from typing import Iterable, Optional, overload
 
+import loguru
 import numpy as np
 from sklearn.utils.class_weight import compute_sample_weight
 
@@ -33,9 +34,6 @@ from .utils import (
     init_new_classifier,
 )
 
-if TYPE_CHECKING:
-    from loguru import Logger
-
 
 def _predict_sampleable[F: Shaped](
     sampleable: BaseSampleable,
@@ -44,7 +42,7 @@ def _predict_sampleable[F: Shaped](
     *,
     encoding_function: Optional[EncodingFunction] = None,
     categories: Optional[Iterable[str]] = None,
-    log: Logger,
+    log: loguru.Logger,
 ) -> ClassificationResult:
     X, y = sampleable.sample(extractor)
     y_pred_numeric: np.ndarray = classifier.predict(X)
@@ -88,7 +86,7 @@ def _predict_group[F: Shaped](
     encoding_function: Optional[EncodingFunction] = None,
     categories: Optional[Iterable[str]] = None,
     exclude: Optional[Iterable[Identifier]] = None,
-    log: Logger,
+    log: loguru.Logger,
 ) -> GroupClassificationResult:
     if exclude is None:
         exclude = ()
@@ -130,7 +128,7 @@ def _predict[F: Shaped](
     encoding_function: Optional[EncodingFunction] = None,
     categories: Optional[Iterable[str]] = None,
     exclude: Optional[Iterable[Identifier]] = None,
-    log: Logger,
+    log: loguru.Logger,
 ) -> DatasetClassificationResult:
     if exclude is None:
         exclude = ()
@@ -169,7 +167,7 @@ def predict[F: Shaped](
     encoding_function: Optional[EncodingFunction] = None,
     categories: Optional[Iterable[str]] = None,
     exclude: Optional[Iterable[Identifier]] = None,
-    log: Optional[Logger] = None,
+    log: Optional[loguru.Logger] = None,
 ) -> ClassificationResult: ...
 
 
@@ -182,7 +180,7 @@ def predict[F: Shaped](
     encoding_function: Optional[EncodingFunction] = None,
     categories: Optional[Iterable[str]] = None,
     exclude: Optional[Iterable[Identifier]] = None,
-    log: Optional[Logger] = None,
+    log: Optional[loguru.Logger] = None,
 ) -> GroupClassificationResult: ...
 
 
@@ -195,7 +193,7 @@ def predict[F: Shaped](
     encoding_function: Optional[EncodingFunction] = None,
     categories: Optional[Iterable[str]] = None,
     exclude: Optional[Iterable[Identifier]] = None,
-    log: Optional[Logger] = None,
+    log: Optional[loguru.Logger] = None,
 ) -> DatasetClassificationResult: ...
 
 
@@ -207,8 +205,23 @@ def predict[F: Shaped](
     encoding_function: Optional[EncodingFunction] = None,
     categories: Optional[Iterable[str]] = None,
     exclude: Optional[Iterable[Identifier]] = None,
-    log: Optional[Logger] = None,
+    log: Optional[loguru.Logger] = None,
 ) -> ClassificationResult | GroupClassificationResult | DatasetClassificationResult:
+    """
+    Run classification on a sampleable object.
+
+    Parameters:
+        sampleable: The sampleable object to classify.
+        classifier: The classifier to use.
+        extractor: The extractor to use.
+        encoding_function: The encoding function to use.
+        categories: The categories to use.
+        exclude: The identifiers to exclude.
+        log: The logger to use.
+
+    Returns:
+        The classification result.
+    """
     if log is None:
         log = set_logging_level()
     if isinstance(sampleable, Dataset):
@@ -259,8 +272,24 @@ def k_fold_predict[F: Shaped](
     random_state: Optional[np.random.Generator | int] = None,
     sampling_function: SamplingFunction,
     balance_sample_weights: bool = True,
-    log: Optional[Logger],
+    log: Optional[loguru.Logger],
 ) -> DatasetClassificationResult:
+    """
+    Run k-fold cross-validation on a dataset.
+
+    Parameters:
+        dataset: The dataset to cross-validate.
+        extractor: The extractor to use.
+        classifier: The classifier to use.
+        k: The number of folds.
+        random_state: The random state to use.
+        sampling_function: The sampling function to use.
+        balance_sample_weights: Whether to balance sample weights.
+        log: The logger to use.
+
+    Returns:
+        The dataset classification result.
+    """
     random_state = np.random.default_rng(random_state)
     encoding_function = dataset.encode
     if type(classifier) is type:

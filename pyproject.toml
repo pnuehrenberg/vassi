@@ -20,12 +20,16 @@ dependencies = [
     "loguru",
     "optuna",
     "observation-library @ git+ssh://git@github.com/pnuehrenberg/observation-library.git",
+    "jupyterlab",
 ]
 requires-python = ">=3.12"
 
+[project.optional-dependencies]
+docs = ["sphinx", "sphinx-copybutton", "jupyter-sphinx", "nbsphinx", "shibuya"]
+
 [tool.pyright]
 venvPath = "/home/paul/miniforge3/envs"
-venv = "vuetify"
+venv = "automated-scoring"
 
 [tool.ruff]
 extend-exclude = ["*.ipynb"]

@@ -26,6 +26,15 @@ from .mixins import (
 
 
 class Group(NestedSampleableMixin, SampleableMixin):
+    """
+    A group is a collection of individuals (:class:`~automated_scoring.dataset.types.individual.Individual`) or
+    dyads (:class:`~automated_scoring.dataset.types.dyad.Dyad`), depending on the target.
+
+    Parameters:
+        trajectories: A mapping of individual identifiers to trajectories.
+        target: The target type of the dataset.
+    """
+
     def __init__(
         self,
         trajectories: Iterable[Trajectory] | Mapping[IndividualIdentifier, Trajectory],
@@ -81,6 +90,18 @@ class Group(NestedSampleableMixin, SampleableMixin):
         individuals: Sequence[IndividualIdentifier],
         subset_actors_only: bool,
     ) -> Self:
+        """
+        Create a new group as a subset of the original group.
+
+        Parameters:
+            group: The original group to create a subset from.
+            individuals: The individuals to include in the new group.
+            subset_actors_only: Only applicable when :code:`target="dyad"`. Whether to drop dyads with non-included individuals as actors or recipients, or only when they are actors.
+
+        Returns:
+            A new group containing only the specified individuals.
+        """
+
         def get_actor(
             identifier: IndividualIdentifier | DyadIdentifier,
         ) -> IndividualIdentifier:
@@ -139,6 +160,15 @@ class Group(NestedSampleableMixin, SampleableMixin):
             Literal["stop"],
         ]
     ):
+        """
+        Returns the required columns for annotations with the given target.
+
+        Parameters:
+            target: The target type for the annotations.
+
+        Returns:
+            The required columns for annotations.
+        """
         if target == "individual":
             return ("actor", "category", "start", "stop")
         elif target == "dyad":
@@ -148,6 +178,7 @@ class Group(NestedSampleableMixin, SampleableMixin):
 
     @property
     def individuals(self) -> tuple[IndividualIdentifier, ...]:
+        """Returns the identifiers of individuals in the group."""
         individuals = tuple(sorted(self.trajectories))
         return tuple(
             individual
@@ -161,6 +192,7 @@ class Group(NestedSampleableMixin, SampleableMixin):
     def potential_identifiers(
         self,
     ) -> tuple[IndividualIdentifier, ...] | tuple[DyadIdentifier, ...]:
+        """Returns the identifiers of individuals or all potential identifiers of dyads in the group (all combinations of individuals)."""
         individuals = tuple(sorted(self.trajectories))
         if self.target == "individual":
             return individuals
@@ -193,6 +225,17 @@ class Group(NestedSampleableMixin, SampleableMixin):
         categories: tuple[str, ...],
         background_category: str,
     ) -> "AnnotatedGroup":
+        """
+        Annotates the group with the given observations.
+
+        Parameters:
+            observations: The observations.
+            categories: Categories of the observations.
+            background_category: The background category of the observations.
+
+        Returns:
+            The annotated group.
+        """
         return AnnotatedGroup(
             self.trajectories,
             target=self.target,
@@ -248,6 +291,17 @@ class Group(NestedSampleableMixin, SampleableMixin):
 
 
 class AnnotatedGroup(Group, AnnotatedSampleableMixin):
+    """
+    Annotated group.
+
+    Parameters:
+        trajectories: Individual trajectories to be included in the group.
+        target: The target of the group.
+        observations: Observations for the group.
+        categories: Categories of the observations.
+        background_category: Background category of the observations.
+    """
+
     def __init__(
         self,
         trajectories: Iterable[Trajectory] | Mapping[IndividualIdentifier, Trajectory],
@@ -266,7 +320,7 @@ class AnnotatedGroup(Group, AnnotatedSampleableMixin):
         self._finalize_init(observations)
 
     @classmethod
-    def _empty_like(cls, group: Self) -> Self:
+    def _empty_like(cls, group: Group) -> Self:
         if not isinstance(group, cls):
             raise ValueError("group must be of type {}".format(cls.__name__))
         observations = pd.DataFrame(

@@ -14,6 +14,11 @@ Keypoints = Iterable[Keypoint]
 KeypointPairs = Iterable[KeypointPair]
 
 
+def to_scalars(values: Any) -> list:
+    # https://stackoverflow.com/questions/9452775/converting-numpy-dtypes-to-native-python-types
+    return getattr(values, "tolist", lambda: values)()
+
+
 def available_resources(*, ensure_parallel_inner: bool = True) -> tuple[int, int]:
     nesting_level = get_active_backend()[0].nesting_level  # type: ignore
     num_cpus = cpu_count()

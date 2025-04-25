@@ -5,8 +5,6 @@ from .visualization import plot_classification_timeline, plot_confusion_matrix
 __all__ = [
     "predict",
     "k_fold_predict",
-    # "optimize_smoothing",
-    # "optimize_decision_thresholds",
     "plot_classification_timeline",
     "plot_confusion_matrix",
 ]

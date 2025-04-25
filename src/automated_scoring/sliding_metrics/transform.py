@@ -6,7 +6,7 @@ from sklearn.base import BaseEstimator, TransformerMixin
 from sklearn.utils.validation import _check_feature_names_in, validate_data
 
 from ..logging import set_logging_level
-from ..utils import ArrayToArray, closest_odd_divisible, flatten
+from ..utils import ArrayToArray, closest_odd_divisible, flatten, to_scalars
 from .sliding_metrics import apply_multiple_to_sliding_windows
 
 
@@ -49,8 +49,8 @@ def get_window_slices(
     """
     if time_scales is None and durations is not None:
         if time_scale_quantiles is not None:
-            time_scales = (
-                np.quantile(durations, tuple(time_scale_quantiles)).astype(int).tolist()
+            time_scales = to_scalars(
+                np.quantile(durations, tuple(time_scale_quantiles))
             )
         else:
             raise ValueError("Specify time_scale_quantiles.")

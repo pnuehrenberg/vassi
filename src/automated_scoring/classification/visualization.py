@@ -36,6 +36,19 @@ def plot_confusion_matrix(
     category_labels: Optional[Sequence[str]] = None,
     show_colorbar: bool = True,
 ):
+    """
+    Plot a confusion matrix of one or more sets of predictions.
+
+    Parameters:
+        y_true: Ground truth (correct) target values.
+        y_pred: Estimated targets as returned by a classifier.
+        ax: Matplotlib Axes object to plot on. If None, a new figure and axes will be created.
+        figsize: Figure size in inches.
+        dpi: Dots per inch.
+        category_labels: List of category labels to use for the confusion matrix.
+        show_colorbar: Whether to show the colorbar.
+    """
+
     def format_count(count) -> str:
         if count > 100000:
             return f"{count:.1e}".replace("e+0", "e").replace("e+", "e")
@@ -128,6 +141,27 @@ def plot_classification_timeline(
     x_tick_conversion: Optional[Callable[[Sequence[float]], Sequence[str]]] = None,
     x_label: Optional[str] = None,
 ):
+    """
+    Plot a timeline of predictions and annotations.
+
+    Parameters:
+        predictions: Prediction data to visualize.
+        categories: Category names.
+        annotations: Annotation data to visualize.
+        timestamps: Corresponding timestamps for :code:`y_proba` and :code:`y_proba_smoothed`.
+        y_proba: Predicted probabilities.
+        y_proba_smoothed: Smoothed predicted probabilities.
+        axes: Matplotlib Axes objects to plot on, should be of length :code:`len(categories)`.
+        figsize: Figure size in inches.
+        dpi: Dots per inch.
+        category_labels: Category labels to use for the timeline.
+        interval: Start and end times for the timeline.
+        limit_interval: Whether to limit the interval to the data range.
+        x_tick_step: Step size for x-axis ticks.
+        x_tick_conversion: Function to convert x-axis ticks.
+        x_label: Label for the x-axis.
+    """
+
     def _plot_timeline(
         ax: Axes,
         observations: pd.DataFrame,

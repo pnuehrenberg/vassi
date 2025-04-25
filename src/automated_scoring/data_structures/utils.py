@@ -18,10 +18,13 @@ def validate_keys(
     """
     Validates that a set of keys conforms to a reference set, optionally allowing missing keys.
 
-    Args:
+    Parameters:
         keys: The set of keys to validate.
         keys_reference: The reference set of valid keys.
         allow_missing: Whether to allow missing keys.
+
+    Returns:
+        If the keys pass validation.
 
     Raises:
         KeyError: If any keys are undefined or if missing keys are not allowed.
@@ -45,8 +48,11 @@ def validated_length(*values: Value) -> int | None:
     """
     Returns the length of all iterable values if they are all the same length. Returns :code:`None` if all values are scalars.
 
-    Args:
+    Parameters:
         *values: An iterable of values to check the length of.
+
+    Returns:
+        The length of all iterable values if they are all the same length. Returns :code:`None` if all values are scalars.
 
     Raises:
         ValueError: If the values have unequal lengths or contain unsized iterables objects.
@@ -68,8 +74,11 @@ def validate_timestamps(timestamps: Value) -> bool:
     """
     Validates that a sequence of timestamps contains no duplicates. Always returns :code:`True` if the timestamps are valid, otherwise raises a :code:`ValueError`.
 
-    Args:
+    Parameters:
         timestamps: The timestamps to validate.
+
+    Return:
+        If the timestamps are valid.
 
     Raises:
         ValueError: If timestamps is a scalar.
@@ -90,9 +99,12 @@ def greatest_common_denominator(
     """
     Finds the greatest common denominator (GCD) of a list of numbers and optionally returns its inverse.
 
-    Args:
+    Parameters:
         values: The values to find the GCD of.
         return_inverse: Whether to return the inverse of the GCD.
+
+    Returns:
+        The GCD of the values, or its inverse if :code:`return_inverse=True`.
     """
     denominators = [Fraction(value).limit_denominator().denominator for value in values]
     common_denominator = reduce(lambda a, b: a * b // gcd(a, b), denominators)
@@ -113,10 +125,13 @@ def get_interval_slice(
     """
     Gets a slice object representing the indices of timestamps within a specified interval.
 
-    Args:
+    Parameters:
         timestamps: The timestamps to get the slice for.
         start: The start of the interval (inclusive).
         stop: The end of the interval (inclusive).
+
+    Returns:
+        A slice object representing the indices of timestamps within the interval.
     """
     interval_indices = np.argwhere((timestamps >= start) & (timestamps <= stop)).ravel()
     if interval_indices.size == 0:
@@ -131,7 +146,7 @@ def writeable(*arrays: np.ndarray) -> Generator:
 
     This context manager is useful when you need to modify the contents of a read-only array within a specific block of code. It ensures that the writeable flag is restored to its original state after the block, even if exceptions occur.
 
-    Args:
+    Parameters:
         arrays: The arrays to make writeable.
 
     Raises:

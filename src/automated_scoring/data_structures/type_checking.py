@@ -12,7 +12,7 @@ def is_str_iterable(
     """
     Checks if a value is an iterable of strings.
 
-    Args:
+    Parameters:
         value: The value to check.
     """
     if not isinstance(value, Iterable):
@@ -28,7 +28,7 @@ def is_slice_str(
     """
     Checks if a value is a tuple containing a slice and a string.
 
-    Args:
+    Parameters:
         value: The value to check.
     """
     if not isinstance(value, tuple):
@@ -44,7 +44,7 @@ def is_slice_str_iterable(
     """
     Checks if a value is a tuple containing a slice and an iterable of strings.
 
-    Args:
+    Parameters:
         value: The value to check.
     """
     if not isinstance(value, tuple):
@@ -60,7 +60,7 @@ def is_int_str(
     """
     Checks if a value is a tuple containing an integer and a string.
 
-    Args:
+    Parameters:
         value: The value to check.
     """
     if not isinstance(value, tuple):
@@ -80,7 +80,7 @@ def is_int_str_iterable(
     """
     Checks if a value is a tuple containing an integer and an iterable of strings.
 
-    Args:
+    Parameters:
         value: The value to check.
     """
     if not isinstance(value, tuple):
@@ -98,7 +98,7 @@ def is_value(value: Any) -> tuple[Literal[True], Value] | tuple[Literal[False], 
     """
     Checks if a given value is an instance of the :code:`Value` type union.
 
-    Args:
+    Parameters:
         value: The value to check.
     """
     if isinstance(value, Value):
@@ -112,7 +112,7 @@ def is_value_iterable(
     """
     Checks if a value is iterable and contains only valid values (instances of :code:`Value`).
 
-    Args:
+    Parameters:
         value: The value to check.
     """
     if not isinstance(value, Iterable):

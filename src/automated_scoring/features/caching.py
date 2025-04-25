@@ -1,3 +1,4 @@
+import functools
 import os
 from typing import TYPE_CHECKING, Callable
 
@@ -14,7 +15,7 @@ def hash_args(*args, **kwargs) -> str:
     Helper function to hash the arguments of a function.
     The first argument should be a :class:`~automated_scoring.features.feature_extractor.BaseExtractor` instance.
 
-    Args:
+    Parameters:
         *args: The positional arguments.
         **kwargs: The keyword arguments.
 
@@ -43,11 +44,9 @@ def hash_args(*args, **kwargs) -> str:
 def cache[**P, T](func: Callable[P, T]) -> Callable[P, T]:
     """
     Decorator to cache the result of a method implemented by :class:`~automated_scoring.features.feature_extractor.BaseExtractor`.
-
-    Args:
-        func: The method to cache.
     """
 
+    @functools.wraps(func)
     def _cache(*args: P.args, **kwargs: P.kwargs) -> T:
         extractor = args[0]
         if TYPE_CHECKING:

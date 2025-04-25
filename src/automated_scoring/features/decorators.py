@@ -25,8 +25,11 @@ def get_inner(func: Feature | functools.partial) -> Feature:
     """
     Return the innermost feature function.
 
-    Args:
+    Parameters:
         func: The feature function to get the innermost function from.
+
+    Returns:
+        The innermost feature function.
     """
     if not isinstance(func, functools.partial):
         return func
@@ -39,8 +42,11 @@ def get_prefix(func: Feature | functools.partial) -> str:
 
     Prefixes are obtained from the global :code:`PREFIXES` dictionary. If a decorator is not found in the dictionary, an empty string is returned.
 
-    Args:
+    Parameters:
         func: The feature function to get the prefix from.
+
+    Returns:
+        The prefix of the feature function.
     """
     global PREFIXES
     if not isinstance(func, functools.partial):
@@ -62,9 +68,6 @@ def _as_absolute(*args, func: Feature, **kwargs) -> np.ndarray:
 def as_absolute(func: Feature) -> Feature:
     """
     Decorator to convert a feature function to an absolute value feature function.
-
-    Args:
-        func: The feature function to convert to an absolute value feature function.
     """
     result_func = functools.partial(_as_absolute, func=func)
     decorated = functools.wraps(func)(result_func)
@@ -78,9 +81,6 @@ def _as_sign_change_latency(*args, func: Feature, **kwargs) -> np.ndarray:
 def as_sign_change_latency(func: Feature) -> Feature:
     """
     Decorator to convert a feature function to a sign change latency feature function.
-
-    Args:
-        func: The feature function to convert to a sign change latency feature function.
     """
     result_func = functools.partial(_as_sign_change_latency, func=func)
     decorated = functools.wraps(func)(result_func)
@@ -117,10 +117,10 @@ def as_dataframe(
     """
     Decorator to convert a feature function to a dataframe feature function.
 
-    Args:
+    Parameters:
         func: The feature function to convert to a dataframe feature function.
-        keep: Iterable of feature names to keep.
-        discard: Iterable of feature names to discard.
+        keep: Iterable of feature names (or patterns within names) to keep regardless of :code:`discard`.
+        discard: Iterable of feature names (or patterns within names) to discard.
     """
     result_func = functools.partial(
         _as_dataframe, func=func, keep=keep, discard=discard

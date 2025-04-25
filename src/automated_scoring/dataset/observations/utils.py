@@ -9,6 +9,8 @@ from ..utils import interval_contained, interval_overlap
 
 
 def with_duration[**P](func: Callable[P, pd.DataFrame]) -> Callable[P, pd.DataFrame]:
+    """Decorator to add a 'duration' column to the output of a function that returns a DataFrame."""
+
     @functools.wraps(func)
     def _with_duration(*args: P.args, **kwargs: P.kwargs) -> pd.DataFrame:
         observations = func(*args, **kwargs).copy()  # may be a slice etc.
@@ -29,6 +31,17 @@ def ensure_single_index(
     index_columns: tuple[str, ...],
     drop: bool = True,
 ) -> pd.DataFrame:
+    """
+    Ensure that the observations DataFrame has a single index key combination.
+
+    Parameters:
+        observations: The observations to validate.
+        index_columns: The columns to use as the index.
+        drop: Whether to drop the index columns from the DataFrame.
+
+    Returns:
+        The validated observations.
+    """
     if len(index_columns) == 0:
         return observations
     observations = observations.set_index(list(index_columns))
@@ -50,6 +63,18 @@ def to_y(
     stop: Optional[int] = None,
     dtype: type = str,
 ) -> np.ndarray:
+    """
+    Convert observations to a 1D array of category labels.
+
+    Parameters:
+        observations: Observations, requires columns "start", "stop", and "category".
+        start: Start timestamp.
+        stop: Stop timestamp.
+        dtype: Data type of the output array.
+
+    Returns:
+        A 1D array of category labels.
+    """
     observations = check_observations(
         observations,
         required_columns=("start", "stop", "category"),
@@ -79,6 +104,18 @@ def to_observations(
     drop: Optional[Iterable[str]] = None,
     timestamps: Optional[np.ndarray] = None,
 ) -> pd.DataFrame:
+    """
+    Convert a 1D array of category labels to a DataFrame of observations.
+
+    Parameters:
+        y: A 1D array of category labels.
+        category_names: Category names.
+        drop: Categories that should be dropped from the resulting observations.
+        timestamps : Timestamps that correspond to the category labels. If not provided, timestamps are starting from 0.
+
+    Returns:
+        Observations with columns "start", "stop", and "category".
+    """
     if not y.ndim == 1:
         raise ValueError("y should be a 1D array of category labels (int).")
     change_idx = np.argwhere((np.diff(y) != 0)).ravel()
@@ -102,7 +139,20 @@ def to_observations(
 def infill_observations(
     observations: pd.DataFrame,
     observation_stop: Optional[int] = None,
+    *,
+    background_category: str = "none",
 ) -> pd.DataFrame:
+    """
+    Infill observations with intervals of the background category.
+
+    Parameters:
+        observations: The observations to infill.
+        observation_stop: The stop time of the observations. If none, the maximum stop time of the observations is used.
+        background_category: The category to use for the background intervals.
+
+    Returns:
+        The infilled observations.
+    """
     observations = check_observations(
         observations, required_columns=["category", "start", "stop"]
     )
@@ -110,7 +160,15 @@ def infill_observations(
         observation_stop = np.max(observations["stop"])
     if len(observations) == 0:
         return pd.DataFrame(
-            [pd.Series({"category": "none", "start": 0, "stop": observation_stop})]
+            [
+                pd.Series(
+                    {
+                        "category": background_category,
+                        "start": 0,
+                        "stop": observation_stop,
+                    }
+                )
+            ]
         )
     insert_idx = (
         np.asarray(observations["start"][1:]) - np.asarray(observations["stop"][:-1])
@@ -118,14 +176,22 @@ def infill_observations(
     )
     padding: list[pd.Series] = []
     if (start := observations["start"].min()) != 0:
-        padding.append(pd.Series({"category": "none", "start": 0, "stop": start - 1}))
+        padding.append(
+            pd.Series({"category": background_category, "start": 0, "stop": start - 1})
+        )
     if (stop := observations["stop"].max()) != observation_stop:
         padding.append(
-            pd.Series({"category": "none", "start": stop + 1, "stop": observation_stop})
+            pd.Series(
+                {
+                    "category": background_category,
+                    "start": stop + 1,
+                    "stop": observation_stop,
+                }
+            )
         )
     observations_fill = pd.DataFrame(
         {
-            "category": ["none"] * insert_idx.sum(),
+            "category": [background_category] * insert_idx.sum(),
             "start": np.asarray(observations[:-1].loc[insert_idx, "stop"] + 1),
             "stop": np.asarray(observations[1:].loc[insert_idx, "start"] - 1),
         }
@@ -149,6 +215,23 @@ def check_observations(
     allow_overlapping: bool = False,
     allow_unsorted: bool = False,
 ) -> pd.DataFrame:
+    """
+    Checks that the observations are valid.
+
+    Args:
+        observations: The observations to check.
+        required_columns: The columns that are required in the observations.
+        allow_overlapping: Whether overlapping intervals are allowed.
+        allow_unsorted: Whether unsorted intervals are allowed.
+
+    Returns:
+        The checked observations.
+
+    Raises:
+        ValueError: If the observations are missing required columns.
+        ValueError: If the observations are not sorted by 'start'.
+        ValueError: If the observations are overlapping.
+    """
     missing_columns = [
         column for column in required_columns if column not in observations.columns
     ]
@@ -178,6 +261,17 @@ def ensure_matching_index_columns(
     reference_observations: pd.DataFrame,
     index_columns: tuple[str, ...],
 ) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """
+    Validates if two sets of observations have matching index columns.
+
+    Parameters:
+        observations: The first set of observations.
+        reference_observations: The second set of observations.
+        index_columns: The columns to use as index.
+
+    Returns:
+        The validated observations.
+    """
     return (
         ensure_single_index(observations, index_columns=index_columns),
         ensure_single_index(reference_observations, index_columns=index_columns),
@@ -194,6 +288,20 @@ def remove_overlapping_observations(
     drop_overlapping: bool = True,
     drop_overlapping_column: bool = True,
 ) -> pd.DataFrame:
+    """
+    Removes overlapping observations.
+
+    Parameters:
+        observations: The set of observations.
+        index_columns: The columns to use as index.
+        priority_function: A function that assigns a priority to each observation, lower values indicate higher priority.
+        max_allowed_overlap: The maximum allowed overlap between observations.
+        drop_overlapping: Whether to drop overlapping observations.
+        drop_overlapping_column: Whether to drop the overlapping column.
+
+    Returns:
+        Non-overlapping observations.
+    """
     observations = ensure_single_index(observations, index_columns=index_columns)
     observations = check_observations(
         observations,

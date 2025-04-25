@@ -26,9 +26,9 @@ FeatureCategory = Literal["individual", "dyadic"]
 
 def load_feature_func(func_name: str) -> utils.Feature:
     """
-    Helper function to get a feature function (from :module:`~automated_scoring.features.features`) from its name.
+    Helper function to get a feature function (from :mod:`~automated_scoring.features.features`) from its name.
 
-    Args:
+    Parameters:
         func_name: The name of the feature function.
 
     Returns:
@@ -61,14 +61,17 @@ class BaseExtractor[F: Shaped](ABC):
     The base class for feature extractors.
 
     Allows the following keyword arguments in feature functions:
-        - as_absolute: Whether to return the absolute value of the feature.
-        - as_sign_change_latency: Whether to return the latency of sign changes in the feature.
-        - reversed_dyad: Whether to reverse the order of the dyad for feature computation.
+    - as_absolute: Whether to return the absolute value of the feature.
+    - as_sign_change_latency: Whether to return the latency of sign changes in the feature.
+    - reversed_dyad: Whether to reverse the order of the dyad for feature computation.
 
-    Args:
+    Parameters:
         features: The features to extract.
         dyadic_features: The dyadic features to extract.
+        cache_mode: Whether to use caching or to allow only precomputed features.
         cache_directory: The directory to use for caching.
+        pipeline: The pipeline to use for further feature transformation.
+        refit_pipeline: Whether to refit the pipeline for each extraction call.
     """
 
     allowed_additional_kwargs: tuple[str, ...] = (
@@ -136,10 +139,13 @@ class BaseExtractor[F: Shaped](ABC):
         """
         Adjust a feature function to be either absolute or sign change latency.
 
-        Args:
+        Parameters:
             function: The feature function to adjust.
             as_absolute: Whether to adjust the feature function to be absolute.
             as_sign_change_latency: Whether to adjust the feature function to be sign change latency.
+
+        Returns:
+            The adjusted feature function.
 
         Raises:
             ValueError: If both :code:`as_absolute=True` and :code:`as_sign_change_latency=True`.
@@ -247,7 +253,7 @@ class BaseExtractor[F: Shaped](ABC):
         """
         Save the extractor configuration to a yaml file.
 
-        Args:
+        Parameters:
             features_config_file: The path to the yaml file to save the configuration to.
         """
         to_yaml(self.config, file_name=features_config_file)
@@ -256,7 +262,7 @@ class BaseExtractor[F: Shaped](ABC):
         """
         Load the extractor configuration from a yaml file.
 
-        Args:
+        Parameters:
             features_config_file: The path to the yaml file to load the configuration from.
         """
         self.load(from_yaml(features_config_file))
@@ -269,8 +275,11 @@ class BaseExtractor[F: Shaped](ABC):
         """
         Load the extractor configuration from a dictionary.
 
-        Args:
+        Parameters:
             features_config: The configuration to load.
+
+        Returns:
+            The feature extractor after loading the configuration.
         """
 
         def ensure_flat(kwargs: Mapping[str, Any]) -> dict[str, Any]:
@@ -294,7 +303,9 @@ class BaseExtractor[F: Shaped](ABC):
 
     @classmethod
     @abstractmethod
-    def empty(cls) -> F: ...
+    def empty(cls) -> F:
+        """Returns an empty feature object, type depending on the implementation in the subclass."""
+        ...
 
     def extract_features(
         self,
@@ -302,15 +313,18 @@ class BaseExtractor[F: Shaped](ABC):
         trajectory_other: Optional[Trajectory] = None,
         *,
         category: FeatureCategory,
-    ) -> Any:
+    ) -> F:
         """
         Extract features of one category (:code:`'individual'` or :code:`'dyadic'`) from a trajectory.
         If the category is :code:`'dyadic'`, the :code:`trajectory_other` argument must be provided.
 
-        Args:
+        Parameters:
             trajectory: The trajectory to extract features from.
-            trajectory_other: The other trajectory in a dyad, by default None.
+            trajectory_other: A second trajectory, used for dyadic features.
             category: The category of the features to extract.
+
+        Returns:
+            The extracted features.
         """
 
         def prepare_args(
@@ -370,12 +384,9 @@ class BaseExtractor[F: Shaped](ABC):
 
         If the trajectory_other argument is None and dyadic features are specified, a warning is raised.
 
-        Parameters
-        ----------
-        trajectory : Trajectory
-            The trajectory to extract features from.
-        trajectory_other : Trajectory, optional
-            The other trajectory in a dyad, by default None.
+        Parameters:
+            trajectory: The trajectory to extract features from.
+            trajectory_other: The other trajectory in a dyad when extracting dyadic features.
 
         Returns
         -------
@@ -413,24 +424,19 @@ class BaseExtractor[F: Shaped](ABC):
 
 class FeatureExtractor(BaseExtractor[np.ndarray]):
     """
-    A subclass to extract features as numpy arrays.
+    A subclass to extract features as numpy arrays (:class:`~numpy.ndarray`).
     """
 
     @classmethod
     def concatenate(cls, *args: np.ndarray, axis: int = 1, **kwargs: Any) -> np.ndarray:
         """
-        Concatenate the computed features as a numpy array.
+        Concatenate the computed features.
 
-        Parameters
-        ----------
-        *args : np.ndarray
-            The computed features.
-        axis : int, optional
-            The axis to concatenate along, by default 1.
+        Parameters:
+            *args: The computed features.
+            axis: The axis to concatenate along.
 
-        Returns
-        -------
-        np.ndarray
+        Returns:
             The concatenated features.
         """
 
@@ -451,6 +457,7 @@ class FeatureExtractor(BaseExtractor[np.ndarray]):
 
     @classmethod
     def empty(cls) -> np.ndarray:
+        """Returns an empty :code:`~numpy.ndarray`."""
         return np.array([])
 
     if TYPE_CHECKING:
@@ -470,10 +477,10 @@ class FeatureExtractor(BaseExtractor[np.ndarray]):
 
 class DataFrameFeatureExtractor(BaseExtractor[pd.DataFrame]):
     """
-    A subclass to extract features as pandas DataFrames.
+    A subclass to extract features as pandas DataFrames (:class:`~pandas.DataFrame`).
 
-    Extends the additional keyword arguments that can be passed to the feature functions.
-    For the DataFrameFeatureExtractor class, this is ("as_absolute", "as_sign_change_latency", "keep", "discard").
+    Extends the additional keyword arguments that can be passed to the feature functions
+    to :code:`("as_absolute", "as_sign_change_latency", "keep", "discard")`.
     """
 
     allowed_additional_kwargs: tuple[str, ...] = (
@@ -496,23 +503,14 @@ class DataFrameFeatureExtractor(BaseExtractor[pd.DataFrame]):
         """
         Adjust a feature function to be a dataframe feature.
 
-        Parameters
-        ----------
-        function : utils.Feature
-            The feature function to adjust.
-        as_absolute : bool, optional
-            Whether to adjust the feature function to be absolute.
-        as_sign_change_latency : bool, optional
-            Whether to adjust the feature function to be sign change latency.
-        keep : list[str] | str | None, optional
-            Substring(s) in the feature names to keep, by default None.
-            This can be used to keep feautres that would otherwise be discarded
-        discard : list[str] | str | None, optional
-            Substring(s) in the feature names to discard, by default None.
+        Parameters:
+            function: The feature function to adjust.
+            as_absolute: Whether to adjust the feature function to be absolute.
+            as_sign_change_latency: Whether to adjust the feature function to be sign change latency.
+            keep: Patterns in the feature names to keep. This can be used to keep features that would otherwise be discarded.
+            discard: Patterns in the feature names to discard.
 
-        Returns
-        -------
-        utils.DataFrameFeature
+        Returns:
             The adjusted feature function.
         """
         return decorators.as_dataframe(
@@ -528,16 +526,11 @@ class DataFrameFeatureExtractor(BaseExtractor[pd.DataFrame]):
         """
         Concatenate the computed features as a pandas DataFrame.
 
-        Parameters
-        ----------
-        *args : pd.DataFrame
-            The computed features.
-        axis : int, optional
-            The axis to concatenate along, by default 1.
+        Parameters:
+            *args: The computed features.
+            axis: The axis to concatenate along.
 
-        Returns
-        -------
-        pd.DataFrame
+        Returns:
             The concatenated features.
         """
         ignore_index = False
@@ -553,6 +546,7 @@ class DataFrameFeatureExtractor(BaseExtractor[pd.DataFrame]):
 
     @classmethod
     def empty(cls) -> pd.DataFrame:
+        """Returns an empty :class:`~pandas.DataFrame`."""
         return pd.DataFrame()
 
     if TYPE_CHECKING:

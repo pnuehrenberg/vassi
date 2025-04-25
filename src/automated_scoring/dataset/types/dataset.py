@@ -2,6 +2,7 @@ from collections.abc import Generator, Mapping, Sequence
 from typing import (
     TYPE_CHECKING,
     Literal,
+    Optional,
     Self,
     overload,
 )
@@ -26,6 +27,16 @@ def include(
     individual: SubjectIdentifier,
     exclude: Sequence[GroupIdentifier | IndividualIdentifier | SubjectIdentifier],
 ) -> bool:
+    """
+    Check if an individual (i.e., subject, individual of a group in a dataset) should be included.
+
+    Parameters:
+        individual: The individual to check.
+        exclude: A sequence of identifiers to exclude.
+
+    Returns:
+        If the individual should be included.
+    """
     exclude = list(exclude)
     if individual in exclude:
         return False
@@ -37,6 +48,16 @@ def include(
 
 
 class Dataset(NestedSampleableMixin, SampleableMixin):
+    """
+    A dataset is a collection of groups (:class:`~automated_scoring.dataset.types.group.Group`),
+    each of which is a collection of individuals (:class:`~automated_scoring.dataset.types.individual.Individual`) or
+    dyads (:class:`~automated_scoring.dataset.types.dyad.Dyad`).
+
+    Parameters:
+        groups: A mapping of group identifiers to groups.
+        target: The target type of the dataset.
+    """
+
     def __init__(
         self,
         groups: Mapping[GroupIdentifier, Group],
@@ -78,7 +99,7 @@ class Dataset(NestedSampleableMixin, SampleableMixin):
 
     @classmethod
     def REQUIRED_COLUMNS(
-        cls, target=None
+        cls, target: Optional[Literal["individual", "dyad"]] = None
     ) -> (
         tuple[
             Literal["group"],
@@ -96,6 +117,15 @@ class Dataset(NestedSampleableMixin, SampleableMixin):
             Literal["stop"],
         ]
     ):
+        """
+        Returns the required columns for annotations with the given target.
+
+        Parameters:
+            target: The target type for the annotations.
+
+        Returns:
+            The required columns for annotations.
+        """
         if target == "individual":
             return ("group", "actor", "category", "start", "stop")
         elif target == "dyad":
@@ -112,6 +142,7 @@ class Dataset(NestedSampleableMixin, SampleableMixin):
 
     @property
     def individuals(self) -> tuple[SubjectIdentifier, ...]:
+        """Returns a tuple of all subjects (individuals in groups) in the dataset."""
         individuals: list[SubjectIdentifier] = []
         for identifier, group in self:
             individuals.extend(
@@ -134,6 +165,17 @@ class Dataset(NestedSampleableMixin, SampleableMixin):
         categories: tuple[str, ...],
         background_category: str,
     ) -> "AnnotatedDataset":
+        """
+        Annotates the dataset with the given observations.
+
+        Parameters:
+            observations: The observations.
+            categories: Categories of the observations.
+            background_category: The background category of the observations.
+
+        Returns:
+            The annotated dataset.
+        """
         groups: dict[GroupIdentifier, Group] = {}
         for identifier, group in self:
             groups[identifier] = group
@@ -186,6 +228,15 @@ class Dataset(NestedSampleableMixin, SampleableMixin):
         cls,
         groups: Mapping[GroupIdentifier, Group],
     ) -> Self:
+        """
+        Create a new dataset from a groups.
+
+        Args:
+            groups: The groups to include in the dataset.
+
+        Returns:
+            The dataset.
+        """
         if len(groups) < 1:
             raise ValueError("groups must contain at least one group")
         new = cls._empty_like(list(groups.values())[0])
@@ -236,6 +287,16 @@ class Dataset(NestedSampleableMixin, SampleableMixin):
         *,
         subset_actors_only: bool = True,
     ) -> Self:
+        """
+        Exclude individuals from the dataset.
+
+        Args:
+            individuals: The individuals to exclude.
+            subset_actors_only: Whether to exclude only actors if :code:`target="dyad"`. This drops all dyads involving the excluded individuals as actors. Otherwise, all dyads that involve excluded individuals (as either actor or recipient) are dropped.
+
+        Returns:
+            The dataset with the excluded individuals.
+        """
         individuals_selected = tuple(
             individual
             for individual in self.individuals
@@ -257,6 +318,20 @@ class Dataset(NestedSampleableMixin, SampleableMixin):
         random_state: int | None | np.random.Generator,
         subset_actors_only: bool = True,
     ) -> tuple[Self, Self]:
+        """
+        Split the dataset into two subsets.
+
+        Args:
+            size: The size of the first subset. If float, it should be within (0.0, 1.0) interval (exclusive).
+            random_state: The random state for reproducibility.
+            subset_actors_only: Whether to only include actors in the split.
+
+        Returns:
+            A tuple of two subsets.
+
+        See also:
+            :meth:`exclude_individuals` for more details on the :code:`subset_actors_only` parameter.
+        """
         random_state = np.random.default_rng(random_state)
         if isinstance(size, float) and (size < 0 or size > 1):
             raise ValueError(
@@ -302,6 +377,20 @@ class Dataset(NestedSampleableMixin, SampleableMixin):
         random_state: int | None | np.random.Generator,
         subset_actors_only: bool = True,
     ) -> Generator[tuple[Self, Self], None, None]:
+        """
+        Yields a generator of k-fold splits.
+
+        Args:
+            k: The number of folds.
+            random_state: The random state to use for splitting.
+            subset_actors_only: Whether to only include actors in the split.
+
+        Yields:
+            A generator of k-fold splits.
+
+        See also:
+            :meth:`exclude_individuals` for more details on the :code:`subset_actors_only` parameter.
+        """
         random_state = np.random.default_rng(random_state)
         individuals = self.individuals
         try:
@@ -327,6 +416,18 @@ class Dataset(NestedSampleableMixin, SampleableMixin):
 
 
 class AnnotatedDataset(Dataset, AnnotatedSampleableMixin):
+    """
+    Annotated dataset.
+
+    Parameters:
+        groups: The groups of individuals in the dataset.
+        target: The target of the dataset.
+        observations: The observations of the dataset.
+        categories: The categories of the dataset.
+        background_category: The background category of the dataset.
+
+    """
+
     def __init__(
         self,
         groups: Mapping[GroupIdentifier, Group],

@@ -255,7 +255,7 @@ def assign_identities(
         ).ravel()
         for idx in unassigned_idx:
             with current_instances.validate(False):
-                current_instances[idx, key_identity] = np.asarray(
+                current_instances[int(idx), key_identity] = np.asarray(
                     next_identity, dtype=dtype
                 )
         assert (current_instances[key_identity] != unassigned).all()

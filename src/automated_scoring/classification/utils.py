@@ -1,8 +1,9 @@
 from __future__ import annotations
 
 from collections.abc import Iterable
-from typing import TYPE_CHECKING, Any, Callable, Literal, Optional, Protocol, Self
+from typing import Any, Callable, Literal, Optional, Protocol, Self
 
+import loguru
 import numpy as np
 import pandas as pd
 
@@ -21,11 +22,16 @@ from ..dataset.observations.utils import (
 from ..dataset.utils import interval_contained, interval_overlap
 from ..utils import to_int_seed
 
-if TYPE_CHECKING:
-    from loguru import Logger
-
 
 class Classifier(Protocol):
+    """Protocol for classifiers.
+
+    This protocol defines the methods that a classifier should implement.
+
+    See also:
+        :class:`~sklearn.base.ClassifierMixin`:
+    """
+
     def predict(self, *args, **kwargs) -> np.ndarray: ...
 
     def predict_proba(self, *args, **kwargs) -> np.ndarray: ...
@@ -38,6 +44,13 @@ class Classifier(Protocol):
 def init_new_classifier(
     classifier: Classifier, random_state: Optional[np.random.Generator | int]
 ) -> Classifier:
+    """
+    Initialize a new classifier with the same parameters as the given classifier.
+
+    Parameters:
+        classifier: The classifier to copy the parameters from.
+        random_state: The random state to use for the new classifier.
+    """
     random_state = np.random.default_rng(random_state)
     params = classifier.get_params()
     params["random_state"] = to_int_seed(random_state)
@@ -50,8 +63,18 @@ def fit_classifier(
     y: np.ndarray,
     *,
     sample_weight: Optional[np.ndarray] = None,
-    log: Optional[Logger] = None,
+    log: Optional[loguru.Logger] = None,
 ):
+    """
+    Fit the given classifier to the given data.
+
+    Parameters:
+        classifier: The classifier to fit.
+        X: The feature matrix.
+        y: The target vector.
+        sample_weight: The sample weights.
+        log: The logger to use.
+    """
     if sample_weight is None:
         return classifier.fit(X, y)
     return classifier.fit(X, y, sample_weight=sample_weight)
@@ -63,6 +86,15 @@ def to_predictions(
     category_names: Iterable[str],
     timestamps: np.ndarray,
 ) -> pd.DataFrame:
+    """
+    Convert the given predictions to a DataFrame.
+
+    Parameters:
+        y: The target vector.
+        y_proba: The predicted probabilities.
+        category_names: The category names.
+        timestamps: The timestamps.
+    """
     predictions = to_observations(y, category_names, timestamps=timestamps)
     y_max_proba = y_proba.max(axis=1)
     mean_probability = []
@@ -83,6 +115,23 @@ def validate_predictions(
     on: Literal["predictions", "annotations"] = "predictions",
     key_columns: Iterable[str] = ("group", "actor", "recipient"),
 ):
+    """
+    Validate the predictions or annotations.
+
+    This calculates the mean and maximum probabilities for each predicted interval
+    and retrieves the corresponding ground truth category as the category of
+    the annotated interval with the highest overlap (:code:`on="predictions"`),
+    or correspondingly, the category of the predicted interval with the highest overlap (:code:`on="annotations"`).
+
+    Parameters:
+        predictions: The predictions.
+        annotations: The annotations.
+        on: The type of data to validate.
+        key_columns: The key columns.
+
+    Returns:
+        The validated predictions or annotations.
+    """
     available_index_columns = []
     for column_name in key_columns:
         if column_name not in predictions:
@@ -128,21 +177,6 @@ def validate_predictions(
         raise ValueError(
             f"invalid 'on' argument {on}. specify either 'predictions' or 'annotations'"
         )
-
-
-def score_category_counts(
-    annotations: pd.DataFrame, predictions: pd.DataFrame, categories: Iterable[str]
-) -> np.ndarray:
-    categories = tuple(categories)
-    counts_annotated = np.asarray(
-        [(annotations["category"] == category).sum() for category in categories]
-    )
-    counts_predicted = np.asarray(
-        [(predictions["category"] == category).sum() for category in categories]
-    )
-    return np.minimum(counts_annotated, counts_predicted) / np.maximum(
-        counts_annotated, counts_predicted
-    )
 
 
 def _filter_recipient_bouts(

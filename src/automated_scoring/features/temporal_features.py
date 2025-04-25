@@ -21,7 +21,20 @@ def translation(
     flat: bool = False,
     suffixes: tuple[str, ...] = ("x", "y"),
 ) -> np.ndarray:
-    """2D translation of trajectory keypoints from t - step to t."""
+    """
+    Retrieve 2D translation vectors of trajectory keypoints from :code:`t - step` to :code:`t`.
+
+    Parameters:
+        trajectory: The trajectory to retrieve the translation vectors from.
+        step: The number of steps to shift the trajectory.
+        pad_value: The value to pad the translation vectors with.
+        keypoints: The keypoint indices to retrieve the translation vectors for.
+        flat: Whether to flatten the output along all but the first dimension.
+        suffixes: The suffixes to use for the output when decorated with :func:`~automated_scoring.features.decorators.as_dataframe`.
+
+    Returns:
+        The translation vectors of the trajectory keypoints.
+    """
     points = features.keypoints(trajectory, keypoints=keypoints)
     translation = points - math.shift(points, step)
     translation = pad_values(translation, step, pad_value)
@@ -39,10 +52,22 @@ def velocity(
     flat: bool = False,
     suffixes: tuple[str, ...] = ("x", "y"),
 ) -> np.ndarray:
-    """2D velocity of trajectory keypoints (translation / step duration).
+    """
+    Calculate the 2D velocity of trajectory keypoints (:code:`translation / step`).
 
     Note that this not calculating the cumulative distance between all instances during the step,
-    but the translation between the instance at t - step to the instance at step.
+    but the translation between the instance at :code:`t - step` to the instance at :code:`t`.
+
+    Parameters:
+        trajectory: The trajectory to calculate the velocity for.
+        step: The number of timesteps to use for the velocity calculation.
+        pad_value: The value to use for padding the output.
+        keypoints: The keypoint indices to use for the velocity calculation.
+        flat: Whether to flatten the output along all but the first dimension.
+        suffixes: The suffixes to use for the output when decorated with :func:`~automated_scoring.features.decorators.as_dataframe`.
+
+    Returns:
+        The velocity vectors of the trajectory keypoints.
     """
     duration = trajectory.timestep * np.abs(step)
     velocity = translation(trajectory, step=step, keypoints=keypoints) / duration
@@ -60,7 +85,20 @@ def speed(
     keypoints: Keypoints,
     flat: bool = False,
 ) -> np.ndarray:
-    """Speed of trajectory keypoints (magnitude of velocity)."""
+    """
+    Speed of trajectory keypoints, calculated as magnitude of velocity.
+
+    Parameters:
+        trajectory: The trajectory to calculate the speed for.
+        step: The step size to use for the velocity calculation.
+        pad_value: The value to use for padding the output.
+        keypoints: The keypoint indices to use for the velocity calculation.
+        flat: Whether to flatten the output along all but the first dimension.
+        suffixes: The suffixes to use for the output when decorated with :func:`~automated_scoring.features.decorators.as_dataframe`.
+
+    Returns:
+        The speed of the trajectory keypoints.
+    """
     speed = math.magnitude(velocity(trajectory, step=step, keypoints=keypoints))
     speed = pad_values(speed, step, pad_value)
     if flat:
@@ -76,7 +114,19 @@ def orientation_change(
     keypoint_pairs: KeypointPairs,
     flat: bool = False,
 ) -> np.ndarray:
-    """Signed angles between posture vectors of instance at t - step and instance at t."""
+    """
+    Compute signed angles between posture vectors of instance at :code:`t - step` and instance at :code:`t`.
+
+    Parameters:
+        trajectory: The trajectory to compute the orientation change for.
+        step: The number of steps to shift the trajectory by.
+        pad_value: The value to pad the output with.
+        keypoint_pairs: The keypoint indices to use for the orientation change calculation.
+        flat: Whether to flatten the output along all but the first dimension.
+
+    Returns:
+        The orientation change between the two instances.
+    """
     orientation_vectors = features.posture_vectors(
         trajectory, keypoint_pairs=keypoint_pairs
     )
@@ -98,7 +148,19 @@ def angular_speed(
     keypoint_pairs: KeypointPairs,
     flat: bool = False,
 ) -> np.ndarray:
-    """Angular speed of posture segments (orientation change / step duration)."""
+    """
+    Angular speed of posture segments (:code:`orientation change / step`).
+
+    Parameters:
+        trajectory: The trajectory to calculate the angular speed for.
+        step: The number of steps to shift the trajectory by.
+        pad_value: The value to pad the output with.
+        keypoint_pairs: The keypoint indices to use for posture segments and orientation change calculation.
+        flat: Whether to flatten the output along all but the first dimension.
+
+    Returns:
+        The angular speed of posture segments.
+    """
     duration = trajectory.timestep * np.abs(step)
     angular_speed = (
         orientation_change(trajectory, step=step, keypoint_pairs=keypoint_pairs)
@@ -121,7 +183,22 @@ def projected_velocity(
     flat: bool = False,
     suffixes: tuple[str, ...] = ("proj", "rej"),
 ) -> np.ndarray:
-    """Keypoint velocity projected onto posture vectors (keypoint_pairs_2) at t - step."""
+    """
+    Keypoint velocity projected onto posture vectors at :code:`t - step`.
+
+    Parameters:
+        trajectory: The trajectory to calculate the velocity for.
+        step: The number of steps to shift the trajectory by.
+        pad_value: The value to pad the output with.
+        keypoints_1: The keypoints to calculate the velocity for.
+        keypoint_pairs_2: The keypoint pairs to specify posture vectors.
+        element_wise: Whether to perform the operation element-wise.
+        flat: Whether to flatten the output along all but the first dimension.
+        suffixes: The suffixes to use for the output when decorated with :func:`~automated_scoring.features.decorators.as_dataframe`.
+
+    Returns:
+        The projected velocity and (projection and rejection components).
+    """
     velocity_vectors = velocity(trajectory, step=step, keypoints=keypoints_1)
     posture_vectors = features.posture_vectors(
         trajectory,
@@ -163,10 +240,26 @@ def target_velocity(
     flat: bool = False,
     suffixes: tuple[str, ...] = ("proj", "rej"),
 ) -> np.ndarray:
-    """Keypoint velocity projected onto target vectors between origin and target keypoints (keypoint_pairs_2).
+    """
+    Keypoint velocity projected onto target vectors between origin and target keypoints (:code:`keypoint_pairs_2`).
 
-    Note the default values origin_on_other=False and target_on_other=True.
-    By default, the origin keypoint of target vectors is on trajectory, and the target keypoint on trajectory_other.
+    Origin and target keypoints can be on either :code:`trajectory` or :code:`trajectory_other`.
+
+    Parameters:
+        trajectory: The trajectory to calculate the target velocity for.
+        step: The number of steps to shift the trajectory by.
+        pad_value: The value to pad the trajectory with.
+        trajectory_other: The other trajectory for the target keypoints, if :code:`None`, falls back to :code:`trajectory`.
+        keypoints_1: The indices of the origin keypoints.
+        keypoints_2: The indices of the target vector keypoints.
+        element_wise: Whether to calculate the velocity element-wise.
+        origin_on_other: Whether the origin keypoints are on the other trajectory.
+        target_on_other: Whether the target keypoints are on the other trajectory.
+        flat: Whether to flatten the output along all but the first dimension.
+        suffixes: The suffixes to use for the output when decorated with :func:`~automated_scoring.features.decorators.as_dataframe`.
+
+    Returns:
+        The target velocity for the given trajectory and keypoints.
     """
     if trajectory_other is None:
         trajectory_other = trajectory

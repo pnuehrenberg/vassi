@@ -7,13 +7,10 @@ from typing import (
     Literal,
     Optional,
     Self,
-    cast,
 )
 
 import numpy as np
-from joblib import Parallel, delayed, parallel_config
 
-from ....utils import available_resources
 from ...utils import (
     Identifier,
     IndividualIdentifier,
@@ -49,6 +46,10 @@ def _update_splits(splits: dict, offset: int) -> dict:
 
 
 class NestedSampleableMixin(ABC):
+    """
+    Mixin for nested sampleables (groups or datasets).
+    """
+
     _target: Literal["individual", "dyad"]
     _sampleables: dict[Identifier, SampleableMixin]
     _iter_current: int
@@ -62,13 +63,16 @@ class NestedSampleableMixin(ABC):
 
     @property
     def identifiers(self) -> tuple[Identifier, ...]:
+        """Returns the identifiers of the sampleables (groups, individuals or dyads)."""
         return self._get_identifiers()
 
     @property
     @abstractmethod
     def individuals(
         self,
-    ) -> tuple[IndividualIdentifier, ...] | tuple[SubjectIdentifier, ...]: ...
+    ) -> tuple[IndividualIdentifier, ...] | tuple[SubjectIdentifier, ...]:
+        """Returns the identifiers of the individuals (str or int if group, tuple if dataset)."""
+        ...
 
     @abstractmethod
     def _get_identifiers(self) -> tuple[Identifier, ...]: ...
@@ -212,20 +216,6 @@ class NestedSampleableMixin(ABC):
     ) -> tuple[F, np.ndarray | None]:
         if splits is None:
             raise ValueError("splits must be specified for nested sampleables")
-        # num_jobs, num_inner_threads = available_resources()
-        # with parallel_config(backend="loky", inner_max_num_threads=num_inner_threads):
-        #     samples = Parallel(n_jobs=num_jobs)(
-        #         delayed(_select_samples_from_sampleable)(
-        #             sampleable,
-        #             extractor,
-        #             indices,
-        #             splits[identifier],
-        #             store_indices=store_indices,
-        #         )
-        #         for identifier, sampleable in self
-        #     )
-        # if TYPE_CHECKING:
-        #     samples = cast(list[tuple[F, np.ndarray | None]], samples)
         samples = [
             sampleable._select_samples(
                 extractor,
@@ -259,4 +249,13 @@ class NestedSampleableMixin(ABC):
         return X_concat, y_concat
 
     def select(self, identifier: Identifier) -> "SampleableMixin":
+        """
+        Select a sampleable by identifier.
+
+        Parameters:
+            identifier: The sampleable to select.
+
+        Returns:
+            SampleableMixin: Selected sampleable.
+        """
         return self._sampleables[identifier]

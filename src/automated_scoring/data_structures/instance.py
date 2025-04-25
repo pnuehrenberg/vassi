@@ -13,9 +13,9 @@ class Instance(ConfiguredData):
 
     Implements the :code:`__getitem__` and :code:`__setitem__` methods to provide dictionary-like access to the data.
 
-    Args:
-        cfg: The configuration object (default is None).
-        from_scalars: Whether to convert scalar inputs to arrays (default is False).
+    Parameters:
+        cfg: The configuration object.
+        from_scalars: Whether to convert scalar inputs to arrays.
         **kwargs: Keyword arguments representing the data to initialize the instance with.
 
     Raises:

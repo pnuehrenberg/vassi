@@ -15,6 +15,7 @@ from typing import (
     overload,
 )
 
+import loguru
 import numpy as np
 import optuna
 import pandas as pd
@@ -31,20 +32,42 @@ from ..logging import (
     set_logging_level,
     with_loop,
 )
-from ..utils import Experiment, available_resources, to_int_seed
+from ..utils import Experiment, available_resources, to_int_seed, to_scalars
 from .predict import k_fold_predict
-from .results import ClassificationResult, DatasetClassificationResult, _NestedResult
+from .results import (
+    ClassificationResult,
+    DatasetClassificationResult,
+    GroupClassificationResult,
+)
 
-if TYPE_CHECKING:
-    from loguru import Logger
+Result = ClassificationResult | GroupClassificationResult | DatasetClassificationResult
 
 
 class PostprocessingParameters(TypedDict):
+    """Typed dictionary that holds parameters for postprocessing."""
+
     postprocessing_parameters: dict[str, Any]
     decision_thresholds: Iterable[float]
 
 
-class PostprocessingFunction[T: ClassificationResult | _NestedResult](Protocol):
+class PostprocessingFunction[T: Result](Protocol):
+    """
+    Protocol for postprocessing functions.
+
+    Parameters:
+        result (:class:`~automated_scoring.classification.results.ClassificationResult` | :class:`~automated_scoring.classification.results.GroupClassificationResult` | :class:`~automated_scoring.classification.results.DatasetClassificationResult`): The result to be postprocessed.
+        *args: Additional arguments.
+        postprocessing_parameters (dict[str, Any]): Parameters for postprocessing.
+        decision_thresholds (Iterable[float]): Category-specific decision thresholds.
+        **kwargs: Additional keyword arguments.
+
+    Returns:
+        (:class:`~automated_scoring.classification.results.ClassificationResult` | :class:`~automated_scoring.classification.results.GroupClassificationResult` | :class:`~automated_scoring.classification.results.DatasetClassificationResult`): The result after postprocessing.
+
+    See also:
+        :class:`PostprocessingParameters` to specify the two required keyword arguments with :code:`**postprocessing_parameters`.
+    """
+
     def __call__(
         self,
         result: T,
@@ -56,6 +79,19 @@ class PostprocessingFunction[T: ClassificationResult | _NestedResult](Protocol):
 
 
 class ParameterSuggestionFunction(Protocol):
+    """
+    Protocol for parameter suggestion functions.
+
+    Parameters:
+        trial (:class:`~optuna.trial.Trial`): The trial object.
+        *args: Additional arguments.
+        categories (Iterable[str]): Category names.
+        **kwargs: Additional keyword arguments.
+
+    Returns:
+        :class:`PostprocessingParameters`: Parameters for postprocessing.
+    """
+
     def __call__(
         self,
         trial: optuna.trial.Trial,
@@ -65,10 +101,10 @@ class ParameterSuggestionFunction(Protocol):
     ) -> PostprocessingParameters: ...
 
 
-_log: Logger | None = None
+_log: loguru.Logger | None = None
 
 
-def _result_from_cache[T: ClassificationResult | _NestedResult](result: str | T) -> T:
+def _result_from_cache[T: Result](result: str | T) -> T:
     if isinstance(result, str):
         cached = from_cache(result)
         if TYPE_CHECKING:
@@ -77,14 +113,27 @@ def _result_from_cache[T: ClassificationResult | _NestedResult](result: str | T)
     return result
 
 
-def optuna_score_postprocessing_trial[T: ClassificationResult | _NestedResult](
+def optuna_score_postprocessing_trial[T: Result](
     classification_result: T | str | list[T] | list[str],
     trial: optuna.trial.Trial,
     *,
     postprocessing_function: PostprocessingFunction[T],
     postprocessing_parameters: PostprocessingParameters | ParameterSuggestionFunction,
-    loop_log: tuple[Logger, str] | tuple[tuple[dict[str, Any], int], str],
+    loop_log: tuple[loguru.Logger, str] | tuple[tuple[dict[str, Any], int], str],
 ) -> float:
+    """
+    Run a single :class:`~optuna.trial.Trial` to evaluate postprocessing parameters for a specified postprocessing function.
+
+    Parameters:
+        classification_result: The classification result(s) to postprocess, can also be passed as a string or a list of strings to read from cache files.
+        trial: One optuna trial of the current optuna study.
+        postprocessing_function: The postprocessing function to use.
+        postprocessing_parameters: The postprocessing parameters to evaluate, can also be a callable that returns a dictionary of parameters given the optuna trial.
+        loop_log: The logger and log name to use for logging. In a multiprocessing environment, the logger should be passed as a tuple of logger parameters (dict) and log level (int).
+
+    Returns:
+        The score of the postprocessed classification result, calculated as the average of 'timestamp', 'annotation' and 'prediction' macro F1 scores.
+    """
     global _log
     if not isinstance(classification_result, list):
         classification_result = [_result_from_cache(classification_result)]
@@ -126,7 +175,7 @@ def optuna_score_postprocessing_trial[T: ClassificationResult | _NestedResult](
         _log = _create_log_in_subprocess(*log)
         log = _log
     if TYPE_CHECKING:
-        assert isinstance(log, Logger)
+        assert isinstance(log, loguru.Logger)
     increment_loop(log, name=loop_name).info(f"score: {score:.3f}")
     return score
 
@@ -146,13 +195,13 @@ def _optimize_study(
     _log = None
 
 
-def _execute_parallel_study[T: ClassificationResult | _NestedResult](
+def _execute_parallel_study[T: Result](
     objective: Callable,
     *,
     study_name: str,
     storage: optuna.storages.BaseStorage,
     num_trials: int,
-    log: Logger,
+    log: loguru.Logger,
 ) -> None:
     num_jobs, num_inner_threads = available_resources()
     with parallel_config(backend="loky", inner_max_num_threads=num_inner_threads):
@@ -181,7 +230,7 @@ def _execute_parallel_study[T: ClassificationResult | _NestedResult](
     level_finish="success",
     description="optuna optimization study",
 )
-def optuna_parameter_optimization[T: ClassificationResult | _NestedResult](
+def optuna_parameter_optimization[T: Result](
     classification_result: T | str | list[T] | list[str],
     *,
     num_trials: int,
@@ -190,8 +239,24 @@ def optuna_parameter_optimization[T: ClassificationResult | _NestedResult](
     suggest_postprocessing_parameters_function: ParameterSuggestionFunction,
     parallel_optimization: bool,
     experiment: Optional[Experiment],
-    log: Logger,
+    log: loguru.Logger,
 ) -> optuna.study.Study:
+    """
+    Perform a parameter optimization study using Optuna.
+
+    Parameters:
+        classification_result: The classification result(s) to postprocess, can also be passed as a string or a list of strings to read from cache files.
+        num_trials: The number of Optuna trials to run.
+        random_state: The random state to use for the optimization.
+        postprocessing_function: The postprocessing function to use.
+        suggest_postprocessing_parameters_function: A callable that suggests postprocessing parameters for the specified postprocessing function.
+        parallel_optimization: Whether to run the Optuna study in parallel.
+        experiment: Should be specified in a distributed setting.
+        log: The Loguru logger to use for logging.
+
+    Returns:
+        The Optuna study.
+    """
     random_state = np.random.default_rng(random_state)
     objective = partial(
         optuna_score_postprocessing_trial,
@@ -267,7 +332,7 @@ def run_k_fold_experiment[F: Shaped](
     sampling_function: SamplingFunction,
     balance_sample_weights: bool = True,
     experiment: Experiment,
-    log: Optional[Logger] = None,
+    log: Optional[loguru.Logger] = None,
     cache: Literal[True],
 ) -> list[str]: ...
 
@@ -282,7 +347,7 @@ def run_k_fold_experiment[F: Shaped](
     sampling_function: SamplingFunction,
     balance_sample_weights: bool = True,
     experiment: Experiment,
-    log: Optional[Logger] = None,
+    log: Optional[loguru.Logger] = None,
     cache: Literal[False] = False,
 ) -> list[DatasetClassificationResult]: ...
 
@@ -301,9 +366,26 @@ def run_k_fold_experiment[F: Shaped](
     sampling_function: SamplingFunction,
     balance_sample_weights: bool = True,
     experiment: Experiment,
-    log: Optional[Logger] = None,
+    log: Optional[loguru.Logger] = None,
     cache: bool = True,
 ) -> list[DatasetClassificationResult] | list[str]:
+    """
+    Perform a k-fold prediction experiment on the given dataset.
+
+    Parameters:
+        dataset: The dataset to perform the experiment on.
+        extractor: The extractor to use for feature extraction.
+        classifier: The classifier to use for classification.
+        k: The number of folds to use.
+        sampling_function: The sampling function to use.
+        balance_sample_weights: Whether to balance sample weights for model fitting.
+        experiment: The experiment to run, can also be a :class:`~automated_scoring.distributed.DistributedExperiment`.
+        log: The logger to use.
+        cache: Whether to cache the results.
+
+    Returns:
+        The results of the experiment (as list of cache files if :code:`cache=True`)
+    """
     if log is None:
         log = set_logging_level()
     for run in experiment:
@@ -356,8 +438,33 @@ def optimize_postprocessing_parameters[F: Shaped](
     experiment: Experiment,
     optimize_across_runs: bool = False,
     parallel_optimization: bool = False,
-    log: Optional[Logger] = None,
+    log: Optional[loguru.Logger] = None,
 ) -> list[optuna.study.Study] | optuna.study.Study:
+    """
+    Sequentially perform a k-fold prediction experiment and use the results to optimize postprocessing parameters.
+
+    See also:
+        - :func:`run_k_fold_experiment` to perform a k-fold prediction experiment.
+        - :func:`optuna_parameter_optimization` to optimize postprocessing parameters on existing classification results.
+
+    Parameters:
+        dataset: The dataset to use.
+        extractor: The extractor to use for feature extraction.
+        classifier: The classifier to use for classification.
+        postprocessing_function: The postprocessing function to use.
+        suggest_postprocessing_parameters_function: A callable that suggests postprocessing parameters.
+        num_trials: The number of trials to perform in the Optuna optimization study.
+        k: The number of folds to use for the k-fold experiment.
+        sampling_function: The sampling function to use during k-fold prediction.
+        balance_sample_weights: Whether to balance the sample weights during model fitting.
+        experiment: The experiment to use for the experiment (specifies number of runs and random state).
+        optimize_across_runs: Whether to optimize postprocessing parameters across experiment runs, or for each run individually.
+        parallel_optimization: Whether to perform the Optuna optimization study/studies in parallel.
+        log: The Loguru logger to use for the experiment.
+
+    Returns:
+        The list of Optuna studies (:code:`optimize_across_runs=False`) or alternatively, a single study.
+    """
     if log is None:
         log = set_logging_level()
     k_fold_results = run_k_fold_experiment(
@@ -413,8 +520,24 @@ def summarize_experiment(
     results_file: str = "optimization-results.yaml",
     summary_file: str = "optimization-summary.yaml",
     trials_file: str = "optimization-trials.csv",
-    log: Optional[Logger] = None,
+    log: Optional[loguru.Logger] = None,
 ):
+    """
+    Summarize one or more Optuna studies resulting from an optimization experiment.
+
+    See also:
+        :func:`optimize_postprocessing_parameters`
+
+    Parameters:
+        studies: One or more Optuna studies to summarize.
+        results_file: Path to the file where the results will be saved.
+        summary_file: Path to the file where the summary will be saved.
+        trials_file: Path to the file where the trials will be saved.
+        log: Loguru logger to use for logging.
+
+    Returns:
+        None
+    """
     if log is None:
         log = set_logging_level()
     all_trials = []
@@ -441,14 +564,13 @@ def summarize_experiment(
         values = np.unique(tested_values)
         best_values = np.array([result["best_params"][parameter] for result in results])
         if len(best_values) == 1:
-            best_value = best_values.tolist()[0]
+            best_value = to_scalars(best_values)[0]
         elif not (
             np.issubdtype(values.dtype, np.floating)
             or np.issubdtype(values.dtype, np.integer)
         ):
             unique_best_values, counts = np.unique(best_values, return_counts=True)
-            # tolist also converts np dtype to native
-            best_value = unique_best_values.tolist()[np.argmax(counts)]
+            best_value = to_scalars(unique_best_values)[np.argmax(counts)]
         else:
             density = gaussian_kde(best_values)(values)
             best = np.argmax(density)

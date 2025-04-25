@@ -3,18 +3,23 @@ from __future__ import annotations
 from collections.abc import Mapping
 from typing import TYPE_CHECKING, Optional
 
+import loguru
 import numpy as np
 
 from .annotated import AnnotatedMixin
 from .sampleable import SampleableMixin
 
 if TYPE_CHECKING:
-    from loguru import Logger
-
     from ....features import BaseExtractor, Shaped
 
 
 class AnnotatedSampleableMixin(SampleableMixin, AnnotatedMixin):
+    """
+    Mixin for sampleable objects with annotations, only used for type checking.
+
+    Intersection of :class:`~automated_scoring.dataset.types.mixins.annotated.AnnotatedMixin` and :class:`~automated_scoring.dataset.types.mixins.sampleable.SampleableMixin`.
+    """
+
     if TYPE_CHECKING:
 
         def sample[F: Shaped](
@@ -32,5 +37,5 @@ class AnnotatedSampleableMixin(SampleableMixin, AnnotatedMixin):
             reset_previous_indices: bool = False,
             exclude_previous_indices: bool = False,
             store_indices: bool = False,
-            log: Optional["Logger"] = None,
+            log: Optional[loguru.Logger] = None,
         ) -> tuple[F, np.ndarray]: ...

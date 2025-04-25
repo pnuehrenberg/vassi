@@ -50,8 +50,11 @@ class ConfiguredData:
         """
         Returns the keys of the trajectory data, excluding specified keys.
 
-        Args:
+        Parameters:
             exclude: Keys to exclude from the returned set of keys; defaults to None.
+
+        Returns:
+            A tuple of strings representing the keys of the trajectory data.
 
         Raises:
             ValueError: If the configuration is not initialized.
@@ -71,7 +74,7 @@ class ConfiguredData:
         """
         Gets a value from the internal data store.
 
-        Args:
+        Parameters:
             key: The key to retrieve the value for.
             copy: Whether to return a copy of the data.
 
@@ -97,9 +100,12 @@ class ConfiguredData:
         """
         Returns the values of the configured data.
 
-        Args:
+        Parameters:
             exclude: Keys to exclude from the returned values; defaults to None.
             copy: Whether to return a copy of the data; defaults to True.
+
+        Returns:
+            The values of the configured data.
         """
         return tuple(
             self._get_value(key, copy=copy) for key in self.keys(exclude=exclude)
@@ -114,9 +120,12 @@ class ConfiguredData:
         """
         Returns a tuple of (key, value) pairs for the data, optionally excluding some keys.
 
-        Args:
+        Parameters:
             exclude: Keys to exclude from the returned items; defaults to None.
             copy: Whether to return a copy of the data; defaults to True.
+
+        Returns:
+            A tuple of (key, value) pairs for the data.
         """
         keys = self.keys(exclude=exclude)
         values = self.values(exclude=exclude, copy=copy)
@@ -126,6 +135,9 @@ class ConfiguredData:
     def data(self) -> dict[str, np.ndarray]:
         """
         Returns a dictionary containing the a copy of the stored data.
+
+        Returns:
+            A dictionary containing the a copy of the stored data.
 
         Raises:
             ValueError: If the data has not been initialized.

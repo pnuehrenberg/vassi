@@ -1,0 +1,39 @@
+individual:
+- - posture_angles
+  - keypoint_pairs_1:
+    - - 1
+      - 0
+    keypoint_pairs_2:
+    - - 3
+      - 2
+- - speed
+  - keypoints:
+    - 0
+    - 2
+    step: 15
+- - speed
+  - keypoints:
+    - 0
+    - 2
+    step: 15
+    reversed_dyad: true
+dyadic:
+- - keypoint_distances
+  - keypoints_1:
+    - 0
+    - 1
+    - 2
+    - 3
+    keypoints_2:
+    - 0
+    - 1
+    - 2
+    - 3
+    element_wise: true
+- - posture_angles
+  - keypoint_pairs_1:
+    - - 1
+      - 0
+    keypoint_pairs_2:
+    - - 3
+      - 2

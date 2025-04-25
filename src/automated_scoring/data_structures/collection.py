@@ -17,7 +17,7 @@ class InstanceCollection(ConfiguredData):
 
     Implements the :code:`__getitem__` and :code:`__setitem__` methods to provide indexing, slicing, and dictionary-like access to the data.
 
-    Args:
+    Parameters:
         data: A dictionary containing the data for the collection.
         cfg: The configuration object.
         validate_on_init: Whether to validate the data during initialization.
@@ -49,7 +49,7 @@ class InstanceCollection(ConfiguredData):
         """
         Yields a context where data validation is enabled or disabled.
 
-        Args:
+        Parameters:
             validate: Whether to enable validation.
         """
         _validate = self._validate
@@ -87,12 +87,15 @@ class InstanceCollection(ConfiguredData):
         """
         Validates the input data against the specified requirements.
 
-        Args:
+        Parameters:
             data: The data to validate.
             allow_duplicated_timestamps: Whether to allow duplicated timestamps.
             allow_missing_keys: Whether to allow missing keys.
             try_broadcasting: Whether to try broadcasting.
             require_array_like: Whether to require array-like values.
+
+        Returns:
+            bool: If the data passed validation.
 
         Raises:
             ValueError: If the data fails any of the validation checks, such as key mismatches, length mismatches, or invalid timestamp or identity data types.
@@ -163,10 +166,13 @@ class InstanceCollection(ConfiguredData):
         """
         Initializes a new collection from provided data with the same configuration.
 
-        Args:
+        Parameters:
             data: A dictionary containing the data for the new InstanceCollection.
             copy_config: Whether to copy or use the configuration from the current instance.
             validate_on_init: Whether to validate the data during initialization.
+
+        Returns:
+            The new collection.
         """
         cfg = self.cfg
         if copy_config:
@@ -179,10 +185,13 @@ class InstanceCollection(ConfiguredData):
 
     def copy(self, *, copy_config: bool = False) -> Self:
         """
-        Copies the InstanceCollection.
+        Copies the collection.
 
-        Args:
+        Parameters:
             copy_config: Whether to copy the configuration.
+
+        Returns:
+            the copied collection.
         """
         return self.init_other(
             data=self.data, copy_config=copy_config, validate_on_init=False
@@ -199,7 +208,7 @@ class InstanceCollection(ConfiguredData):
 
         This method allows modification of the stored data. If the data is a view, the base data is also modified. No data validation is performed.
 
-        Args:
+        Parameters:
             key: The key associated with the value to be set.
             value: The value to set.
             at: The index or slice where the value should be set.
@@ -561,8 +570,11 @@ class InstanceCollection(ConfiguredData):
         Selects a subset of the data based on the provided index.
         Allows indexing as in :code:`numpy`, and will return a view if possible.
 
-        Args:
+        Parameters:
             index: The indices to select.
+
+        Returns:
+            The selected collection.
         """
         # advanced indexing with boolean array always triggers copy, not view
         # # TODO check index (at least 1d numpy array if int, else boolean with length of collection)
@@ -580,9 +592,12 @@ class InstanceCollection(ConfiguredData):
         """
         Selects a subset of instances based on timestamp and/or identity.
 
-        Args:
+        Parameters:
             timestamp: The timestamp value to filter by.
             identity: The identity value to filter by.
+
+        Returns:
+            The selected collection.
 
         Raises:
             ValueError: If timestamp/identity selection is attempted without the corresponding keys defined in the configuration.
@@ -626,10 +641,13 @@ class InstanceCollection(ConfiguredData):
         """
         Concatenates multiple collections into a single one.
 
-        Args:
+        Parameters:
             collections: The collections to concatenate.
             copy_config: Whether to copy the configuration of the first collection.
             validate: Whether to validate equality of configurations and concatenated data on the resulting collection.
+
+        Returns:
+            The concatenated collection.
 
         Raises:
             AssertionError: If no collections are provided, or if the configurations of the collections are not equal when validation is enabled.

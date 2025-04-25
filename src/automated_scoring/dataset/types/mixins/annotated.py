@@ -7,6 +7,18 @@ import pandas as pd
 
 
 class EncodingFunction(Protocol):
+    """
+    Protocol for category encoding functions.
+
+    Parameters:
+        y (:class:`~numpy.ndarray`): The input array to be encoded.
+        *args: Additional positional arguments.
+        **kwargs: Additional keyword arguments.
+
+    Returns:
+        The encoded array.
+    """
+
     def __call__(
         self,
         y: np.ndarray,
@@ -16,6 +28,16 @@ class EncodingFunction(Protocol):
 
 
 def encode_categories(y: np.ndarray, *, categories: tuple[str, ...]) -> np.ndarray:
+    """
+    Encode categories to integers.
+
+    Parameters:
+        y: The input array to be encoded.
+        categories: The categories to encode.
+
+    Returns:
+        The encoded array.
+    """
     y_numeric = np.zeros_like(y, dtype=int)
     for category in categories:
         y_numeric[y == category] = categories.index(category)
@@ -23,6 +45,14 @@ def encode_categories(y: np.ndarray, *, categories: tuple[str, ...]) -> np.ndarr
 
 
 class AnnotatedMixin(ABC):
+    """
+    Mixin for annotated datasets.
+
+    Parameters:
+        categories: The categories of the dataset.
+        background_category: The background category of the dataset.
+    """
+
     def __init__(
         self,
         *,
@@ -33,7 +63,7 @@ class AnnotatedMixin(ABC):
         if background_category not in categories:
             categories = tuple(list(categories) + [background_category])
         self.categories = tuple(sorted(categories))
-        self.foreground_categories = tuple(
+        self._foreground_categories = tuple(
             category for category in categories if category != background_category
         )
         self._encode = partial(encode_categories, categories=self.categories)
@@ -42,18 +72,27 @@ class AnnotatedMixin(ABC):
 
     @property
     def encode(self) -> EncodingFunction:
+        """Function to encode category names to integers."""
         return self._encode
 
     @property
+    def foreground_categories(self) -> tuple[str, ...]:
+        """The categories of the dataset excluding the background category."""
+        return self._foreground_categories
+
+    @property
     def category_counts(self) -> dict[str, int]:
+        """Counts of each category in the sampleable."""
         y = self.sample_y()
         return {category: int((y == category).sum()) for category in self.categories}
 
     def sample_y(self) -> np.ndarray:
+        """Return the target labels of the entire sampleable (as category names)."""
         return self._sample_y()
 
     @property
     def observations(self) -> pd.DataFrame:
+        """Return the observations of the sampleable."""
         return self._get_observations()
 
     @abstractmethod

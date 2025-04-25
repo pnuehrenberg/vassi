@@ -16,6 +16,14 @@ if TYPE_CHECKING:
 
 
 class Dyad(BaseSampleable):
+    """
+    A dyad is a sampleable pair of trajectories (:class:`~automated_scoring.data_structures.trajectory.Trajectory`).
+
+    Parameters:
+        trajectory: The first trajectory in the dyad (i.e., the actor of social behaviors).
+        trajectory_other: The second trajectory in the dyad (i.e., the recipient).
+    """
+
     def __init__(
         self,
         trajectory: Trajectory,
@@ -28,6 +36,22 @@ class Dyad(BaseSampleable):
     def prepare_paired_trajectories(
         cls, trajectory: Trajectory, trajectory_other: Trajectory
     ) -> tuple[Trajectory, Trajectory]:
+        """
+        Helper function to prepare paired trajectories for a dyad.
+
+        The trajectories are temporally aligned with slicing (see :meth:`~automated_scoring.data_structures.trajectory.Trajectory.slice_window`) and returned as a view.
+        Note that the trajectories should already be complete and sorted.
+
+        Parameters:
+            trajectory: The trajectory of the actor (first individual of the dyad)
+            trajectory_other: The trajectory of the recipient (second individual of the dyad)
+
+        Returns:
+            The aligned trajectories.
+
+        See also:
+            :class:`~automated_scoring.data_structures.trajectory.Trajectory` for more details on handling trajectory data.
+        """
         start = max(trajectory.timestamps[0], trajectory_other.timestamps[0])
         stop = min(trajectory.timestamps[-1], trajectory_other.timestamps[-1])
         if trajectory.timestamps[0] < start or trajectory.timestamps[-1] > stop:
@@ -66,6 +90,17 @@ class Dyad(BaseSampleable):
         categories: tuple[str, ...],
         background_category: str,
     ) -> "AnnotatedDyad":
+        """
+        Annotates the dyad with the given observations.
+
+        Parameters:
+            observations: The observations.
+            categories: Categories of the observations.
+            background_category: The background category of the observations.
+
+        Returns:
+            The annotated dyad.
+        """
         return AnnotatedDyad(
             self.trajectory,
             self.trajectory_other,
@@ -76,6 +111,17 @@ class Dyad(BaseSampleable):
 
 
 class AnnotatedDyad(Dyad, AnnotatedSampleableMixin):
+    """
+    Annotated dyad.
+
+    Parameters:
+        trajectory: The trajectory of the actor.
+        trajectory_other: The other trajectory of the recipient.
+        observations: Observations for the dyad.
+        categories: Categories of the observations.
+        background_category: Background category of the observations.
+    """
+
     def __init__(
         self,
         trajectory: Trajectory,

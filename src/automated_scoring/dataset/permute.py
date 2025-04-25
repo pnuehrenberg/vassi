@@ -13,6 +13,18 @@ from .utils import IndividualIdentifier
 def get_proximitry_matrix(
     group: Group | AnnotatedGroup,
 ) -> tuple[np.ndarray, np.ndarray]:
+    """
+    Computes the proximitry matrix for a group of individuals.
+
+    Parameters:
+        group: The group of individuals.
+
+    Returns:
+        A tuple containing the proximitry matrix and the timestamps.\
+
+    Note:
+        The keypoints to compute the proximitry matrix are currently hardcoded to the first on the actor, and the first three on the recipient.
+    """
     steps = set(trajectory.timestep for trajectory in group.trajectories.values())
     if len(steps) != 1:
         raise ValueError("all trajectories must have the same timestep")
@@ -132,6 +144,18 @@ def _permute_recipients(
 def permute_recipients[T: AnnotatedDataset | AnnotatedGroup](
     sampleable: T, *, neighbor_rank: int
 ) -> T:
+    """
+    Permute recipients in a dataset or group.
+
+    The current recipient of each observation is replaced with the neighbor at the specified rank.
+
+    Parameters:
+        sampleable: The dataset or group to permute recipients in.
+        neighbor_rank: The rank of the neighbor to replace the current recipient with.
+
+    Returns:
+        The permuted dataset or group.
+    """
     if isinstance(sampleable, AnnotatedDataset):
         return _permute_recipients(sampleable, neighbor_rank=neighbor_rank)
     if isinstance(sampleable, AnnotatedGroup):

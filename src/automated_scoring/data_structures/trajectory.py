@@ -15,7 +15,7 @@ class Trajectory(TimestampedInstanceCollection):
 
     This class adds functionality specific to trajectories, such as interpolation and sampling at specific timestamps. It also manages a :code:`timestep` attribute.
 
-    Args:
+    Parameters:
         data: A dictionary containing the trajectory data.
         cfg: The configuration object.
         timestep: The timestep of the trajectory.
@@ -45,10 +45,13 @@ class Trajectory(TimestampedInstanceCollection):
         """
         Initializes a new trajectory, optionally copying the configuration.
 
-        Args:
+        Parameters:
             data: The data to initialize the trajectory with.
             copy_config: Whether to copy or use the same configuration.
             validate_on_init: Whether to validate the trajectory data during initialization.
+
+        Returns:
+            A new trajectory instance.
         """
         cfg = self.cfg
         if copy_config:
@@ -74,12 +77,15 @@ class Trajectory(TimestampedInstanceCollection):
 
         See :func:`~automated_scoring.data_structures.collection.InstanceCollection.validate_data` for more details.
 
-        Args:
+        Parameters:
             data: The data to validate.
             allow_duplicated_timestamps: Ignored, exists for consistency with :class:`~automated_scoring.data_structures.collection.InstanceCollection`.
             allow_missing_keys: Whether to allow missing keys.
             try_broadcasting: Whether to try broadcasting.
             require_array_like: Whether to require array-like data.
+
+        Returns:
+            If the data passed validation.
 
         """
         return super().validate_data(
@@ -132,10 +138,13 @@ class Trajectory(TimestampedInstanceCollection):
         """
         Samples the trajectory at the given timestamps, linearly interpolating values where necessary.
 
-        Args:
+        Parameters:
             timestamps: The timestamps at which to sample the trajectory.
             keep_dtype: Whether to preserve the original data type of the timestamps.
             copy: Whether to return a new Trajectory object or modify the existing one.
+
+        Returns:
+            The sampled trajectory.
 
         Raises:
             AssertionError: If the trajectory is not sorted or if it contains more than one unique identity.
@@ -181,8 +190,11 @@ class Trajectory(TimestampedInstanceCollection):
         """
         Calculates the interpolated length of the trajectory based on a given timestep.
 
-        Args:
+        Parameters:
             timestep: The time step to use for interpolation; defaults to the trajectory's timestep if not provided.
+
+        Returns:
+            The interpolated length of the trajectory.
 
         Raises:
             ValueError: If the timestep does not result in an integer trajectory length.
@@ -209,9 +221,12 @@ class Trajectory(TimestampedInstanceCollection):
 
         See also :func:`Trajectory.sample`.
 
-        Args:
+        Parameters:
             timestep: The desired timestep for the interpolated trajectory. If None, the original timestep is used.
             copy: Whether to create a copy of the trajectory data.
+
+        Returns:
+            The interpolated trajectory.
         """
         interpolated_length = self.get_interpolated_length(timestep)
         timestamps = np.linspace(
@@ -235,12 +250,15 @@ class Trajectory(TimestampedInstanceCollection):
         """
         Slices a time window of the trajectory, optionally interpolating to a fixed timestep.
 
-        Args:
+        Parameters:
             start: The start time of the window.
             stop: The stop time of the window.
             copy: Whether to return a copy of the window.
             interpolate: Whether to interpolate the window to a fixed timestep.
             interpolation_timestep: The timestep to use for interpolation.
+
+        Returns:
+            The sliced trajectory.
 
         Raises:
             ValueError: If :code:`interpolate=True` and :code:`copy=False`.

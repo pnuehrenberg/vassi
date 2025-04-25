@@ -14,7 +14,7 @@ class TimestampedInstanceCollection(InstanceCollection):
     This class provides direct access to timestamps and adds functionality specific to timestamped data, such as sorting by timestamp
     and slicing based on time windows. It ensures that a timestamp key is defined in the configuration.
 
-    Args:
+    Parameters:
         data: The instance data for the collection.
         cfg : The configuration object.
         validate_on_init: Whether to validate the data during initialization.
@@ -61,8 +61,11 @@ class TimestampedInstanceCollection(InstanceCollection):
         """
         Sorts the collection by timestamp.
 
-        Args:
+        Parameters:
             copy: Whether to return a copy of the sorted collection.
+
+        Returns:
+            The sorted collection.
 
         Raises:
             ValueError: If :code:`copy=False` and the collection is a view or has existing views.
@@ -94,9 +97,12 @@ class TimestampedInstanceCollection(InstanceCollection):
         """
         Converts a time window to a slice object for accessing data within the window.
 
-        Args:
+        Parameters:
             start: The start time of the window (inclusive).
             stop: The end time of the window (inclusive).
+
+        Returns:
+            The slice object for accessing data within the window.
 
         Raises:
             ValueError: If the collection has zero length or is not sorted.
@@ -129,8 +135,11 @@ class TimestampedInstanceCollection(InstanceCollection):
         """
         Slices the collection based on a specified time window.
 
-        Args:
+        Parameters:
             start: The start time of the window (inclusive).
             stop: The end time of the window (inclusive).
+
+        Returns:
+            The sliced collection based on the specified time window.
         """
         return self[self.get_slice(start, stop)]

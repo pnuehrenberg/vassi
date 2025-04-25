@@ -1,9 +1,10 @@
+import os
 from abc import ABC, abstractmethod
 from collections.abc import Iterable, Mapping
 from copy import deepcopy
 from dataclasses import dataclass
 from functools import partial
-from typing import TYPE_CHECKING, Callable, Literal, Optional, Self, cast
+from typing import TYPE_CHECKING, Any, Callable, Literal, Optional, Self, cast
 
 import numpy as np
 import pandas as pd
@@ -23,8 +24,9 @@ from ..dataset.observations import (
     remove_overlapping_observations,
 )
 from ..dataset.types import encode_categories
+from ..io import load_data, save_data
 from ..logging import set_logging_level
-from ..utils import SmoothingFunction, available_resources
+from ..utils import SmoothingFunction, available_resources, to_scalars
 from .utils import (
     _filter_recipient_bouts,
     to_predictions,
@@ -32,11 +34,22 @@ from .utils import (
 )
 
 
-class _Result:
+class BaseResult:
+    """Base class for classification results."""
+
     def f1_score(
         self,
         on: Literal["timestamp", "annotation", "prediction"],
     ) -> pd.Series:
+        """
+        Calculate the F1 score for the given data.
+
+        Parameters:
+            on: The level on which to calculate the F1 scores.
+                - "timestamp": Calculate the F1 scores across all samples (timestamps).
+                - "annotation": Calculate the F1 scores based on the annotated intervals.
+                - "prediction": Calculate the F1 scores based on the predicted intervals.
+        """
         categories: tuple[str, ...] = tuple(self.categories)  # type: ignore  # better done via abstract base class!
         encoding_function = partial(encode_categories, categories=categories)
         if on == "timestamp":
@@ -64,6 +77,15 @@ class _Result:
         return pd.Series(scores, index=categories, name=on)
 
     def score(self) -> pd.DataFrame:
+        """
+        Return a summary of the F1 scores for each category at different levels.
+
+        Returns:
+            pd.DataFrame: A DataFrame containing the F1 scores for each category at different levels.
+
+        See Also:
+            :meth:`f1_score`
+        """
         levels = ("timestamp", "annotation", "prediction")
         return pd.DataFrame([self.f1_score(level) for level in levels])
 
@@ -87,6 +109,17 @@ class _Result:
         max_bout_gap: float,
         max_allowed_bout_overlap: float,
     ) -> Self:
+        """
+        Remove overlapping predictions from the classification result.
+
+        This method is implemented by subclasses if applicable.
+
+        Parameters:
+            priority_function: A function that assigns a priority to each prediction.
+            prefilter_recipient_bouts: Whether to prefilter recipient bouts.
+            max_bout_gap: The maximum allowed gap between predictions.
+            max_allowed_bout_overlap: The maximum allowed overlap between predictions.
+        """
         return self._remove_overlapping_predictions(
             priority_function,
             prefilter_recipient_bouts=prefilter_recipient_bouts,
@@ -124,7 +157,7 @@ def _threshold_probabilities(
 
 
 @dataclass
-class ClassificationResult(_Result):
+class ClassificationResult(BaseResult):
     categories: tuple[str, ...]
     timestamps: np.ndarray
     y_proba: np.ndarray
@@ -170,6 +203,13 @@ class ClassificationResult(_Result):
         *,
         default_decision: int | str = "none",
     ) -> Self:
+        """
+        Apply decision thresholds to the classification result.
+
+        Parameters:
+            decision_thresholds: A list of decision thresholds for each category.
+            default_decision: The default decision to apply if no category surpasses the threshold.
+        """
         self._apply_thresholds(decision_thresholds, default_decision)
         probabilties = self.y_proba
         try:
@@ -199,6 +239,18 @@ class ClassificationResult(_Result):
         decision_thresholds: Optional[Iterable[float]] = None,
         default_decision: int | str = "none",
     ) -> Self:
+        """
+        Apply smoothing functions to the classification result.
+
+        Parameters:
+            smoothing_func: The smoothing function to apply.
+            threshold: Whether to threshold the result.
+            decision_thresholds: The decision thresholds to use.
+            default_decision: The default decision to use.
+
+        Returns:
+            The smoothed classification result.
+        """
         self._y_proba_smoothed = smoothing_func(array=self.y_proba)
         if threshold:
             return self.threshold(
@@ -209,27 +261,102 @@ class ClassificationResult(_Result):
 
     @property
     def y_proba_smoothed(self):
+        """Smoothed classification probabilities."""
         if self._y_proba_smoothed is None:
             raise ValueError("no smoothing functions applied")
         return self._y_proba_smoothed
 
     @property
-    def predictions(self):
+    def predictions(self) -> pd.DataFrame:
+        """
+        Predicted intervals.
+
+        Raises:
+            ValueError: If the result is not thresholded.
+        """
         if self._predictions is None:
             raise ValueError("result not thresholded")
         return self._predictions
 
     @property
-    def annotations(self):
+    def annotations(self) -> pd.DataFrame:
+        """
+        Annotated intervals.
+
+        Raises:
+            ValueError: If the result is not annotated.
+        """
         if self._annotations is None:
             raise ValueError("classification on non-annotated sampleable")
         return self._annotations
 
     @property
     def y_true_numeric(self):
+        """
+        True labels, represented as integers.
+
+        Raises:
+            ValueError: If the result is not annotated.
+        """
         if self._y_true_numeric is None:
             raise ValueError("classification on non-annotated sampleable")
         return self._y_true_numeric
+
+    def to_h5(self, data_file: str, data_path: str):
+        """
+        Save the classification results to an HDF5 file.
+
+        Args:
+            data_file (str): Path to the HDF5 file.
+            data_path (str): Path within the HDF5 file to save the data.
+        """
+        data = {
+            "categories": np.array(self.categories),
+            "timestamps": self.timestamps,
+            "y_proba": self.y_proba,
+            "y_pred_numeric": self.y_pred_numeric,
+        }
+        if self._y_proba_smoothed is not None:
+            data["_y_proba_smoothed"] = self._y_proba_smoothed
+        if self._y_true_numeric is not None:
+            data["_y_true_numeric"] = self._y_true_numeric
+        save_data(data_file, data, os.path.join(data_path, "data"))
+        if self._predictions is not None:
+            self._predictions.to_hdf(
+                data_file, key=os.path.join(data_path, "predictions")
+            )
+        if self._annotations is not None:
+            self._annotations.to_hdf(
+                data_file, key=os.path.join(data_path, "annotations")
+            )
+
+    @classmethod
+    def from_h5(cls, data_file: str, data_path: str):
+        """
+        Load classification results from an HDF5 file.
+
+        Args:
+            data_file (str): Path to the HDF5 file.
+            data_path (str): Path within the HDF5 file to load the data.
+        """
+        _data = load_data(data_file, os.path.join(data_path, "data"))
+        if TYPE_CHECKING:
+            assert isinstance(_data, dict)
+        data: dict[str, Any] = {**_data}
+        data["categories"] = tuple(data["categories"])
+        try:
+            data["_predictions"] = pd.read_hdf(
+                data_file, os.path.join(data_path, "predictions")
+            )
+        except KeyError:
+            data["_predictions"] = None
+        try:
+            data["_annotations"] = pd.read_hdf(
+                data_file, os.path.join(data_path, "annotations")
+            )
+        except KeyError:
+            data["_annotations"] = None
+        return cls(**data)
 
 
 def _get_target(
@@ -246,7 +373,7 @@ def _get_target(
 
 
 @dataclass
-class _NestedResult(_Result, ABC):
+class _NestedResult(BaseResult, ABC):
     classification_results: dict[
         Identifier,
         "ClassificationResult | GroupClassificationResult",
@@ -417,6 +544,7 @@ class GroupClassificationResult(_NestedResult):
 
     @property
     def predictions(self) -> pd.DataFrame:
+        """Concatenated predictions of all classification results."""
         predictions = []
         for key, classification_result in self.classification_results.items():
             predictions_key = classification_result.predictions
@@ -429,6 +557,7 @@ class GroupClassificationResult(_NestedResult):
 
     @property
     def annotations(self) -> pd.DataFrame:
+        """Concatenated annotations of all classification results."""
         annotations = []
         for key, classification_result in self.classification_results.items():
             annotations_key = classification_result.annotations
@@ -522,6 +651,15 @@ class GroupClassificationResult(_NestedResult):
     def combine(
         cls, results: Iterable["GroupClassificationResult"]
     ) -> "GroupClassificationResult":
+        """
+        Combine multiple :class:`GroupClassificationResult` into a single one.
+
+        Parameters:
+            results: Iterable of :class:`GroupClassificationResult` to combine.
+
+        Returns:
+            A new :class:`GroupClassificationResult` object containing the combined results.
+        """
         target = _get_target(results)
         individuals: tuple[IndividualIdentifier, ...] = tuple(
             sorted(set.union(*[set(result.individuals) for result in results]))
@@ -543,6 +681,62 @@ class GroupClassificationResult(_NestedResult):
             target=target,
         )
 
+    def to_h5(self, data_file: str, data_path: str):
+        """
+        Save the GroupClassificationResult to an HDF5 file.
+
+        Parameters:
+            data_file: Path to the HDF5 file.
+            data_path: Path within the HDF5 file to save the data.
+        """
+        identifiers = list(self.classification_results)
+        save_data(
+            data_file,
+            {
+                "individuals": np.array(self.individuals),
+                "identifiers": np.array(identifiers),
+                "target": np.array([self.target]),
+            },
+            data_path,
+        )
+        for identifier in identifiers:
+            self.classification_results[identifier].to_h5(
+                data_file, os.path.join(data_path, "results", str(identifier))
+            )
+
+    @classmethod
+    def from_h5(cls, data_file: str, data_path: str):
+        """
+        Load a :class:`GroupClassificationResult` from a HDF5 file.
+
+        Parameters:
+            data_file (str): The path to the HDF5 file.
+            data_path (str): The path to the data within the HDF5 file.
+
+        Returns:
+            The loaded :class:`GroupClassificationResult`.
+        """
+        individuals = tuple(
+            load_data(data_file, os.path.join(data_path, "individuals"))
+        )
+        target = to_scalars(load_data(data_file, os.path.join(data_path, "target")))[0]
+        identifiers = [
+            cast(
+                Identifier,
+                identifier if isinstance(identifier, str) else tuple(identifier),
+            )
+            for identifier in to_scalars(
+                load_data(data_file, os.path.join(data_path, "identifiers"))
+            )
+        ]
+        classification_results = {
+            identifier: ClassificationResult.from_h5(
+                data_file, os.path.join(data_path, "results", str(identifier))
+            )
+            for identifier in identifiers
+        }
+        return cls(classification_results, target, individuals)
+
 
 @dataclass
 class DatasetClassificationResult(_NestedResult):
@@ -550,6 +744,7 @@ class DatasetClassificationResult(_NestedResult):
 
     @property
     def predictions(self) -> pd.DataFrame:
+        """Concatenated predictions of all groups."""
         predictions = []
         for key, classification_result in self.classification_results.items():
             predictions_key = classification_result.predictions
@@ -559,6 +754,7 @@ class DatasetClassificationResult(_NestedResult):
 
     @property
     def annotations(self) -> pd.DataFrame:
+        """Concatenated annotations of all groups."""
         annotations = []
         for key, classification_result in self.classification_results.items():
             annotations_key = classification_result.annotations
@@ -574,6 +770,16 @@ class DatasetClassificationResult(_NestedResult):
         ],
         background_category: str,
     ) -> AnnotatedDataset:
+        """
+        Convert the classification results to an annotated dataset.
+
+        Parameters:
+            trajectories: Mapping from group identifier to mapping from individual identifier to trajectory.
+            background_category: Category to use as background category.
+
+        Returns:
+            Annotated dataset.
+        """
         categories = tuple(np.unique(list(self.predictions["category"])))
         return AnnotatedDataset.from_groups(
             {
@@ -592,6 +798,15 @@ class DatasetClassificationResult(_NestedResult):
     def combine(
         cls, results: Iterable["DatasetClassificationResult"]
     ) -> "DatasetClassificationResult":
+        """
+        Combine multiple dataset classification results into a single result.
+
+        Parameters:
+            results: The dataset classification results to combine.
+
+        Returns:
+            A new :class:`DatasetClassificationResult` with the combined results.
+        """
         target = _get_target(results)
         classification_results = {}
         for result in results:
@@ -614,3 +829,48 @@ class DatasetClassificationResult(_NestedResult):
             },
             target=target,
         )
+
+    def to_h5(self, data_file: str, *, dataset_name: str):
+        """
+        Save the dataset classification result to an HDF5 file.
+
+        Parameters:
+            data_file: The path to the HDF5 file.
+            dataset_name: The name of the dataset within the HDF5 file.
+        """
+        identifiers = list(self.classification_results)
+        save_data(
+            data_file,
+            {"identifiers": np.array(identifiers), "target": np.array([self.target])},
+            dataset_name,
+        )
+        for identifier in identifiers:
+            self.classification_results[identifier].to_h5(
+                data_file, os.path.join(dataset_name, "group_results", str(identifier))
+            )
+
+    @classmethod
+    def from_h5(cls, data_file: str, *, dataset_name: str):
+        """
+        Load the dataset classification result from an HDF5 file.
+
+        Parameters:
+            data_file: The path to the HDF5 file.
+            dataset_name: The name of the dataset within the HDF5 file.
+
+        Returns:
+            The loaded dataset classification result.
+        """
+        target = to_scalars(load_data(data_file, os.path.join(dataset_name, "target")))[
+            0
+        ]
+        identifiers = to_scalars(
+            load_data(data_file, os.path.join(dataset_name, "identifiers"))
+        )
+        classification_results = {
+            identifier: GroupClassificationResult.from_h5(
+                data_file, os.path.join(dataset_name, "group_results", str(identifier))
+            )
+            for identifier in identifiers
+        }
+        return cls(classification_results, target)
