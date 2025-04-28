@@ -41,7 +41,7 @@ class BaseConfig:
     >>> cfg.key2 = [1.0, 2.0]
     >>> cfg.nested = Config(subkey1="subvalue1", subkey2="subvalue2")
 
-    Accessing and setting values is also possible with the __getitem__ and __setitem__ methods.
+    Accessing and setting values is also possible with the :meth:`__getitem__` and :meth:`__setitem__` methods.
 
     >>> cfg["nested"]["subkey1"]
     'subvalue1'
@@ -125,6 +125,23 @@ class BaseConfig:
 
 
 class Config(BaseConfig):
+    """
+    Config for *automated-scoring*.
+
+    Configurations derived from this class are used to define data access (via keys) for the structures implemented in :mod:`automated_scoring.data_structures`.
+
+    Parameters:
+        trajectory_keys: Tuple of keys used to specify trajectory data (e.g., positions, postures, timestamps, bounding boxes, individual identities).
+        key_identity: Key used to specify identities, if applicable.
+        key_timestamp: Key used to specify timestamps, required for timestamped data (e.g., :class:`~automated_scoring.data_structures.trajectory.Trajectory`).
+        key_category: Key used to specify categories, for example if collections contain instances of different categories (e.g., different species).
+        key_score: Key used to specify scores, for example for detection confidence for each instance in a collection.
+        key_box: Key used to specify bounding boxes.
+        key_keypoints: Key used to specify keypoints (i.e., posture data).
+        timestep: Timestep used for temporal data (here, usually in video frames).
+        hash_decimals: Number of decimal places used for hashing.
+    """
+
     def __init__(
         self,
         *,

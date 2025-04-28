@@ -15,7 +15,7 @@ def apply_multiple_to_sliding_windows(
     """
     Apply multiple functions to sliding windows of a series.
 
-    Args:
+    Parameters:
         series: The input series.
         window_size: The size of the sliding window.
         funcs: The functions to apply.
@@ -64,7 +64,7 @@ def sliding_mean(series: np.ndarray, window_size: int) -> np.ndarray:
     """
     Calculate the sliding mean of a series.
 
-    Args:
+    Parameters:
         series: The input series
         window_size: The size of the sliding window
     """
@@ -75,7 +75,7 @@ def sliding_median(series: np.ndarray, window_size: int) -> np.ndarray:
     """
     Calculate the sliding median of a series.
 
-    Args:
+    Parameters:
         series: The input series
         window_size: The size of the sliding window
     """
@@ -86,7 +86,7 @@ def sliding_min(series: np.ndarray, window_size: int) -> np.ndarray:
     """
     Calculate the sliding minimum of a series.
 
-    Args:
+    Parameters:
         series: The input series
         window_size: The size of the sliding window
     """
@@ -97,7 +97,7 @@ def sliding_max(series: np.ndarray, window_size: int) -> np.ndarray:
     """
     Calculate the sliding maximum of a series.
 
-    Args:
+    Parameters:
         series: The input series
         window_size: The size of the sliding window
     """
@@ -108,7 +108,7 @@ def sliding_quantile(series: np.ndarray, window_size: int, q: float) -> np.ndarr
     """
     Calculate a sliding quantile of a series.
 
-    Args:
+    Parameters:
         series: The input series
         window_size: The size of the sliding window
         q: The quantile to calculate
@@ -124,7 +124,7 @@ def sliding_quantiles(
     """
     Calculate sliding quantiles of a series.
 
-    Args:
+    Parameters:
         series: The input series
         window_size: The size of the sliding window
         quantiles: The quantiles to calculate

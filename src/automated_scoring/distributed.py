@@ -12,6 +12,14 @@ from .utils import Experiment
 
 
 class DistributedExperiment(Experiment):
+    """
+    To run experiments in parallel using MPI (via :mod:`~mpi4py`).
+
+    Parameters:
+        num_runs: Number of runs to perform.
+        random_state: Random state to use for reproducibility.
+    """
+
     def __init__(
         self, num_runs: int, *, random_state: Optional[np.random.Generator | int] = None
     ):
@@ -29,6 +37,17 @@ class DistributedExperiment(Experiment):
             self._is_distributed = True
 
     def broadcast[T](self, data: T) -> T:
+        """
+        Broadcast data to all processes.
+
+        Ensures that all processes are synchronized before broadcasting, see also (:meth:`barrier`).
+
+        Parameters:
+            data: Data to broadcast.
+
+        Returns:
+            Broadcasted data.
+        """
         if self.comm is None:
             raise RuntimeError("No MPI communicator available")
         temp_file = None
@@ -42,21 +61,25 @@ class DistributedExperiment(Experiment):
         return data
 
     def barrier(self) -> None:
+        """Synchronize all MPI processes."""
         if self.comm is None:
             raise RuntimeError("No MPI communicator available")
         return self.comm.barrier()
 
     @property
     def performs_run(self) -> bool:
+        """Property that checks if the current MPI process should perform a run when iterating over :class:`DistributedExperiment`."""
         if self.comm is None:
             return True
         return self.run % self.size == self.rank
 
     @property
     def is_root(self) -> bool:
+        """Property that checks if the current MPI process is the root process."""
         return self.rank == 0
 
     def add(self, data: Any) -> None:
+        """Add data of the current run to the distributed experiment. Note that this should be only used once per run."""
         if self.comm is None or self.is_root:
             self.data[self.run] = data
             return
@@ -69,6 +92,15 @@ class DistributedExperiment(Experiment):
     def collect(self, broadcast: bool) -> dict[int, Any] | None: ...
 
     def collect(self, broadcast: bool = True) -> dict[int, Any] | None:
+        """
+        Collect data from all MPI processes and return a sorted dictionary of run data.
+
+        Parameters:
+            broadcast (bool): Whether to broadcast the collected data to all processes.
+
+        Returns:
+            A sorted dictionary of run data if the current process is the root, otherwise None.
+        """
         if self.comm is None:
             return self.data
         data = None

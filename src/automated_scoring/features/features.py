@@ -23,7 +23,7 @@ def keypoints(
     2D coordinates of trajectory keypoints.
 
     Parameters:
-        collection: The instance collection or trajectory to retrieve the keypoints from.
+        collection: The instance collection (e.g., a trajectory) to retrieve the keypoints from.
         keypoints: The indices of keypoints to retrieve.
         flat: Whether to flatten the output along all but the first dimension.
         suffixes: The suffixes to use for the output when decorated with :func:`~automated_scoring.features.decorators.as_dataframe`.
@@ -51,7 +51,7 @@ def position(
     Calculates the position of each instance in the collection as the mean of all keypoints.
 
     Parameters:
-        collection: The instance collection.
+        collection: The instance collection (e.g., a trajectory).
         suffixes: The suffixes to use for the output when decorated with :func:`~automated_scoring.features.decorators.as_dataframe`.
 
     Returns:
@@ -158,7 +158,7 @@ def posture_angles(
 def posture_alignment(
     trajectory: Trajectory,
     *,
-    trajectory_other: Trajectory | None = None,
+    trajectory_other: Optional[Trajectory] = None,
     keypoint_pairs_1: KeypointPairs,
     keypoint_pairs_2: KeypointPairs,
     element_wise: bool = False,
@@ -193,7 +193,7 @@ def posture_alignment(
 def keypoint_distances(
     trajectory: Trajectory,
     *,
-    trajectory_other: Trajectory | None = None,
+    trajectory_other: Optional[Trajectory] = None,
     keypoints_1: Keypoints,
     keypoints_2: Keypoints,
     element_wise: bool = False,
@@ -227,7 +227,7 @@ def keypoint_distances(
 def target_vectors(
     trajectory: Trajectory,
     *,
-    trajectory_other: Trajectory | None = None,
+    trajectory_other: Optional[Trajectory] = None,
     keypoints_1: Keypoints,
     keypoints_2: Keypoints,
     element_wise: bool = False,
@@ -263,7 +263,7 @@ def target_vectors(
 def target_angles(
     trajectory: Trajectory,
     *,
-    trajectory_other: Trajectory | None = None,
+    trajectory_other: Optional[Trajectory] = None,
     keypoint_pairs_1: KeypointPairs,
     keypoints_2: Keypoints,
     element_wise: bool = False,

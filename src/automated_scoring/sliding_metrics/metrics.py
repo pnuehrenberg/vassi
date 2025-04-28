@@ -11,7 +11,7 @@ def mean(array: np.ndarray) -> np.ndarray:
     """
     Jitted function to calculate the mean along the last axis of a 3D array.
 
-    Args:
+    Parameters:
         array: The input array
     """
     assert array.ndim == 3
@@ -27,7 +27,7 @@ def median(array: np.ndarray) -> np.ndarray:
     """
     Jitted function to calculate the median along the last axis of a 3D array.
 
-    Args:
+    Parameters:
         array: The input array
     """
     assert array.ndim == 3
@@ -43,7 +43,7 @@ def min(array: np.ndarray) -> np.ndarray:
     """
     Jitted function to calculate the minimum along the last axis of a 3D array.
 
-    Args:
+    Parameters:
         array: The input array
     """
     assert array.ndim == 3
@@ -59,7 +59,7 @@ def max(array: np.ndarray) -> np.ndarray:
     """
     Jitted function to calculate the maximum along the last axis of a 3D array.
 
-    Args:
+    Parameters:
         array: The input array
     """
     assert array.ndim == 3
@@ -75,7 +75,7 @@ def quantile(array: np.ndarray, q: float) -> np.ndarray:
     """
     Jitted function to calculate a quantile along the last axis of a 3D array.
 
-    Args:
+    Parameters:
         array: The input array
         q: The quantile to calculate
     """
@@ -92,7 +92,7 @@ def q01(array: np.ndarray) -> np.ndarray:
     """
     Convenience function to calculate the 1st percentile along the last axis of a 3D array.
 
-    Args:
+    Parameters:
         array: The input array
     """
     return quantile(array, 0.01)
@@ -103,7 +103,7 @@ def q05(array: np.ndarray) -> np.ndarray:
     """
     Convenience function to calculate the 5th percentile along the last axis of a 3D array.
 
-    Args:
+    Parameters:
         array: The input array
     """
     return quantile(array, 0.05)
@@ -114,7 +114,7 @@ def q10(array: np.ndarray) -> np.ndarray:
     """
     Convenience function to calculate the 10th percentile along the last axis of a 3D array.
 
-    Args:
+    Parameters:
         array: The input array
     """
     return quantile(array, 0.10)
@@ -125,7 +125,7 @@ def q90(array: np.ndarray) -> np.ndarray:
     """
     Convenience function to calculate the 90th percentile along the last axis of a 3D array.
 
-    Args:
+    Parameters:
         array: The input array
     """
     return quantile(array, 0.90)
@@ -136,7 +136,7 @@ def q95(array: np.ndarray) -> np.ndarray:
     """
     Convenience function to calculate the 95th percentile along the last axis of a 3D array.
 
-    Args:
+    Parameters:
         array: The input array
     """
     return quantile(array, 0.95)
@@ -147,7 +147,7 @@ def q99(array: np.ndarray) -> np.ndarray:
     """
     Convenience function to calculate the 99th percentile along the last axis of a 3D array.
 
-    Args:
+    Parameters:
         array: The input array
     """
     return quantile(array, 0.99)

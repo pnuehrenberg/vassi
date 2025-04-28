@@ -30,8 +30,11 @@ def remove_cache(cache_file: str) -> bool:
 
     Returns whether the file was successfully removed (:code:`False` if the file does not exist).
 
-    Args:
+    Parameters:
         cache_file: The path to the cache file.
+
+    Returns:
+        Whether the file was successfully removed.
     """
     try:
         os.remove(cache_file)
@@ -44,12 +47,15 @@ def to_cache(
     obj: Any, cache_file: Optional[str] = None, directory: Optional[str] = None
 ) -> str:
     """
-    Helper function to write an object to a cache file using pickle.
+    Helper function to write an object to a cache file using :mod:`~pickle`.
 
-    Args:
+    Parameters:
         obj: The object to write.
         cache_file: The basename of the cache file.
         directory: The directory to write the cache file to. If :code:`None`, the current directory is used.
+
+    Returns:
+        The path to the cache file.
     """
     if directory is not None:
         os.makedirs(directory, exist_ok=True)
@@ -64,12 +70,18 @@ def to_cache(
     return cache_file
 
 
-def from_cache(cache_file: str):
+def from_cache(cache_file: str) -> Any:
     """
-    Helper function to read an object from a cache file using pickle.
+    Helper function to read an object from a cache file using :mod:`~pickle`.
 
-    Args:
+    Parameters:
         cache_file: The path to the cache file.
+
+    Returns:
+        The object read from the cache file.
+
+    Raises:
+        FileNotFoundError: If the cache file does not exist.
     """
     if not os.path.isfile(cache_file):
         raise FileNotFoundError(f"Cache file {cache_file} not found")
@@ -88,7 +100,7 @@ class _NoAliasDumper(yaml.SafeDumper):
 
 def _construct_yaml_tuple(self, node):
     """
-    Helper function to construct a tuple from a yaml sequence.
+    Helper function to construct a tuple from a YAML sequence.
     """
     seq = self.construct_sequence(node)
     if seq and isinstance(seq, list):
@@ -98,7 +110,7 @@ def _construct_yaml_tuple(self, node):
 
 class _TupleLoader(yaml.SafeLoader):
     """
-    Helper class to load all sequences in yaml as tuples.
+    Helper class to load all sequences in YAML as tuples.
     """
 
     pass
@@ -108,11 +120,26 @@ _TupleLoader.add_constructor("tag:yaml.org,2002:seq", _construct_yaml_tuple)
 
 
 def to_yaml(dump: Any, *, file_name: str) -> None:
+    """
+    Helper function to write an object to a YAML file.
+
+    Parameters:
+        dump: The object to be dumped.
+        file_name: The name of the file to write the YAML to.
+    """
     with open(file_name, "w") as yaml_file:
         yaml_file.write(yaml.dump(dump, Dumper=_NoAliasDumper, sort_keys=False))
 
 
 def from_yaml(file_name: str) -> Any:
+    """
+    Helper function to read an object from a YAML file.
+
+    Note that all lists are loaded as tuples.
+
+    Parameters:
+        file_name: The name of the file to read the YAML from.
+    """
     with open(file_name, "r") as yaml_file:
         return yaml.load(yaml_file, Loader=_TupleLoader)
 
@@ -135,6 +162,18 @@ Data = BaseData | dict[str, "Data"]
 def load_data(
     data_file: str, data_path: str | None = None, exclude: list[str] | None = None
 ) -> Data:
+    """
+    Loads data (:class:`~numpy.ndarray` or nested :class:`dict` of :class:`~numpy.ndarray`) from an HDF5 file.
+
+    Parameters:
+        data_file: The name of the HDF5 file to load data from.
+        data_path: The path to the data within the HDF5 file.
+        exclude: A list of keys to exclude from the loaded data.
+
+    Returns:
+        The loaded data.
+    """
+
     def read_dataset(dataset: h5py.Dataset) -> np.ndarray:
         if dataset.dtype == "O":
             value = dataset.asstr()[:]
@@ -176,6 +215,18 @@ def save_data(
     data_path: str | None = None,
     exclude: list[str] | None = None,
 ) -> None:
+    """
+    Saves data (mapping of :class:`str` and :class:`~numpy.ndarray`) to an HDF5 file.
+
+    Parameters:
+        data_file: The name of the HDF5 file to save data to.
+        data: The data to save.
+        data_path: The path to the data within the HDF5 file.
+        exclude: A list of keys to exclude from the saved data.
+
+    Returns:
+        None
+    """
     if exclude is None:
         exclude = []
     with h5py.File(data_file, "a") as h5_file:
@@ -209,9 +260,21 @@ def save_data(
 def save_trajectories(
     trajectory_file: str,
     trajectories: dict[int | str, Trajectory],
-    prefix: str | None = None,
-    exclude: list[str] | None = None,
+    prefix: Optional[str] = None,
+    exclude: Optional[list[str]] = None,
 ) -> None:
+    """
+    Save trajectories to an HDF5 file.
+
+    Parameters:
+        trajectory_file: The name of the HDF5 file to save trajectories to.
+        trajectories: A dictionary mapping individual identifiers to trajectories.
+        prefix: An optional prefix to prepend to the trajectory paths.
+        exclude: An optional list of keys to exclude from saving.
+
+    Returns:
+        None
+    """
     if prefix is None:
         prefix = ""
     identities = np.asarray(list(trajectories.keys()))
@@ -232,8 +295,19 @@ def save_trajectories(
 def load_trajectories(
     trajectory_file: str, data_path: str | None = None, exclude: list[str] | None = None
 ) -> dict[IndividualIdentifier, Trajectory]:
+    """
+    Load trajectories from an HDF5 file that was created with :func:`save_trajectories`.
+
+    Parameters:
+        trajectory_file: The path to the HDF5 file containing the trajectories.
+        data_path: An optional path within the HDF5 file to the trajectories.
+        exclude: An optional list of keys to exclude from loading.
+
+    Returns:
+        A dictionary mapping individual identifiers to trajectories.
+    """
     # delayed import to avoid circular imports
-    from .data_structures.trajectory import Trajectory
+    from .data_structures.trajectory import Trajectory  # maybe import module instead
 
     with h5py.File(trajectory_file, "r") as h5_file:
         if data_path is not None:
@@ -274,6 +348,18 @@ def save_dataset(
     directory: str = ".",
     observation_suffix: Literal["annotations", "predictions"] = "annotations",
 ) -> None:
+    """
+    Save a dataset to a HDF5 file.
+
+    Parameters:
+        dataset: Dataset to save.
+        dataset_name: Name of the dataset.
+        directory: Directory to save the dataset to.
+        observation_suffix: Suffix for the observation file.
+
+    Returns:
+        None
+    """
     if not os.path.exists(directory):
         os.makedirs(directory, exist_ok=True)
     observation_file = os.path.join(
@@ -328,6 +414,21 @@ def load_dataset(
     background_category: str,
     observation_suffix: str = "annotations",
 ) -> AnnotatedDataset | Dataset:
+    """
+    Load a dataset from a HDF5 file that was created with :func:`save_dataset`.
+
+    Parameters:
+        dataset_name: Name of the dataset.
+        directory: Directory to load the dataset from.
+        target: Target of the dataset.
+        load_observations: Whether to load observations.
+        categories: Categories (of the observations) to load.
+        background_category: Background category (of the observations).
+        observation_suffix: Suffix for the observation file.
+
+    Returns:
+        The loaded dataset.
+    """
     observation_file = os.path.join(
         directory, f"{dataset_name}_{observation_suffix}.csv"
     )

@@ -39,15 +39,18 @@ autodoc_mock_imports = ["loguru"]
 add_module_names = False
 autodoc_typehints = "description"
 typehints_defaults = "comma"
+always_use_bars_union = True
 
 intersphinx_mapping = {
     "python": ("https://docs.python.org/3", None),
     "numpy": ("https://numpy.org/doc/stable", None),
+    "numba": ("https://numba.readthedocs.io/en/stable", None),
     "pandas": ("https://pandas.pydata.org/docs", None),
     "scipy": ("https://docs.scipy.org/doc/scipy", None),
     "matplotlib": ("https://matplotlib.org/stable", None),
     "sklearn": ("https://scikit-learn.org/stable", None),
     "optuna": ("https://optuna.readthedocs.io/en/stable", None),
+    "mpi4py": ("https://mpi4py.readthedocs.io/en/stable", None),
 }
 
 # -- Options for HTML output -------------------------------------------------
@@ -68,6 +71,9 @@ def crawl_source_shorten_titles(path):
             if extension == ".rst":
                 with open(file_path, "r") as file:
                     lines = file.readlines()
+                if "=" not in lines[1]:
+                    # not a title
+                    continue
                 lines[0] = (
                     lines[0]
                     .split(".")[-1]
@@ -86,3 +92,5 @@ crawl_source_shorten_titles("source")
 shutil.copy2("../examples/CALMS21/minimal_example.ipynb", "source")
 shutil.copy2("../examples/CALMS21/results_and_figures.ipynb", "source")
 shutil.copy2("../examples/CALMS21/postprocessing_parameters.ipynb", "source")
+
+# sphinx-apidoc -f -e -o source/ ../src/automated_scoring && make clean && make html

@@ -80,7 +80,18 @@ def set_logging_level(
     format: str | Callable[..., str] = _formatter,
     enqueue: bool = True,
 ) -> loguru.Logger:
-    """Set the logging level (and sink, format and enqueue parameters of the loguru logger."""
+    """
+    Set the logging level (and sink, format and enqueue parameters of the loguru logger.
+
+    Parameters:
+        level: The logging level to set.
+        sink: The sink to use for logging.
+        format: The format to use for logging.
+        enqueue: Whether to enqueue the logs (should be used with multiprocessing).
+
+    Returns:
+        The loguru logger.
+    """
     global logger
     if sink is None:
         sink = sys.stdout
@@ -94,25 +105,14 @@ def set_logging_level(
     return logger
 
 
-# def _mydeco[**P, T](func: Callable[P, T], *, additional_kwarg: int = 1) -> Callable[P, T]:
-#     @functools.wraps(func)
-#     def wrapper(*args: P.args, **kwargs: P.kwargs) -> T:
-#         return func(*args, **kwargs)
-#     return wrapper
-
-
-# def _mydeco_factory[**P, T](func: Optional[Callable[P, T]] = None, *, additional_kwarg: int = 2) -> Callable[P, T]:
-#     if func is None:
-#         decorated = functools.partial(_mydeco, additional_kwarg=additional_kwarg)
-#     else:
-#         decorated = functools.partial(_mydeco, additional_kwarg=additional_kwarg)(func)
-#     if TYPE_CHECKING:
-#         decorated = cast(Callable[P, T], decorated)
-#     return decorated
-
-
 @contextmanager
 def catch_time() -> Generator[Callable[[], float], None, None]:
+    """
+    Context manager to catch the time elapsed between the start and end of a block of code.
+
+    Returns:
+        A callable that returns the elapsed time in seconds.
+    """
     start = perf_counter()
     yield lambda: perf_counter() - start
 
@@ -154,6 +154,18 @@ def log_time[**P, T](
     level_finish: LOG_LEVEL = "info",
     description: str = "",
 ) -> Callable[P, T]:
+    """
+    Decorator to log the start and finish of a function call.
+
+    Parameters:
+        func: The function to decorate.
+        level_start: The log level to use for the start message.
+        level_finish: The log level to use for the finish message.
+        description: A description of the function call.
+
+    Returns:
+        The decorated function.
+    """
     if func is None:
         decorated = functools.partial(
             _log_time,
@@ -180,6 +192,16 @@ def _get_extra(log: loguru.Logger) -> dict:
 
 
 def increment_loop(log: loguru.Logger, *, name: int | str) -> loguru.Logger:
+    """
+    Increment the step used by a logger to write logs in a loop.
+
+    Parameters:
+        log: The logger to use.
+        name: The name of the loop.
+
+    Returns:
+        The logger with the updated loop information.
+    """
     extra = _get_extra(log)
     loops = extra["loops"]
     loops[name]["step"] += 1
@@ -218,6 +240,19 @@ def with_loop[T: int | str](
     total: Optional[int] = None,
     prepare_for_subprocess: bool = False,
 ) -> tuple[loguru.Logger, T] | tuple[tuple[dict[str, Any], int], T]:
+    """
+    Initialize a logger for a loop.
+
+    Parameters:
+        log: The logger to use.
+        name: The name of the loop.
+        step: The current step of the loop.
+        total: The total number of steps in the loop.
+        prepare_for_subprocess: Whether to prepare the logger for subprocesses.
+
+    Returns:
+        A tuple containing the logger and the loop name, or a tuple containing the logger parameters and logging level (if :code:`prepare_for_subprocess=True`).
+    """
     if isinstance(name, str) and len(name) == 0:
         raise ValueError("name should be non-empty string (or int or None)")
     extra = _get_extra(log)
@@ -255,6 +290,20 @@ def log_loop[T](
     total: Optional[int] = None,
     log: Optional[loguru.Logger] = None,
 ) -> Generator[tuple[loguru.Logger, T], None, None]:
+    """
+    Log an iterator with a given level and message.
+
+    Parameters:
+        iterable: The iterable to loop over.
+        level: The logging level.
+        message: The message to log.
+        name: The name of the loop.
+        total: The total number of elements in the iterable.
+        log: The logger to use.
+
+    Yields:
+        The results of the iterator.
+    """
     if log is None:
         log = set_logging_level()
     if total is None and isinstance(iterable, Sized):

@@ -46,9 +46,10 @@ class BaseResult:
 
         Parameters:
             on: The level on which to calculate the F1 scores.
-                - "timestamp": Calculate the F1 scores across all samples (timestamps).
-                - "annotation": Calculate the F1 scores based on the annotated intervals.
-                - "prediction": Calculate the F1 scores based on the predicted intervals.
+
+                - :code:`"timestamp"`: Calculate the F1 scores across all samples (timestamps).
+                - :code:`"annotation"`: Calculate the F1 scores based on the annotated intervals.
+                - :code:`"prediction"`: Calculate the F1 scores based on the predicted intervals.
         """
         categories: tuple[str, ...] = tuple(self.categories)  # type: ignore  # better done via abstract base class!
         encoding_function = partial(encode_categories, categories=categories)

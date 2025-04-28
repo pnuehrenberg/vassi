@@ -37,11 +37,14 @@ def get_window_slices(
     """
     Find consecutive window slices for time scales, either explicitly specified or derived from durations and quantiles.
 
-    Args:
+    Parameters:
         num_windows_per_scale: Number of windows per time scale.
         time_scales: Explicit time scales.
         durations: Durations to calculate time scales from.
         time_scale_quantiles: Quantiles of the durations to derive time scales.
+
+    Returns:
+        A tuple containing the (adjusted) time scales and the corresponding window slices.
 
     Raises:
         ValueError: If neither :code:`time_scales` nor :code:`durations` and :code:`time_scale_quantiles` are specified.
@@ -82,17 +85,20 @@ class SlidingWindowAggregator(BaseEstimator, TransformerMixin):
     """
     Sliding window aggregator for time series data.
 
-    Args:
+    Parameters:
         metric_funcs: List of functions to apply to each window.
         window_size: Size of the sliding window.
         window_slices: List of slices to use for each window.
+
+    See also:
+        :func:`get_window_slices` to obtain window size(s) and corresponding slices.
     """
 
     def __init__(
         self,
         metric_funcs: list[ArrayToArray],
         window_size: int | Iterable[int],
-        window_slices: list[slice] | None = None,
+        window_slices: Optional[list[slice]] = None,
     ):
         self.metric_funcs = metric_funcs
         if isinstance(window_size, int):
@@ -105,7 +111,7 @@ class SlidingWindowAggregator(BaseEstimator, TransformerMixin):
         """
         This method is required by the sklearn API and does not perform any actual fitting.
 
-        Args:
+        Parameters:
             X: Ignored.
             y: Ignored.
         """
@@ -116,8 +122,11 @@ class SlidingWindowAggregator(BaseEstimator, TransformerMixin):
         Transform the input data by applying the metric functions to sliding windows.
         The transformed data is returned as a 2D array, flattened along all axes except the first.
 
-        Args:
+        Parameters:
             X: Input data to transform.
+
+        Returns:
+            Transformed data as a 2D array.
         """
         # X is not typed in pandas
         X_numpy = validate_data(
@@ -135,13 +144,17 @@ class SlidingWindowAggregator(BaseEstimator, TransformerMixin):
             )
         )
 
-    def get_feature_names_out(self, input_features: Iterable[str] | None = None):
+    def get_feature_names_out(
+        self, input_features: Iterable[str] | None = None
+    ) -> np.ndarray:
         """
         Get output feature names for transformation.
 
-
-        Args:
+        Parameters:
             input_features: Input feature names.
+
+        Returns:
+            Output feature names as a 1D array.
         """
         # https://github.com/scikit-learn/scikit-learn/blob/70fdc843a/sklearn/preprocessing/_polynomial.py#L99
         input_features = _check_feature_names_in(self, input_features)

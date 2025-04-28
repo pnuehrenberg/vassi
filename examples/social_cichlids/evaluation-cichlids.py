@@ -44,7 +44,9 @@ def summarize_scores(result, *, foreground_categories, run, postprocessing_step)
         summary[f"{level}_f1-macro-all"] = scores.loc[level].mean()
     summary.columns = pd.MultiIndex.from_tuples(
         [
-            (column.split("-", 1) if "-" in column else (column, ""))
+            (
+                tuple(column.split("-", 1)) if "-" in column else (column, "")
+            )  # this should be updated in the notebooks as well
             for column in summary.columns
         ]
     )
@@ -189,4 +191,4 @@ if __name__ == "__main__":
 
     if experiment.is_root:
         to_cache([summary, confusion], cache_file="results.cache")
-        to_cache(test_result, cache_file="predictions.cache")
+        to_cache(test_result, cache_file="predictions.cache")  # type: ignore

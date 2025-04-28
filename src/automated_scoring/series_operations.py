@@ -1,3 +1,5 @@
+"""This module contains various utility functions for working with time series data represented as :class:`~numpy.ndarray`"""
+
 from collections.abc import Iterable
 from copy import deepcopy
 
@@ -13,6 +15,18 @@ def sample_1d(
     *,
     keep_dtype: bool,
 ) -> np.ndarray:
+    """
+    Sample a 1D array at specified timestamps, can be used for interpolation.
+
+    Parameters:
+        array: The input array.
+        timestamps_array: The timestamps corresponding to the input array.
+        timestamps: The timestamps at which to sample the array.
+        keep_dtype: Whether to keep the original data type of the array.
+
+    Returns:
+        The sampled array.
+    """
     dtype = array.dtype
     interpolated = np.interp(timestamps, timestamps_array, array)
     if keep_dtype:
@@ -21,6 +35,15 @@ def sample_1d(
 
 
 def sign_change_latency_1d(array: np.ndarray) -> np.ndarray:
+    """
+    Calculate the latency between sign changes in a 1D array.
+
+    Parameters:
+        array: The input array.
+
+    Returns:
+        The latency between sign changes.
+    """
     sign_change_idx = (
         np.argwhere(np.sign(array) != np.sign(math.shift(array, 1))).ravel() + 1
     )
@@ -36,6 +59,18 @@ def sign_change_latency_1d(array: np.ndarray) -> np.ndarray:
 def filter_sliding_quantile_range_1d(
     array: np.ndarray, window_size: int, q_lower: float, q_upper: float
 ) -> np.ndarray:
+    """
+    Filter values of a 1D array within a sliding quantile range.
+
+    Parameters:
+        array: The input array.
+        window_size: The size of the sliding window.
+        q_lower: The lower quantile.
+        q_upper: The upper quantile.
+
+    Returns:
+        The filtered array.
+    """
     quantiles = sliding_metrics.sliding_quantiles(
         array, window_size, (q_lower, q_upper)
     )
@@ -49,6 +84,16 @@ def filter_sliding_quantile_range_1d(
 def smooth_1d(
     array: np.ndarray, filter_funcs: Iterable[utils.SmoothingFunction]
 ) -> np.ndarray:
+    """
+    Smooth a 1D array using a series of smoothing functions.
+
+    Parameters:
+        array: The input array.
+        filter_funcs: The smoothing functions to apply.
+
+    Returns:
+        The smoothed array.
+    """
     for filter_func in filter_funcs:
         array = filter_func(array=array)
     return array
@@ -60,26 +105,19 @@ def sample(
     timestamps: np.ndarray,
     *,
     keep_dtype: bool,
-):
+) -> np.ndarray:
     """
     Samples a time series at specified timestamps.
 
     This function interpolates values from a time series at given timestamps. It uses linear interpolation to estimate values between the known data points.
 
-    Parameters
-    ----------
-    series : numpy.ndarray
-        The time series data to sample.
-    timestamps_series : numpy.ndarray
-        The timestamps corresponding to the time series data.
-    timestamps : numpy.ndarray
-        The timestamps at which to sample the time series.
-    keep_dtype : bool
-        Whether to preserve the original data type of the series. Defaults to False.
+    Parameters:
+    series: The time series data to sample.
+    timestamps_series: The timestamps corresponding to the time series data.
+    timestamps: The timestamps at which to sample the time series.
+    keep_dtype: Whether to preserve the original data type of the series.
 
-    Returns
-    -------
-    numpy.ndarray
+    Returns:
         The sampled time series data.
     """
     sampled = np.apply_along_axis(
@@ -95,7 +133,16 @@ def sample(
     return sampled
 
 
-def sign_change_latency(series: np.ndarray):
+def sign_change_latency(series: np.ndarray) -> np.ndarray:
+    """
+    Calculates the latency of sign changes in a time series.
+
+    Parameters:
+        series: The time series data.
+
+    Returns:
+        The latency of sign changes in the time series.
+    """
     return np.apply_along_axis(
         sign_change_latency_1d,
         0,
@@ -109,7 +156,20 @@ def filter_sliding_quantile_range(
     q_lower: float,
     q_upper: float,
     copy: bool = True,
-):
+) -> np.ndarray:
+    """
+    Filters a time series by sliding quantile range.
+
+    Parameters:
+        series: The time series data.
+        window_size: The size of the sliding window.
+        q_lower: The lower quantile.
+        q_upper: The upper quantile.
+        copy: Whether to copy the series.
+
+    Returns:
+        The filtered time series data.
+    """
     if copy:
         series = deepcopy(series)
     return np.apply_along_axis(
@@ -127,6 +187,17 @@ def smooth(
     filter_funcs: Iterable[utils.SmoothingFunction],
     copy: bool = True,
 ) -> np.ndarray:
+    """
+    Smooths a time series using a set of smoothing functions.
+
+    Parameters:
+        series: The time series data.
+        filter_funcs: The smoothing functions.
+        copy: Whether to copy the series.
+
+    Returns:
+        The smoothed time series data.
+    """
     if copy:
         series = deepcopy(series)
     return np.apply_along_axis(

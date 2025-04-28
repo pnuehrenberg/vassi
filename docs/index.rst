@@ -8,14 +8,13 @@ automated-scoring
 
 Welcome to *automated-scoring*, a Python package for automated scoring of animal behavior using trajectory data.
 
-*automated-scoring* provides classes and methods to
+.. admonition:: *automated-scoring* provides classes and methods to
 
-- handle and manipulate trajectory and posture data
-- extract individual and dyadic spatiotemporal features to describe movement and posture
-- handle datasets containing multiple groups of individuals
-- sample datasets to train machine-learning algorithms
-- post-process behavioral classification results for down-stream analyses
-- interactive visualization of behavioral sequences
+    - handle and manipulate trajectory and posture data in datasets with groups of multiple individuals (see :doc:`source/4_import_data`)
+    - extract individual and dyadic spatiotemporal features to describe movement and posture (see :doc:`source/5_feature_extraction`)
+    - sample datasets to train machine-learning algorithms (see :doc:`source/3_basic_usage`)
+    - post-process behavioral classification results for down-stream analyses
+    - interactive visualization of behavioral sequences
 
 .. toctree::
     :caption: Getting Started
@@ -28,12 +27,10 @@ Welcome to *automated-scoring*, a Python package for automated scoring of animal
     source/5_feature_extraction
 
 .. toctree::
-    :caption: CALMS21 dataset
+    :caption: Case studies
     :hidden:
 
-    source/minimal_example
-    source/results_and_figures
-    source/postprocessing_parameters
+    source/case_studies
 
 .. toctree::
     :caption: API Reference
@@ -49,7 +46,6 @@ Welcome to *automated-scoring*, a Python package for automated scoring of animal
     source/automated_scoring.io
     source/automated_scoring.logging
     source/automated_scoring.math
-    source/automated_scoring.reidentification
     source/automated_scoring.series_operations
     source/automated_scoring.utils
     source/automated_scoring.visualization

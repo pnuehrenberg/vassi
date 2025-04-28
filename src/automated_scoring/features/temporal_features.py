@@ -1,3 +1,5 @@
+from typing import Optional
+
 import numpy as np
 
 from .. import math
@@ -231,7 +233,7 @@ def target_velocity(
     *,
     step: int,
     pad_value: int | float | str = "same",
-    trajectory_other: Trajectory | None = None,
+    trajectory_other: Optional[Trajectory] = None,
     keypoints_1: Keypoints,
     keypoint_pairs_2: KeypointPairs,
     element_wise: bool = False,

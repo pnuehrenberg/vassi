@@ -61,6 +61,7 @@ class BaseExtractor[F: Shaped](ABC):
     The base class for feature extractors.
 
     Allows the following keyword arguments in feature functions:
+
     - as_absolute: Whether to return the absolute value of the feature.
     - as_sign_change_latency: Whether to return the latency of sign changes in the feature.
     - reversed_dyad: Whether to reverse the order of the dyad for feature computation.

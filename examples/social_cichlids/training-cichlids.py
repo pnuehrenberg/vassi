@@ -20,8 +20,10 @@ if __name__ == "__main__":
 
     for run in experiment:
         X, y = from_cache(os.path.join(cache_directory, f"samples_{run:02d}.cache"))
-    
-        classifier = XGBClassifier(n_estimators=1000, random_state=experiment.random_state).fit(
-            X.to_numpy(), y, sample_weight=compute_sample_weight("balanced", y)
+
+        classifier = XGBClassifier(
+            n_estimators=1000, random_state=experiment.random_state
+        ).fit(X.to_numpy(), y, sample_weight=compute_sample_weight("balanced", y))
+        to_cache(
+            classifier, cache_file=f"clf_{run:02d}.cache", directory=cache_directory
         )
-        to_cache(classifier, cache_file=f"clf_{run:02d}.cache", directory=cache_directory)

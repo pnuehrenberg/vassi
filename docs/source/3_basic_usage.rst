@@ -39,7 +39,7 @@ Then, we can create a feature extractor to sample the dataset.
     extractor = DataFrameFeatureExtractor(cache_mode=False)
     extractor.read_yaml("config_file.yaml")
 
-With this extractor, we can compute the defined features for all dyads in the training dataset. For this quick example, we subsample the dataset so that each behavioral category is represented with 1000 samples each. This produces a dataframe for the features, and a numpy array containing corresponding labels.
+With this extractor, we can compute the defined features for all dyads in the training dataset. For this quick example, we subsample the dataset so that each behavioral category is represented with 1000 samples each. This produces a :class:`~pandas.DataFrame` for the features, and a :class:`~numpy.ndarray` containing corresponding labels.
 
 .. note::
     Have a look at the documentation for more details on subsampling. Here, we use the default arguments for stratified subsampling that ensures that each dyad is proportionally represented in the resulting samples. You can fix the random state to ensure reproducibility.
@@ -53,7 +53,7 @@ With this extractor, we can compute the defined features for all dyads in the tr
     )
     y = dataset_train.encode(y)  # Encode the labels as integers
 
-Now, we can train a model on the subsampled dataset. For this basic example, we choose a :code:`RandomForestClassifier` from the :code:`sklearn.ensemble` `module <https://scikit-learn.org/stable/modules/ensemble.html#random-forests-and-other-randomized-tree-ensembles>`_.
+Now, we can train a model on the subsampled dataset. For this basic example, we choose a :class:`~sklearn.ensemble.RandomForestClassifier` from the :mod:`~sklearn` :mod:`~sklearn.ensemble` module.
 
 .. code-block:: python
 
@@ -78,9 +78,11 @@ Until now, the example only used the training dataset. Let's load the test datas
 
     result_test = predict(dataset_test, classifier, extractor)
 
-The resulting object :code:`result_test` holds the true and predicted labels for each dyad, for all timestamps (video frames), but also aggregated as intervals for :code:`predictions` and :code:`annotations` (both as properties that return a :code:`DataFrame`). Since we predicted on the entire test dataset, the result is a nested object that contains predictions for each group (video sequences of the *CALMS21* dataset) and each dyad (only one dyad per group: :code:`('resident', 'intruder')`).
+The resulting object :code:`result_test` (a :class:`~automated_scoring.classification.results.DatasetClassificationResult`) holds the true and predicted labels for each dyad, for all timestamps (video frames), but also aggregated as intervals for :code:`predictions` and :code:`annotations` (both as properties that return a :class:`~pandas.DataFrame`).
 
-These result objects provide easy access to evaluation metrics, such as F1 scores and confusion matrices. We can also visualize predictions as behavioral timelines.
+Since we predicted on the entire test dataset, the result is a nested object that contains predictions for each group (video sequences of the *CALMS21* dataset, see :class:`~automated_scoring.classification.results.GroupClassificationResult`) and each dyad (only one dyad per group: :code:`('resident', 'intruder')`, see :class:`~automated_scoring.classification.results.ClassificationResult`).
+
+These result objects provide easy access to evaluation metrics (inherited from :class:`~automated_scoring.classification.results.BaseResult`), such as :meth:`~automated_scoring.classification.results.BaseResult.f1_score` and confusion matrices. We can also visualize predictions as behavioral timelines.
 
 .. code-block:: python
 
@@ -115,4 +117,4 @@ These result objects provide easy access to evaluation metrics, such as F1 score
     :alt: Behavioral timeline for test sequence 11.
 
 Although we only trained a simple model on a subset of 4000 samples, the model already seems to classify the majority of the frames correctly.
-You can fit any classification model that implements the :code:`sklearn` predictor `API <https://scikit-learn.org/stable/developers/develop.html#estimators>`_ to improve classification results, for example also :code:`XGBoost` classifiers. The *automated-scoring* package further provides two postprocessing steps to improve classification results, *smoothing* and *thresholding*. Have a look at the example notebooks to reproduce the results as presented in the paper.
+You can fit any classification model that implements the :mod:`~sklearn` predictor `API <https://scikit-learn.org/stable/developers/develop.html#estimators>`_ to improve classification results, for example also :mod:`~xgboost` classifiers. The *automated-scoring* package further provides two postprocessing steps to improve classification results, *smoothing* and *thresholding*. Have a look at the example notebooks to reproduce the results as presented in the paper.
