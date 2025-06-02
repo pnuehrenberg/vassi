@@ -5,15 +5,15 @@ import os
 import numpy as np
 import pandas as pd
 
-from automated_scoring.config import cfg
-from automated_scoring.data_structures import Trajectory
-from automated_scoring.dataset import (
+from vassi.config import cfg
+from vassi.data_structures import Trajectory
+from vassi.dataset import (
     AnnotatedDataset,
     AnnotatedGroup,
     IndividualIdentifier,
 )
-from automated_scoring.dataset.observations import to_observations
-from automated_scoring.io import save_dataset
+from vassi.dataset.observations import to_observations
+from vassi.io import save_dataset
 
 
 def load_calms21_sequences(

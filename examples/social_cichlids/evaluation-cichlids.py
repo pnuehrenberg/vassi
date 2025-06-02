@@ -8,13 +8,13 @@ from sklearn.compose import ColumnTransformer, make_column_selector
 from sklearn.impute import KNNImputer
 from sklearn.pipeline import Pipeline
 
-from automated_scoring.classification import (
+from vassi.classification import (
     predict,
 )
-from automated_scoring.config import cfg
-from automated_scoring.features import DataFrameFeatureExtractor
-from automated_scoring.io import from_cache, from_yaml, load_dataset, to_cache
-from automated_scoring.sliding_metrics import (
+from vassi.config import cfg
+from vassi.features import DataFrameFeatureExtractor
+from vassi.io import from_cache, from_yaml, load_dataset, to_cache
+from vassi.sliding_metrics import (
     SlidingWindowAggregator,
     get_window_slices,
     metrics,
@@ -54,7 +54,7 @@ def summarize_scores(result, *, foreground_categories, run, postprocessing_step)
 
 
 if __name__ == "__main__":
-    from automated_scoring.distributed import DistributedExperiment
+    from vassi.distributed import DistributedExperiment
 
     dataset_full = load_dataset(
         "cichlids",

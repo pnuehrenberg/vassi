@@ -49,9 +49,9 @@ def include(
 
 class Dataset(NestedSampleableMixin, SampleableMixin):
     """
-    A dataset is a collection of groups (:class:`~automated_scoring.dataset.types.group.Group`),
-    each of which is a collection of individuals (:class:`~automated_scoring.dataset.types.individual.Individual`) or
-    dyads (:class:`~automated_scoring.dataset.types.dyad.Dyad`).
+    A dataset is a collection of groups (:class:`~vassi.dataset.types.group.Group`),
+    each of which is a collection of individuals (:class:`~vassi.dataset.types.individual.Individual`) or
+    dyads (:class:`~vassi.dataset.types.dyad.Dyad`).
 
     Parameters:
         groups: A mapping of group identifiers to groups.

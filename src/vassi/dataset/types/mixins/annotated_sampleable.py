@@ -17,7 +17,7 @@ class AnnotatedSampleableMixin(SampleableMixin, AnnotatedMixin):
     """
     Mixin for sampleable objects with annotations, only used for type checking.
 
-    Intersection of :class:`~automated_scoring.dataset.types.mixins.annotated.AnnotatedMixin` and :class:`~automated_scoring.dataset.types.mixins.sampleable.SampleableMixin`.
+    Intersection of :class:`~vassi.dataset.types.mixins.annotated.AnnotatedMixin` and :class:`~vassi.dataset.types.mixins.sampleable.SampleableMixin`.
     """
 
     if TYPE_CHECKING:

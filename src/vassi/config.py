@@ -128,12 +128,12 @@ class Config(BaseConfig):
     """
     Config for *automated-scoring*.
 
-    Configurations derived from this class are used to define data access (via keys) for the structures implemented in :mod:`automated_scoring.data_structures`.
+    Configurations derived from this class are used to define data access (via keys) for the structures implemented in :mod:`vassi.data_structures`.
 
     Parameters:
         trajectory_keys: Tuple of keys used to specify trajectory data (e.g., positions, postures, timestamps, bounding boxes, individual identities).
         key_identity: Key used to specify identities, if applicable.
-        key_timestamp: Key used to specify timestamps, required for timestamped data (e.g., :class:`~automated_scoring.data_structures.trajectory.Trajectory`).
+        key_timestamp: Key used to specify timestamps, required for timestamped data (e.g., :class:`~vassi.data_structures.trajectory.Trajectory`).
         key_category: Key used to specify categories, for example if collections contain instances of different categories (e.g., different species).
         key_score: Key used to specify scores, for example for detection confidence for each instance in a collection.
         key_box: Key used to specify bounding boxes.

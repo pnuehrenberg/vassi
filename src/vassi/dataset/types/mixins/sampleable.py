@@ -21,8 +21,8 @@ class SamplingFunction(Protocol):
     Protocol for functions that sample data from a sampleable.
 
     Parameters:
-        sampleable (:class:`~automated_scoring.dataset.types.mixins.sampleable.SampleableMixin`): The sampleable to sample from.
-        extractor (:class:`~automated_scoring.features.feature_extractor.BaseExtractor`): The extractor to use for sampling.
+        sampleable (:class:`~vassi.dataset.types.mixins.sampleable.SampleableMixin`): The sampleable to sample from.
+        extractor (:class:`~vassi.features.feature_extractor.BaseExtractor`): The extractor to use for sampling.
         *args: Additional arguments to use within the function.
         random_state (:class:`~numpy.random.Generator` | int | None): The random state to use for sampling.
         log (loguru.Logger | None): The logger to use for logging.
@@ -92,7 +92,7 @@ class SampleableMixin(ABC):
         extractor: BaseExtractor[F],
     ) -> tuple[F, np.ndarray | None]:
         """
-        Extract features and labels (if also :class:`~automated_scoring.dataset.types.mixins.annotated.AnnotatedMixin`) for all available samples.
+        Extract features and labels (if also :class:`~vassi.dataset.types.mixins.annotated.AnnotatedMixin`) for all available samples.
 
         Args:
             extractor: The extractor to use for sampling.
@@ -137,7 +137,7 @@ class SampleableMixin(ABC):
         log: Optional[loguru.Logger] = None,
     ) -> tuple[F, np.ndarray | None]:
         """
-        Extract features and labels (if also :class:`~automated_scoring.dataset.types.mixins.annotated.AnnotatedMixin`) for a subset of samples.
+        Extract features and labels (if also :class:`~vassi.dataset.types.mixins.annotated.AnnotatedMixin`) for a subset of samples.
 
         Args:
             extractor: The extractor to use for sampling.

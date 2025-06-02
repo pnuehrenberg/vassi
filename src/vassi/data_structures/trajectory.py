@@ -75,11 +75,11 @@ class Trajectory(TimestampedInstanceCollection):
         """
         Validates the input data against the specified requirements.
 
-        See :func:`~automated_scoring.data_structures.collection.InstanceCollection.validate_data` for more details.
+        See :func:`~vassi.data_structures.collection.InstanceCollection.validate_data` for more details.
 
         Parameters:
             data: The data to validate.
-            allow_duplicated_timestamps: Ignored, exists for consistency with :class:`~automated_scoring.data_structures.collection.InstanceCollection`.
+            allow_duplicated_timestamps: Ignored, exists for consistency with :class:`~vassi.data_structures.collection.InstanceCollection`.
             allow_missing_keys: Whether to allow missing keys.
             try_broadcasting: Whether to try broadcasting.
             require_array_like: Whether to require array-like data.

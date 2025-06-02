@@ -11,10 +11,10 @@ from ..utils import KeypointPair, KeypointPairs, Keypoints
 
 class Feature(Protocol):
     """
-    A feature is a function that takes a :class:`~automated_scoring.data_structures.trajectory.Trajectory` or an :class:`~automated_scoring.data_structures.collection.InstanceCollection` as input and returns a :class:`~numpy.ndarray`.
+    A feature is a function that takes a :class:`~vassi.data_structures.trajectory.Trajectory` or an :class:`~vassi.data_structures.collection.InstanceCollection` as input and returns a :class:`~numpy.ndarray`.
 
     Parameters:
-        trajectory (:class:`~automated_scoring.data_structures.trajectory.Trajectory` | :class:`~automated_scoring.data_structures.collection.InstanceCollection`): The trajectory or collection to compute the feature for. Parameter can also be called :code:`collection`.
+        trajectory (:class:`~vassi.data_structures.trajectory.Trajectory` | :class:`~vassi.data_structures.collection.InstanceCollection`): The trajectory or collection to compute the feature for. Parameter can also be called :code:`collection`.
         *args: Additional positional arguments.
         **kwargs: Additional keyword arguments.
 
@@ -35,10 +35,10 @@ class Feature(Protocol):
 
 class DataFrameFeature(Protocol):
     """
-    A dataframe feature is a function that takes a :class:`~automated_scoring.data_structures.trajectory.Trajectory` or an :class:`~automated_scoring.data_structures.collection.InstanceCollection` as input and returns a :class:`~pandas.DataFrame`.
+    A dataframe feature is a function that takes a :class:`~vassi.data_structures.trajectory.Trajectory` or an :class:`~vassi.data_structures.collection.InstanceCollection` as input and returns a :class:`~pandas.DataFrame`.
 
     Parameters:
-        trajectory (:class:`~automated_scoring.data_structures.trajectory.Trajectory` | :class:`~automated_scoring.data_structures.collection.InstanceCollection`): The trajectory or collection to compute the feature for. Parameter can also be called :code:`collection`.
+        trajectory (:class:`~vassi.data_structures.trajectory.Trajectory` | :class:`~vassi.data_structures.collection.InstanceCollection`): The trajectory or collection to compute the feature for. Parameter can also be called :code:`collection`.
         *args: Additional positional arguments.
         **kwargs: Additional keyword arguments.
 

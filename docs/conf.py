@@ -93,4 +93,4 @@ shutil.copy2("../examples/CALMS21/minimal_example.ipynb", "source")
 shutil.copy2("../examples/CALMS21/results_and_figures.ipynb", "source")
 shutil.copy2("../examples/CALMS21/postprocessing_parameters.ipynb", "source")
 
-# sphinx-apidoc -f -e -o source/ ../src/automated_scoring && make clean && make html
+# sphinx-apidoc -f -e -o source/ ../src/vassi && make clean && make html

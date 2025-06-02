@@ -26,7 +26,7 @@ FeatureCategory = Literal["individual", "dyadic"]
 
 def load_feature_func(func_name: str) -> utils.Feature:
     """
-    Helper function to get a feature function (from :mod:`~automated_scoring.features.features`) from its name.
+    Helper function to get a feature function (from :mod:`~vassi.features.features`) from its name.
 
     Parameters:
         func_name: The name of the feature function.

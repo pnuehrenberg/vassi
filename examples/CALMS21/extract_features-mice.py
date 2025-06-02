@@ -1,6 +1,6 @@
-from automated_scoring.config import cfg
-from automated_scoring.features import DataFrameFeatureExtractor
-from automated_scoring.io import load_dataset
+from vassi.config import cfg
+from vassi.features import DataFrameFeatureExtractor
+from vassi.io import load_dataset
 
 cfg.key_keypoints = "keypoints"
 cfg.key_timestamp = "timestamps"

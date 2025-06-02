@@ -55,14 +55,14 @@ class PostprocessingFunction[T: Result](Protocol):
     Protocol for postprocessing functions.
 
     Parameters:
-        result (:class:`~automated_scoring.classification.results.ClassificationResult` | :class:`~automated_scoring.classification.results.GroupClassificationResult` | :class:`~automated_scoring.classification.results.DatasetClassificationResult`): The result to be postprocessed.
+        result (:class:`~vassi.classification.results.ClassificationResult` | :class:`~vassi.classification.results.GroupClassificationResult` | :class:`~vassi.classification.results.DatasetClassificationResult`): The result to be postprocessed.
         *args: Additional arguments.
         postprocessing_parameters (dict[str, Any]): Parameters for postprocessing.
         decision_thresholds (Iterable[float]): Category-specific decision thresholds.
         **kwargs: Additional keyword arguments.
 
     Returns:
-        (:class:`~automated_scoring.classification.results.ClassificationResult` | :class:`~automated_scoring.classification.results.GroupClassificationResult` | :class:`~automated_scoring.classification.results.DatasetClassificationResult`): The result after postprocessing.
+        (:class:`~vassi.classification.results.ClassificationResult` | :class:`~vassi.classification.results.GroupClassificationResult` | :class:`~vassi.classification.results.DatasetClassificationResult`): The result after postprocessing.
 
     See also:
         :class:`PostprocessingParameters` to specify the two required keyword arguments with :code:`**postprocessing_parameters`.
@@ -379,7 +379,7 @@ def run_k_fold_experiment[F: Shaped](
         k: The number of folds to use.
         sampling_function: The sampling function to use.
         balance_sample_weights: Whether to balance sample weights for model fitting.
-        experiment: The experiment to run, can also be a :class:`~automated_scoring.distributed.DistributedExperiment`.
+        experiment: The experiment to run, can also be a :class:`~vassi.distributed.DistributedExperiment`.
         log: The logger to use.
         cache: Whether to cache the results.
 

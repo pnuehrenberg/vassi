@@ -2,10 +2,10 @@ from sklearn.compose import ColumnTransformer, make_column_selector
 from sklearn.impute import KNNImputer
 from sklearn.pipeline import Pipeline
 
-from automated_scoring.config import cfg
-from automated_scoring.features import DataFrameFeatureExtractor
-from automated_scoring.io import load_dataset
-from automated_scoring.sliding_metrics import (
+from vassi.config import cfg
+from vassi.features import DataFrameFeatureExtractor
+from vassi.io import load_dataset
+from vassi.sliding_metrics import (
     SlidingWindowAggregator,
     get_window_slices,
     metrics,

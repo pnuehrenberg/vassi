@@ -17,7 +17,7 @@ if TYPE_CHECKING:
 
 class Dyad(BaseSampleable):
     """
-    A dyad is a sampleable pair of trajectories (:class:`~automated_scoring.data_structures.trajectory.Trajectory`).
+    A dyad is a sampleable pair of trajectories (:class:`~vassi.data_structures.trajectory.Trajectory`).
 
     Parameters:
         trajectory: The first trajectory in the dyad (i.e., the actor of social behaviors).
@@ -39,7 +39,7 @@ class Dyad(BaseSampleable):
         """
         Helper function to prepare paired trajectories for a dyad.
 
-        The trajectories are temporally aligned with slicing (see :meth:`~automated_scoring.data_structures.trajectory.Trajectory.slice_window`) and returned as a view.
+        The trajectories are temporally aligned with slicing (see :meth:`~vassi.data_structures.trajectory.Trajectory.slice_window`) and returned as a view.
         Note that the trajectories should already be complete and sorted.
 
         Parameters:
@@ -50,7 +50,7 @@ class Dyad(BaseSampleable):
             The aligned trajectories.
 
         See also:
-            :class:`~automated_scoring.data_structures.trajectory.Trajectory` for more details on handling trajectory data.
+            :class:`~vassi.data_structures.trajectory.Trajectory` for more details on handling trajectory data.
         """
         start = max(trajectory.timestamps[0], trajectory_other.timestamps[0])
         stop = min(trajectory.timestamps[-1], trajectory_other.timestamps[-1])

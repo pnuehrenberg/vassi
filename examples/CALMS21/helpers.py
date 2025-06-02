@@ -4,13 +4,13 @@ from typing import Any, Iterable
 import numpy as np
 import optuna
 
-from automated_scoring.classification.postprocessing import PostprocessingParameters
-from automated_scoring.dataset.types.mixins import (
+from vassi.classification.postprocessing import PostprocessingParameters
+from vassi.dataset.types.mixins import (
     AnnotatedSampleableMixin,
     SampleableMixin,
 )
-from automated_scoring.features import BaseExtractor, Shaped
-from automated_scoring.sliding_metrics import (
+from vassi.features import BaseExtractor, Shaped
+from vassi.sliding_metrics import (
     sliding_mean,
     sliding_median,
     sliding_quantile,

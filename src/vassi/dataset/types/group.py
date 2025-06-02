@@ -27,8 +27,8 @@ from .mixins import (
 
 class Group(NestedSampleableMixin, SampleableMixin):
     """
-    A group is a collection of individuals (:class:`~automated_scoring.dataset.types.individual.Individual`) or
-    dyads (:class:`~automated_scoring.dataset.types.dyad.Dyad`), depending on the target.
+    A group is a collection of individuals (:class:`~vassi.dataset.types.individual.Individual`) or
+    dyads (:class:`~vassi.dataset.types.dyad.Dyad`), depending on the target.
 
     Parameters:
         trajectories: A mapping of individual identifiers to trajectories.

@@ -3,8 +3,8 @@ import os
 from sklearn.utils.class_weight import compute_sample_weight
 from xgboost import XGBClassifier
 
-from automated_scoring.config import cfg
-from automated_scoring.io import from_cache, to_cache
+from vassi.config import cfg
+from vassi.io import from_cache, to_cache
 
 cfg.key_keypoints = "pose"
 cfg.key_timestamp = "time_stamp"
@@ -13,7 +13,7 @@ cfg.trajectory_keys = ("pose", "time_stamp")
 
 
 if __name__ == "__main__":
-    from automated_scoring.distributed import DistributedExperiment
+    from vassi.distributed import DistributedExperiment
 
     experiment = DistributedExperiment(20, random_state=1)
     cache_directory = "samples_cache"

@@ -5,16 +5,16 @@ import numpy as np
 import optuna
 import pandas as pd
 
-from automated_scoring.classification.postprocessing import PostprocessingParameters
-from automated_scoring.classification.results import ClassificationResult, _NestedResult
-from automated_scoring.dataset.permute import permute_recipients
-from automated_scoring.dataset.types import AnnotatedDataset, AnnotatedGroup
-from automated_scoring.dataset.types.mixins import (
+from vassi.classification.postprocessing import PostprocessingParameters
+from vassi.classification.results import ClassificationResult, _NestedResult
+from vassi.dataset.permute import permute_recipients
+from vassi.dataset.types import AnnotatedDataset, AnnotatedGroup
+from vassi.dataset.types.mixins import (
     AnnotatedSampleableMixin,
     SampleableMixin,
 )
-from automated_scoring.features import BaseExtractor, Shaped
-from automated_scoring.sliding_metrics import (
+from vassi.features import BaseExtractor, Shaped
+from vassi.sliding_metrics import (
     sliding_mean,
     sliding_median,
     sliding_quantile,

@@ -26,7 +26,7 @@ def keypoints(
         collection: The instance collection (e.g., a trajectory) to retrieve the keypoints from.
         keypoints: The indices of keypoints to retrieve.
         flat: Whether to flatten the output along all but the first dimension.
-        suffixes: The suffixes to use for the output when decorated with :func:`~automated_scoring.features.decorators.as_dataframe`.
+        suffixes: The suffixes to use for the output when decorated with :func:`~vassi.features.decorators.as_dataframe`.
 
     Returns:
         The 2D coordinates of the keypoints.
@@ -52,7 +52,7 @@ def position(
 
     Parameters:
         collection: The instance collection (e.g., a trajectory).
-        suffixes: The suffixes to use for the output when decorated with :func:`~automated_scoring.features.decorators.as_dataframe`.
+        suffixes: The suffixes to use for the output when decorated with :func:`~vassi.features.decorators.as_dataframe`.
 
     Returns:
         The 2D position of each instance in the collection.
@@ -77,7 +77,7 @@ def posture_segments(
         trajectory: The trajectory or instance collection.
         keypoint_pairs: The pairs of keypoint indices to use for the segments.
         flat: Whether to flatten the output along all but the first dimension.
-        suffixes: The suffixes to use for the output when decorated with :func:`~automated_scoring.features.decorators.as_dataframe`.
+        suffixes: The suffixes to use for the output when decorated with :func:`~vassi.features.decorators.as_dataframe`.
 
     Returns:
         The 2D line segments between trajectory keypoints.
@@ -107,7 +107,7 @@ def posture_vectors(
         keypoint_pairs: The pairs of keypoint indices to use for the segments.
         as_unit_vectors: Whether to return unit vectors instead of regular vectors.
         flat: Whether to flatten the output along all but the first dimension.
-        suffixes: The suffixes to use for the output when decorated with :func:`~automated_scoring.features.decorators.as_dataframe`.
+        suffixes: The suffixes to use for the output when decorated with :func:`~vassi.features.decorators.as_dataframe`.
 
     Returns:
         The 2D vectors between the keypoints.
@@ -244,7 +244,7 @@ def target_vectors(
         keypoints_2: The keypoint indices to use as target (of the second trajectory).
         element_wise: Whether to calculate the distances element-wise.
         flat: Whether to flatten the output along all but the first dimension.
-        suffixes: The suffixes to use for the output when decorated with :func:`~automated_scoring.features.decorators.as_dataframe`.
+        suffixes: The suffixes to use for the output when decorated with :func:`~vassi.features.decorators.as_dataframe`.
 
     Returns:
         The target vectors.

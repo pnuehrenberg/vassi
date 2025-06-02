@@ -1,21 +1,21 @@
 from helpers import postprocessing, subsample_train, suggest_postprocessing_parameters
 from xgboost import XGBClassifier
 
-from automated_scoring.classification.postprocessing import (
+from vassi.classification.postprocessing import (
     optimize_postprocessing_parameters,
     summarize_experiment,
 )
-from automated_scoring.config import cfg
-from automated_scoring.features import DataFrameFeatureExtractor
-from automated_scoring.io import load_dataset
-from automated_scoring.logging import set_logging_level
+from vassi.config import cfg
+from vassi.features import DataFrameFeatureExtractor
+from vassi.io import load_dataset
+from vassi.logging import set_logging_level
 
 cfg.key_keypoints = "keypoints"
 cfg.key_timestamp = "timestamps"
 cfg.trajectory_keys = ("keypoints", "timestamps")
 
 if __name__ == "__main__":
-    from automated_scoring.distributed import DistributedExperiment
+    from vassi.distributed import DistributedExperiment
 
     dataset_train = load_dataset(
         "mice_train",

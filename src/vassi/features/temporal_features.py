@@ -32,7 +32,7 @@ def translation(
         pad_value: The value to pad the translation vectors with.
         keypoints: The keypoint indices to retrieve the translation vectors for.
         flat: Whether to flatten the output along all but the first dimension.
-        suffixes: The suffixes to use for the output when decorated with :func:`~automated_scoring.features.decorators.as_dataframe`.
+        suffixes: The suffixes to use for the output when decorated with :func:`~vassi.features.decorators.as_dataframe`.
 
     Returns:
         The translation vectors of the trajectory keypoints.
@@ -66,7 +66,7 @@ def velocity(
         pad_value: The value to use for padding the output.
         keypoints: The keypoint indices to use for the velocity calculation.
         flat: Whether to flatten the output along all but the first dimension.
-        suffixes: The suffixes to use for the output when decorated with :func:`~automated_scoring.features.decorators.as_dataframe`.
+        suffixes: The suffixes to use for the output when decorated with :func:`~vassi.features.decorators.as_dataframe`.
 
     Returns:
         The velocity vectors of the trajectory keypoints.
@@ -96,7 +96,7 @@ def speed(
         pad_value: The value to use for padding the output.
         keypoints: The keypoint indices to use for the velocity calculation.
         flat: Whether to flatten the output along all but the first dimension.
-        suffixes: The suffixes to use for the output when decorated with :func:`~automated_scoring.features.decorators.as_dataframe`.
+        suffixes: The suffixes to use for the output when decorated with :func:`~vassi.features.decorators.as_dataframe`.
 
     Returns:
         The speed of the trajectory keypoints.
@@ -196,7 +196,7 @@ def projected_velocity(
         keypoint_pairs_2: The keypoint pairs to specify posture vectors.
         element_wise: Whether to perform the operation element-wise.
         flat: Whether to flatten the output along all but the first dimension.
-        suffixes: The suffixes to use for the output when decorated with :func:`~automated_scoring.features.decorators.as_dataframe`.
+        suffixes: The suffixes to use for the output when decorated with :func:`~vassi.features.decorators.as_dataframe`.
 
     Returns:
         The projected velocity and (projection and rejection components).
@@ -258,7 +258,7 @@ def target_velocity(
         origin_on_other: Whether the origin keypoints are on the other trajectory.
         target_on_other: Whether the target keypoints are on the other trajectory.
         flat: Whether to flatten the output along all but the first dimension.
-        suffixes: The suffixes to use for the output when decorated with :func:`~automated_scoring.features.decorators.as_dataframe`.
+        suffixes: The suffixes to use for the output when decorated with :func:`~vassi.features.decorators.as_dataframe`.
 
     Returns:
         The target velocity for the given trajectory and keypoints.
