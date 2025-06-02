@@ -1,14 +1,14 @@
-.. automated-scoring documentation master file, created by
+.. vassi documentation master file, created by
    sphinx-quickstart on Tue Dec 17 17:23:22 2024.
    You can adapt this file completely to your liking, but it should at least
    contain the root `toctree` directive.
 
-automated-scoring
+vassi
 =================
 
-Welcome to *automated-scoring*, a Python package for automated scoring of animal behavior using trajectory data.
+Welcome to *vassi*, a Python package for verifiable, automated scoring of social interactions in animal groups using trajectory data.
 
-.. admonition:: *automated-scoring* provides classes and methods to
+.. admonition:: *vassi* provides classes and methods to
 
     - handle and manipulate trajectory and posture data in datasets with groups of multiple individuals (see :doc:`source/4_import_data`)
     - extract individual and dyadic spatiotemporal features to describe movement and posture (see :doc:`source/5_feature_extraction`)
@@ -36,16 +36,16 @@ Welcome to *automated-scoring*, a Python package for automated scoring of animal
     :caption: API Reference
     :hidden:
 
-    source/automated_scoring.classification
-    source/automated_scoring.data_structures
-    source/automated_scoring.dataset
-    source/automated_scoring.features
-    source/automated_scoring.sliding_metrics
-    source/automated_scoring.config
-    source/automated_scoring.distributed
-    source/automated_scoring.io
-    source/automated_scoring.logging
-    source/automated_scoring.math
-    source/automated_scoring.series_operations
-    source/automated_scoring.utils
-    source/automated_scoring.visualization
+    source/vassi.classification
+    source/vassi.data_structures
+    source/vassi.dataset
+    source/vassi.features
+    source/vassi.sliding_metrics
+    source/vassi.config
+    source/vassi.distributed
+    source/vassi.io
+    source/vassi.logging
+    source/vassi.math
+    source/vassi.series_operations
+    source/vassi.utils
+    source/vassi.visualization

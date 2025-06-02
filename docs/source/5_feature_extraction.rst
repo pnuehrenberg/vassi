@@ -9,9 +9,9 @@ Feature extraction
 
     from interactive_table import Table
 
-    from automated_scoring.dataset import Group, AnnotatedDataset
-    from automated_scoring.config import cfg
-    from automated_scoring.data_structures import Trajectory
+    from vassi.dataset import Group, AnnotatedDataset
+    from vassi.config import cfg
+    from vassi.data_structures import Trajectory
 
     # configure trajectory objects, providing your names for the collected data
     cfg.trajectory_keys = ("time", "posture")
@@ -84,7 +84,7 @@ On the previous page, we created a dataset with two groups of animals, each grou
 
     display(Table(dataset.observations))
 
-The dataset consists of groups and can be iterated over. Similarly, groups consist of dyads (note the :code:`target` parameter when creating groups/datasets) and can also be iterated over. Each of these objects is a :class:`~automated_scoring.dataset.types.mixins.sampleable.SampleableMixin` that provides methods for feature extraction, compatible with our feature extraction workflow.
+The dataset consists of groups and can be iterated over. Similarly, groups consist of dyads (note the :code:`target` parameter when creating groups/datasets) and can also be iterated over. Each of these objects is a :class:`~vassi.dataset.types.mixins.sampleable.SampleableMixin` that provides methods for feature extraction, compatible with our feature extraction workflow.
 
 .. jupyter-execute ::
 
@@ -95,7 +95,7 @@ The dataset consists of groups and can be iterated over. Similarly, groups consi
 Manual feature calculation
 --------------------------
 
-Each timestamp that both animals are present is considered a sample. For each sample, we can extract features such as :func:`~automated_scoring.features.features.keypoint_distances`, :func:`~automated_scoring.features.features.posture_angles`, or :func:`~automated_scoring.features.temporal_features.speed`. We can do this manually by using the feature functions defined in the :mod:`~automated_scoring.features` module:
+Each timestamp that both animals are present is considered a sample. For each sample, we can extract features such as :func:`~vassi.features.features.keypoint_distances`, :func:`~vassi.features.features.posture_angles`, or :func:`~vassi.features.temporal_features.speed`. We can do this manually by using the feature functions defined in the :mod:`~vassi.features` module:
 
 .. hint ::
     All feature functions return a :class:`~numpy.ndarray` containing the computed features. The shape depends on the number of postural elements and whether the feature should be computed :code:`element_wise` with regard to these elements.
@@ -103,7 +103,7 @@ Each timestamp that both animals are present is considered a sample. For each sa
 
 .. jupyter-execute ::
 
-    from automated_scoring.features import (
+    from vassi.features import (
         keypoint_distances, posture_angles, speed
     )
 
@@ -152,11 +152,11 @@ Each timestamp that both animals are present is considered a sample. For each sa
     features = np.concatenate((distances, angles_actor, angles, speed_actor, speed_recipient), axis=1)
     print(features.shape)
 
-For more transparency (especially in subsequent classification steps), feature functions can be wrapped using the :func:`~automated_scoring.features.decorators.as_dataframe` decorator, which then returns a :class:`~pandas.DataFrame` with named columns.
+For more transparency (especially in subsequent classification steps), feature functions can be wrapped using the :func:`~vassi.features.decorators.as_dataframe` decorator, which then returns a :class:`~pandas.DataFrame` with named columns.
 
 .. jupyter-execute ::
 
-    from automated_scoring.features import as_dataframe
+    from vassi.features import as_dataframe
 
     speed_actor_df = as_dataframe(speed)(
         dyad.trajectory,
@@ -181,12 +181,12 @@ For more transparency (especially in subsequent classification steps), feature f
 Using feature extractors
 ------------------------
 
-A more reproducible workflow can be achieved by using the :class:`~automated_scoring.features.feature_extractor.DataFrameFeatureExtractor` class.
+A more reproducible workflow can be achieved by using the :class:`~vassi.features.feature_extractor.DataFrameFeatureExtractor` class.
 This allows you to define a set of features and their parameters in a more structured way.
 
 .. jupyter-execute ::
 
-    from automated_scoring.features import DataFrameFeatureExtractor
+    from vassi.features import DataFrameFeatureExtractor
 
     extractor = DataFrameFeatureExtractor(
         features=[
@@ -248,15 +248,15 @@ The saved configuration file is shown below. You can also start by creating such
 .. literalinclude:: ../config.yaml
    :language: yaml
 
-Have a look at the API documentation (submodules :mod:`~automated_scoring.features.features` and :mod:`~automated_scoring.features.temporal_features`) for all implemented features and their respective arguments.
+Have a look at the API documentation (submodules :mod:`~vassi.features.features` and :mod:`~vassi.features.temporal_features`) for all implemented features and their respective arguments.
 
 .. hint ::
-    Feature extractors (inheriting from :class:`~automated_scoring.features.feature_extractor.BaseExtractor`) allow additional arguments to be passed to the feature functions to allow for more flexibility:
+    Feature extractors (inheriting from :class:`~vassi.features.feature_extractor.BaseExtractor`) allow additional arguments to be passed to the feature functions to allow for more flexibility:
 
     - :code:`as_absolute` to compute absolute values (e.g., helpful for positive and negative angles).
     - :code:`reversed_dyad` to switch actor and recipient trajectories, for example to calculate specific individual featues for the recipient.
     - :code:`as_sign_change_latency` to compute the latency between sign changes of a feature, for example to measure the time between changes a clockwise or anticlockwise posture angle.
 
-    The :class:`~automated_scoring.features.feature_extractor.DataFrameFeatureExtractor` adds additional arguments to specify which columns to :code:`discard` from the resulting DataFrame. You can specify one or more strings (patterns) to drop, and use :code:`keep` to specify exceptions for columns that should be kept regardless of these patterns.
+    The :class:`~vassi.features.feature_extractor.DataFrameFeatureExtractor` adds additional arguments to specify which columns to :code:`discard` from the resulting DataFrame. You can specify one or more strings (patterns) to drop, and use :code:`keep` to specify exceptions for columns that should be kept regardless of these patterns.
 
-Feature extractors can not only be used via their :meth:`~automated_scoring.features.feature_extractor.BaseExtractor.extract` method, but also as an argument for all dataset types (:class:`~automated_scoring.dataset.types.mixins.sampleable.SampleableMixin`). This includes individuals, dyads, groups, and datasets.
+Feature extractors can not only be used via their :meth:`~vassi.features.feature_extractor.BaseExtractor.extract` method, but also as an argument for all dataset types (:class:`~vassi.dataset.types.mixins.sampleable.SampleableMixin`). This includes individuals, dyads, groups, and datasets.

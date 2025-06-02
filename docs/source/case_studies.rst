@@ -1,4 +1,4 @@
-We tested the *automated-scoring* package on :doc:`two datasets <2_example_datasets>`:
+We tested the *vassi* package on :doc:`two datasets <2_example_datasets>`:
 
 CALMS21 dataset
 ===============

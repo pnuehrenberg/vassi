@@ -1,14 +1,14 @@
 Basic usage
 ===========
 
-The *automated-scoring* package provides high-level functions and classes for a behavioral classification pipeline. In the following example, we break down a minimal example of running the entire pipeline on the *CALMS21* dataset. You can find the full notebook on one of the next pages.
+The *vassi* package provides high-level functions and classes for a behavioral classification pipeline. In the following example, we break down a minimal example of running the entire pipeline on the *CALMS21* dataset. You can find the full notebook on one of the next pages.
 
 First, we load the *CALMS21* training dataset:
 
 .. code-block:: python
 
-    from automated_scoring.config import cfg
-    from automated_scoring.io import load_dataset
+    from vassi.config import cfg
+    from vassi.io import load_dataset
 
     # set configuration keys (see conversion.py for details)
     cfg.key_keypoints = "keypoints"
@@ -34,7 +34,7 @@ Then, we can create a feature extractor to sample the dataset.
 
 .. code-block:: python
 
-    from automated_scoring.features import DataFrameFeatureExtractor
+    from vassi.features import DataFrameFeatureExtractor
 
     extractor = DataFrameFeatureExtractor(cache_mode=False)
     extractor.read_yaml("config_file.yaml")
@@ -66,7 +66,7 @@ Until now, the example only used the training dataset. Let's load the test datas
 
 .. code-block:: python
 
-    from automated_scoring.classification.predict import predict
+    from vassi.classification.predict import predict
 
     dataset_test = load_dataset(
         "mice_test",
@@ -78,15 +78,15 @@ Until now, the example only used the training dataset. Let's load the test datas
 
     result_test = predict(dataset_test, classifier, extractor)
 
-The resulting object :code:`result_test` (a :class:`~automated_scoring.classification.results.DatasetClassificationResult`) holds the true and predicted labels for each dyad, for all timestamps (video frames), but also aggregated as intervals for :code:`predictions` and :code:`annotations` (both as properties that return a :class:`~pandas.DataFrame`).
+The resulting object :code:`result_test` (a :class:`~vassi.classification.results.DatasetClassificationResult`) holds the true and predicted labels for each dyad, for all timestamps (video frames), but also aggregated as intervals for :code:`predictions` and :code:`annotations` (both as properties that return a :class:`~pandas.DataFrame`).
 
-Since we predicted on the entire test dataset, the result is a nested object that contains predictions for each group (video sequences of the *CALMS21* dataset, see :class:`~automated_scoring.classification.results.GroupClassificationResult`) and each dyad (only one dyad per group: :code:`('resident', 'intruder')`, see :class:`~automated_scoring.classification.results.ClassificationResult`).
+Since we predicted on the entire test dataset, the result is a nested object that contains predictions for each group (video sequences of the *CALMS21* dataset, see :class:`~vassi.classification.results.GroupClassificationResult`) and each dyad (only one dyad per group: :code:`('resident', 'intruder')`, see :class:`~vassi.classification.results.ClassificationResult`).
 
-These result objects provide easy access to evaluation metrics (inherited from :class:`~automated_scoring.classification.results.BaseResult`), such as :meth:`~automated_scoring.classification.results.BaseResult.f1_score` and confusion matrices. We can also visualize predictions as behavioral timelines.
+These result objects provide easy access to evaluation metrics (inherited from :class:`~vassi.classification.results.BaseResult`), such as :meth:`~vassi.classification.results.BaseResult.f1_score` and confusion matrices. We can also visualize predictions as behavioral timelines.
 
 .. code-block:: python
 
-    from automated_scoring.classification.visualization import (
+    from vassi.classification.visualization import (
         plot_confusion_matrix,
         plot_classification_timeline,
     )
@@ -117,4 +117,4 @@ These result objects provide easy access to evaluation metrics (inherited from :
     :alt: Behavioral timeline for test sequence 11.
 
 Although we only trained a simple model on a subset of 4000 samples, the model already seems to classify the majority of the frames correctly.
-You can fit any classification model that implements the :mod:`~sklearn` predictor `API <https://scikit-learn.org/stable/developers/develop.html#estimators>`_ to improve classification results, for example also :mod:`~xgboost` classifiers. The *automated-scoring* package further provides two postprocessing steps to improve classification results, *smoothing* and *thresholding*. Have a look at the example notebooks to reproduce the results as presented in the paper.
+You can fit any classification model that implements the :mod:`~sklearn` predictor `API <https://scikit-learn.org/stable/developers/develop.html#estimators>`_ to improve classification results, for example also :mod:`~xgboost` classifiers. The *vassi* package further provides two postprocessing steps to improve classification results, *smoothing* and *thresholding*. Have a look at the example notebooks to reproduce the results as presented in the paper.

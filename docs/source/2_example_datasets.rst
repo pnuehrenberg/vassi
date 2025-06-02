@@ -7,13 +7,13 @@ Example datasets
 One of the two datasets that we use to benchmark and test our package is the *CALMS21* dataset of mouse resident-intruder interactions [CALMS21]_.
 You can download the original *CALMS21* dataset `here <https://data.caltech.edu/records/s0vdx-0k302/files/task1_classic_classification.zip?download=1>`_.
 
-We provide a `conversion script <https://github.com/pnuehrenberg/automated-scoring/blob/main/examples/CALMS21/conversion.py>`_ to load and reformat this dataset.
+We provide a `conversion script <https://github.com/pnuehrenberg/vassi/blob/main/examples/CALMS21/conversion.py>`_ to load and reformat this dataset.
 You can run the :code:`conversion.py` script from the command line. If you have previously created a virtual environment, activate it before running the script to make sure that the package can be imported.
 Adjust the path arguments to match the location of the downloaded dataset files and the desired output directory.
 
 .. code-block:: bash
 
-    conda activate automated-scoring  # activate the environment
+    conda activate vassi  # activate the environment
     cd path/to/examples/CALMS21  # go to the directory with conversion.py
     python -m conversion \
         --train_sequences path/to/calms21_task1_train.json \

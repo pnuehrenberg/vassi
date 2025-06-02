@@ -1,7 +1,7 @@
 Import your own data
 ====================
 
-The *automated-scoring* package is implemented in a object-oriented style, which allows for easy integration with your own data.
+The *vassi* package is implemented in a object-oriented style, which allows for easy integration with your own data.
 To run the entire pipeline, you need two primary data sources:
 
 1. Tracking data of individual animals
@@ -11,12 +11,12 @@ To run the entire pipeline, you need two primary data sources:
 -----------------------
 
 The tracking data can originate from various sources, for example from software designated for animal tracking such as *DeepLabCut*, *sleap.ai*, *deepposekit* (list not exhaustive) or your own custom tracking solution.
-In any case, you will have collected posture data for each animal and video frame the animal is visible in. With the *automated-scoring* package, you can easily import and process this data by arranging it into a numpy array and passing it to the :code:`Trajectory` class.
+In any case, you will have collected posture data for each animal and video frame the animal is visible in. With the *vassi* package, you can easily import and process this data by arranging it into a numpy array and passing it to the :code:`Trajectory` class.
 
 .. jupyter-execute::
 
-    from automated_scoring.config import cfg
-    from automated_scoring.data_structures import Trajectory
+    from vassi.config import cfg
+    from vassi.data_structures import Trajectory
 
     # configure trajectory objects, providing your names for the collected data
     cfg.trajectory_keys = ("time", "posture")
@@ -105,17 +105,17 @@ Interpolation can also be used for temporal resampling. Without providing a :cod
     print(trajectory_2.sort().interpolate() == trajectory.sort().interpolate(0.5))
 
 .. hint::
-    You can also set the :code:`timestep` parameter of the configuration object globally. If no configuration is passed when initializing trajectories, the global configuration from :code:`automated_scoring.config.cfg` is used.
+    You can also set the :code:`timestep` parameter of the configuration object globally. If no configuration is passed when initializing trajectories, the global configuration from :code:`vassi.config.cfg` is used.
 
 2. Creating groups
 ------------------
 
-The :code:`Trajectory` class is the fundamental data structure to hold individual trajectory data. The *automated-scoring* package provides additional classes to represent groups of multiple animals.
+The :code:`Trajectory` class is the fundamental data structure to hold individual trajectory data. The *vassi* package provides additional classes to represent groups of multiple animals.
 Depending on whether you want to score individual or social behavior (specified via the :code:`target` parameter), a :code:`Group` consists of either :code:`Individual` or :code:`Dyad` objects. Both are initialized with :code:`Trajectory` objects:
 
 .. jupyter-execute::
 
-    from automated_scoring.dataset import Group
+    from vassi.dataset import Group
 
     def create_random_trajectory():
         global cfg, rng, num_frames, shape
@@ -160,7 +160,7 @@ These annotations can be added as :code:`pandas.DataFrame`, with different colum
 
 .. jupyter-execute::
 
-    from automated_scoring.dataset import Individual, Dyad, Group, Dataset
+    from vassi.dataset import Individual, Dyad, Group, Dataset
 
     for dataset_type in [Individual, Dyad]:
         print(dataset_type)
@@ -230,11 +230,11 @@ If you collected your behavioral data with scoring software such as BORIS, you c
 4. Creating Datasets
 --------------------
 
-Finally, since your dataset most likely contains multiple groups, you can create an annotated dataset as the entry point for the entire *automated-scoring* pipeline.
+Finally, since your dataset most likely contains multiple groups, you can create an annotated dataset as the entry point for the entire *vassi* pipeline.
 
 .. jupyter-execute::
 
-    from automated_scoring.dataset import AnnotatedDataset
+    from vassi.dataset import AnnotatedDataset
 
     observations = pd.DataFrame(
         {
