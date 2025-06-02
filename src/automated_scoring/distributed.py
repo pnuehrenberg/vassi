@@ -3,7 +3,7 @@ from typing import TYPE_CHECKING, Any, Literal, Optional, overload
 import numpy as np
 
 try:
-    from mpi4py import MPI
+    from mpi4py import MPI  # type: ignore
 except ImportError:
     MPI = None
 

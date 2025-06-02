@@ -1,14 +1,15 @@
-from collections.abc import Iterable
-from typing import Callable, Optional
+from collections.abc import Iterable, Callable
+from typing import Optional
 
 import networkx as nx
 import numpy as np
-from numpy.dtypes import StringDType  # type: ignore
+from numpy.dtypes import StringDType
 from scipy.optimize import linear_sum_assignment
 from tqdm.auto import tqdm
 
 from . import config, math
 from .data_structures import TimestampedInstanceCollection
+from .data_structures.utils import OutOfInterval
 from .features.utils import Feature
 from .utils import perform_operation
 
@@ -135,7 +136,14 @@ def assign_identities(
                 continue
             active.discard(identity)
             archived.add(identity)
-        current_instances = instances_window.slice_window(timestamp, timestamp)
+        if len(instances_window) == 0:
+            # should probably move up
+            continue
+        try:
+            current_instances = instances_window.slice_window(timestamp, timestamp)
+        except OutOfInterval:
+            # the if below is probably wrong!
+            continue
         if (num_current := len(current_instances)) == 0:
             # nothing to do
             continue
@@ -256,7 +264,7 @@ def assign_identities(
         for idx in unassigned_idx:
             with current_instances.validate(False):
                 current_instances[int(idx), key_identity] = np.asarray(
-                    next_identity, dtype=dtype
+                    next_identity(), dtype=dtype
                 )
         assert (current_instances[key_identity] != unassigned).all()
     return instances

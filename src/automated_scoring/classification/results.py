@@ -223,13 +223,16 @@ class ClassificationResult(BaseResult):
             category_names=self.categories,
             timestamps=self.timestamps,
         )
-        if self.annotations is not None:
+        try:
+            annotations = self.annotations
             self._predictions = validate_predictions(
-                self.predictions, self.annotations, on="predictions"
+                self.predictions, annotations, on="predictions"
             )
             self._annotations = validate_predictions(
-                self.predictions, self.annotations, on="annotations"
+                self.predictions, annotations, on="annotations"
             )
+        except ValueError:
+            pass
         return self
 
     def smooth(
