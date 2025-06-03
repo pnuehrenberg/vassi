@@ -1,4 +1,4 @@
-![vassi logo](docs/source/vassi_logo.svg)
+![vassi logo](docs/source/vassi_logo_large.svg)
 
 # Verifiable, automated scoring of social interactions in animal groups using trajectory data
 
