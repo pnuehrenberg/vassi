@@ -105,6 +105,11 @@ if not os.path.exists("source/SI6_interactive_validation.mp4"):
         print(f"Error downloading file: {e}")
         pass
 
+for rst_file in ["source/vassi.rst", "source/modules.rst"]:
+    if not os.path.isfile(rst_file):
+        continue
+    # not needed
+    os.remove(rst_file)
 
 shutil.copy2("../examples/CALMS21/minimal_example.ipynb", "source")
 shutil.copy2("../examples/CALMS21/2_mice-results.svg", "source")
@@ -112,4 +117,4 @@ shutil.copy2("../examples/CALMS21/interactive_validation.ipynb", "source")
 shutil.copy2("../examples/CALMS21/results_and_figures.ipynb", "source")
 shutil.copy2("../examples/CALMS21/postprocessing_parameters.ipynb", "source")
 
-# sphinx-apidoc -f -e -o source/ ../src/vassi && make clean && make html
+# pip install .. && sphinx-apidoc -f -e -o source/ ../src/vassi && make clean && make html

@@ -19,7 +19,7 @@ from sklearn.metrics import confusion_matrix
 DType = TypeVar("DType")
 
 
-class Array(np.ndarray, Generic[DType]):
+class _Array(np.ndarray, Generic[DType]):
     def __getitem__(self, key) -> DType:  # type: ignore
         return super().__getitem__(key)  # type: ignore
 
@@ -131,7 +131,7 @@ def plot_classification_timeline(
     timestamps: Optional[np.ndarray] = None,
     y_proba: Optional[np.ndarray] = None,
     y_proba_smoothed: Optional[np.ndarray] = None,
-    axes: Optional[Array[Axes]] = None,
+    axes: Optional[_Array[Axes]] = None,
     figsize: tuple[float, float] = (10, 3),
     dpi: float = 100,
     category_labels: Optional[Iterable[str]] = None,

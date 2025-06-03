@@ -19,7 +19,7 @@ from ..io import from_yaml, to_yaml
 from ..logging import set_logging_level
 from ..utils import hash_dict
 from . import decorators, features, temporal_features, utils
-from .caching import cache
+from ._caching import cache
 
 FeatureCategory = Literal["individual", "dyadic"]
 

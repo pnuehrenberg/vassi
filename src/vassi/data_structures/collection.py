@@ -7,7 +7,8 @@ from numpy.dtypes import StringDType  # type: ignore
 
 #
 from .. import config
-from . import instance, type_checking, utils
+from . import instance, utils
+from . import _type_checking as type_checking
 from .base import ConfiguredData
 
 

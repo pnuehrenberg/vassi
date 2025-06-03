@@ -29,7 +29,7 @@ class Classifier(Protocol):
     This protocol defines the methods that a classifier should implement.
 
     See also:
-        :class:`~sklearn.base.ClassifierMixin`:
+        :class:`~sklearn.base.ClassifierMixin` for the classifier interface in :mod:`~sklearn`.
     """
 
     def predict(self, *args, **kwargs) -> np.ndarray: ...
@@ -114,7 +114,7 @@ def validate_predictions(
     *,
     on: Literal["predictions", "annotations"] = "predictions",
     key_columns: Iterable[str] = ("group", "actor", "recipient"),
-):
+) -> pd.DataFrame:
     """
     Validate the predictions or annotations.
 
