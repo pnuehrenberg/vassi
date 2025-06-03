@@ -17,7 +17,7 @@
     - extract :doc:`individual and dyadic spatiotemporal features <source/5_feature_extraction>` to describe movement and posture
     - sample behavioral datasets to :doc:`train machine-learning algorithms <source/3_basic_usage>`
     - post-process behavioral classification results for down-stream analyses
-    - interactively visualize and validate behavioral sequences
+    - interactively :doc:`visualize and validate behavioral sequences <source/interactive_validation>`
 
 You can use *vassi* to implement a full behavioral scoring pipeline in Python, train a machine-learning model, and use it to predict behavioral sequences.
 
@@ -53,6 +53,13 @@ You can use *vassi* to implement a full behavioral scoring pipeline in Python, t
 
 Refer to the :doc:`basic usage <source/3_basic_usage>` page if you want to test *vassi* on an existing dataset.
 
+The following video gives an overview of the interactive validation tool that complements the classification pipeline.
+
+.. video:: source/SI6_interactive_validation.mp4
+    :width: 100%
+
+You can also have a look at the :doc:`interactive validation notebook <source/interactive_validation>` that we used to record this video.
+
 .. toctree::
     :caption: Getting Started
     :hidden:
@@ -62,6 +69,7 @@ Refer to the :doc:`basic usage <source/3_basic_usage>` page if you want to test 
     source/3_basic_usage
     source/4_import_data
     source/5_feature_extraction
+    source/interactive_validation
 
 .. toctree::
     :caption: Case studies

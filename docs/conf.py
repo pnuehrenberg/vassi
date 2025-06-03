@@ -24,6 +24,7 @@ extensions = [
     "sphinx.ext.autodoc",
     "sphinx.ext.napoleon",
     "sphinx.ext.intersphinx",
+    "sphinxcontrib.video",
     "sphinx_copybutton",
     "jupyter_sphinx",
     "nbsphinx",
@@ -94,8 +95,20 @@ def crawl_source_shorten_titles(path):
 
 crawl_source_shorten_titles("source")
 
+if not os.path.exists("source/SI6_interactive_validation.mp4"):
+
+    try:
+        import urllib.request
+        # this should be moved to edmond as well, to ensure a permanent url
+        urllib.request.urlretrieve("https://datashare.mpcdf.mpg.de/s/Yjqpc6SGBXcP3fz/download", "source/SI6_interactive_validation.mp4")
+    except Exception as e:
+        print(f"Error downloading file: {e}")
+        pass
+
 
 shutil.copy2("../examples/CALMS21/minimal_example.ipynb", "source")
+shutil.copy2("../examples/CALMS21/2_mice-results.svg", "source")
+shutil.copy2("../examples/CALMS21/interactive_validation.ipynb", "source")
 shutil.copy2("../examples/CALMS21/results_and_figures.ipynb", "source")
 shutil.copy2("../examples/CALMS21/postprocessing_parameters.ipynb", "source")
 
