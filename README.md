@@ -3,7 +3,7 @@
 ![GitHub License](https://img.shields.io/github/license/pnuehrenberg/vassi)
 
 > [!CAUTION]
-> This package and its documentation are still under development. The first release will be published alongside our corresponding paper.
+> The first release will be published alongside our corresponding paper. The content of this package and its documentation may still change until then.
 
 # Verifiable, automated scoring of social interactions in animal groups using trajectory data
 
