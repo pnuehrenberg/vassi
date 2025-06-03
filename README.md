@@ -25,7 +25,7 @@ Install the package and all dependencies from this repository:
 pip install git+https://github.com/pnuehrenberg/vassi.git
 ```
 
-Refer to the documentation for more information.
+Refer to the online documentation for more information.
 
 ## Getting started
 
@@ -74,6 +74,11 @@ If you need help to format/import your own tracking data (or from some other sof
 If you use this software in your research, please cite our preprint/paper (details will be added soon):
 
 > *vassi*: Verifiable, automated scoring of social interactions in animal groups, P. Nuehrenberg, A. Bose, A. Jordan (2025)
+
+    (bibtex entry, doi etc. will be inserted here once available)
+
+> [!IMPORTANT]
+> Since our package uses trajectory, posture and behavioral scoring data of animals in groups, but does not implement any tracking or manual scoring software itself, make sure to also cite the software used to collect these data.
 
 ## License
 
