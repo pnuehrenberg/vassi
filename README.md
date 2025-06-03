@@ -2,7 +2,8 @@
 ![Python Version from PEP 621 TOML](https://img.shields.io/python/required-version-toml?tomlFilePath=https%3A%2F%2Fraw.githubusercontent.com%2Fpnuehrenberg%2Fvassi%2Fmain%2Fpyproject.toml)
 ![GitHub License](https://img.shields.io/github/license/pnuehrenberg/vassi)
 
-
+> [!CAUTION]
+> This package and its documentation are still under development. The first release will be published alongside our corresponding paper.
 
 # Verifiable, automated scoring of social interactions in animal groups using trajectory data
 
