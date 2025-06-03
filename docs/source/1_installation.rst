@@ -1,10 +1,11 @@
 Installation
 ============
 
-The vassi package requires Python 3.12 or higher. It will install all dependencies automatically.
+The *vassi* package requires Python 3.12 or higher. It will install all dependencies automatically.
 To avoid conflicts with other packages, we recommend to install the package in a virtual environment.
 
-We recommend setting up a virtual environment via conda, for example obtained via a `miniforge <https://github.com/conda-forge/miniforge>`_ installation:
+This can be achieved with conda (or your favorite package manager). A minimal version of conda can be obtained from `miniforge <https://github.com/conda-forge/miniforge>`_.
+Then, create a virtual environment:
 
 .. code-block:: bash
 
@@ -26,11 +27,9 @@ You can install the latest stable or development version from GitHub using pip:
 Install from local directory
 ----------------------------
 
-If you want to explore our code examples and datasets, you may obtain the package from GitHub.
-You can then install it locally using pip:
+You can also first clone the package to have a local copy and then install it if you want to explore the code examples.
 
 .. code-block:: bash
 
     git clone https://github.com/pnuehrenberg/vassi.git
-    cd vassi
-    pip install .
+    pip install vassi/

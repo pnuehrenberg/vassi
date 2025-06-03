@@ -1,4 +1,4 @@
-io
+io 
 ===
 
 .. automodule:: vassi.io

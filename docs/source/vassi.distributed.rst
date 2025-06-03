@@ -1,4 +1,4 @@
-distributed
+distributed 
 ============
 
 .. automodule:: vassi.distributed

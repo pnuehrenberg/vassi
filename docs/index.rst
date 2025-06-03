@@ -3,18 +3,55 @@
    You can adapt this file completely to your liking, but it should at least
    contain the root `toctree` directive.
 
-vassi
-=================
+.. centered::
+   Verifiable, automated scoring of social interactions in animal groups using trajectory data
 
-Welcome to *vassi*, a Python package for verifiable, automated scoring of social interactions in animal groups using trajectory data.
+.. image:: source/vassi_logo.svg
+    :width: 400
+    :align: center
+    :alt: vassi logo.
 
-.. admonition:: *vassi* provides classes and methods to
+.. admonition:: *vassi* can help you to
 
-    - handle and manipulate trajectory and posture data in datasets with groups of multiple individuals (see :doc:`source/4_import_data`)
-    - extract individual and dyadic spatiotemporal features to describe movement and posture (see :doc:`source/5_feature_extraction`)
-    - sample datasets to train machine-learning algorithms (see :doc:`source/3_basic_usage`)
+    - organize :doc:`trajectory and posture data <source/4_import_data>` in datasets with groups of multiple individuals
+    - extract :doc:`individual and dyadic spatiotemporal features <source/5_feature_extraction>` to describe movement and posture
+    - sample behavioral datasets to :doc:`train machine-learning algorithms <source/3_basic_usage>`
     - post-process behavioral classification results for down-stream analyses
-    - interactive visualization of behavioral sequences
+    - interactively visualize and validate behavioral sequences
+
+You can use *vassi* to implement a full behavioral scoring pipeline in Python, train a machine-learning model, and use it to predict behavioral sequences.
+
+.. code-block:: python
+
+    # load training dataset
+    dataset_train = load_dataset("train", ...)
+
+    # configure feature extractor
+    extractor = FeatureExtractor().read_yaml("feature_config.yaml")
+
+    # extract samples from dataset
+    X, y = dataset_train.subsample(extractor, size=0.1)
+
+    # train classifier
+    from sklearn.ensemble import RandomForestClassifier
+    classifier = RandomForestClassifier()
+    classifier.fit(X, dataset_train.encode(y))
+
+    # load test dataset and predict
+    dataset_test = load_dataset("test",  ...)
+    classification_result = predict(dataset_test, classifier, extractor)
+
+    # postprocessing
+    processed_result = classification_result.smooth(
+        lambda result: sliding_mean(result, window_size=5)
+    ).threshold(
+        [0.1, 0.8]  # assuming two categories
+    )
+
+    # save for downstream behavioral analyses
+    processed_result.predictions.to_csv("predictions.csv")
+
+Refer to the :doc:`basic usage <source/3_basic_usage>` page if you want to test *vassi* on an existing dataset.
 
 .. toctree::
     :caption: Getting Started

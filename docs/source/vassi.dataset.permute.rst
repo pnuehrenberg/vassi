@@ -1,4 +1,4 @@
-permute
+permute 
 ========
 
 .. automodule:: vassi.dataset.permute

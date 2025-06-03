@@ -1,4 +1,4 @@
-sliding metrics
+sliding metrics 
 ================
 
 .. automodule:: vassi.sliding_metrics.sliding_metrics

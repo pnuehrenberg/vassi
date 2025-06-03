@@ -1,4 +1,4 @@
-logging
+logging 
 ========
 
 .. automodule:: vassi.logging

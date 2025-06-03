@@ -1,4 +1,4 @@
-math
+math 
 =====
 
 .. automodule:: vassi.math

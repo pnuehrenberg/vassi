@@ -1,4 +1,4 @@
-nested
+nested 
 =======
 
 .. automodule:: vassi.dataset.types.mixins.nested

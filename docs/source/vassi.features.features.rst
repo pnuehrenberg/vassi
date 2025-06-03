@@ -1,4 +1,4 @@
-features
+features 
 =========
 
 .. automodule:: vassi.features.features

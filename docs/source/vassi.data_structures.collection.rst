@@ -1,4 +1,4 @@
-collection
+collection 
 ===========
 
 .. automodule:: vassi.data_structures.collection

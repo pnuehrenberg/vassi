@@ -1,4 +1,4 @@
-instance
+instance 
 =========
 
 .. automodule:: vassi.data_structures.instance

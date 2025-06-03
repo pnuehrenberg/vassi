@@ -1,4 +1,4 @@
-sampleable
+sampleable 
 ===========
 
 .. automodule:: vassi.dataset.types.mixins.sampleable

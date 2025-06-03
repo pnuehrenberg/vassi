@@ -1,4 +1,4 @@
-temporal features
+temporal features 
 ==================
 
 .. automodule:: vassi.features.temporal_features

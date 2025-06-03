@@ -1,4 +1,4 @@
-annotated
+annotated 
 ==========
 
 .. automodule:: vassi.dataset.types.mixins.annotated

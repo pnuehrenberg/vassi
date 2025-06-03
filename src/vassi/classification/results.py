@@ -82,7 +82,7 @@ class BaseResult:
         Return a summary of the F1 scores for each category at different levels.
 
         Returns:
-            pd.DataFrame: A DataFrame containing the F1 scores for each category at different levels.
+            A DataFrame containing the F1 scores for each category at different levels.
 
         See Also:
             :meth:`f1_score`
@@ -203,7 +203,7 @@ class ClassificationResult(BaseResult):
         decision_thresholds: Optional[Iterable[float]] = None,
         *,
         default_decision: int | str = "none",
-    ) -> Self:
+    ) -> "ClassificationResult":
         """
         Apply decision thresholds to the classification result.
 
@@ -242,7 +242,7 @@ class ClassificationResult(BaseResult):
         threshold: bool = True,
         decision_thresholds: Optional[Iterable[float]] = None,
         default_decision: int | str = "none",
-    ) -> Self:
+    ) -> "ClassificationResult":
         """
         Apply smoothing functions to the classification result.
 
@@ -335,7 +335,7 @@ class ClassificationResult(BaseResult):
             )
 
     @classmethod
-    def from_h5(cls, data_file: str, data_path: str):
+    def from_h5(cls, data_file: str, data_path: str) -> "ClassificationResult":
         """
         Load classification results from an HDF5 file.
 
@@ -709,7 +709,7 @@ class GroupClassificationResult(_NestedResult):
             )
 
     @classmethod
-    def from_h5(cls, data_file: str, data_path: str):
+    def from_h5(cls, data_file: str, data_path: str) -> "GroupClassificationResult":
         """
         Load a :class:`GroupClassificationResult` from a HDF5 file.
 
@@ -718,7 +718,7 @@ class GroupClassificationResult(_NestedResult):
             data_path (str): The path to the data within the HDF5 file.
 
         Returns:
-            The loaded :class:`GroupClassificationResult`.
+            The loaded group classification result.
         """
         individuals = tuple(
             load_data(data_file, os.path.join(data_path, "individuals"))
@@ -854,7 +854,7 @@ class DatasetClassificationResult(_NestedResult):
             )
 
     @classmethod
-    def from_h5(cls, data_file: str, *, dataset_name: str):
+    def from_h5(cls, data_file: str, *, dataset_name: str) -> "DatasetClassificationResult":
         """
         Load the dataset classification result from an HDF5 file.
 

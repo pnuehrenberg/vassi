@@ -3,7 +3,7 @@ requires = ["setuptools"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "automated-scoring"
+name = "vassi"
 version = "0.0.1"
 dependencies = [
     "tbb",
@@ -12,6 +12,7 @@ dependencies = [
     "h5py",
     "pandas",
     "pandas-stubs",
+    "tables",
     "matplotlib",
     "scikit-learn",
     "xgboost",
@@ -25,11 +26,18 @@ dependencies = [
 requires-python = ">=3.12"
 
 [project.optional-dependencies]
-docs = ["sphinx", "sphinx-copybutton", "jupyter-sphinx", "nbsphinx", "shibuya"]
+docs = [
+    "sphinx",
+    "sphinx-copybutton",
+    "jupyter-sphinx",
+    "nbsphinx",
+    "shibuya",
+    "sphinx_autodoc_typehints",
+]
 
 [tool.pyright]
 venvPath = "/home/paul/miniforge3/envs"
-venv = "automated-scoring"
+venv = "vassi"
 
 [tool.ruff]
 extend-exclude = ["*.ipynb"]

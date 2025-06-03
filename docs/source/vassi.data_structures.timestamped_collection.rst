@@ -1,4 +1,4 @@
-timestamped collection
+timestamped collection 
 =======================
 
 .. automodule:: vassi.data_structures.timestamped_collection

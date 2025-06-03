@@ -11,7 +11,7 @@ To run the entire pipeline, you need two primary data sources:
 -----------------------
 
 The tracking data can originate from various sources, for example from software designated for animal tracking such as *DeepLabCut*, *sleap.ai*, *deepposekit* (list not exhaustive) or your own custom tracking solution.
-In any case, you will have collected posture data for each animal and video frame the animal is visible in. With the *vassi* package, you can easily import and process this data by arranging it into a numpy array and passing it to the :code:`Trajectory` class.
+In any case, you will have collected posture data for each animal and video frame the animal is visible in. With the *vassi* package, you can easily import and process this data by arranging it into a :class:`~numpy.ndarray` and passing it to the :class:`~vassi.data_structures.trajectory.Trajectory` class.
 
 .. jupyter-execute::
 
@@ -25,7 +25,11 @@ In any case, you will have collected posture data for each animal and video fram
     cfg.key_timestamp = "time"
     cfg.key_keypoints = "posture"
 
-Assuming you have tracked an animal using four keypoints (e.g., nose, left shoulder, right shoulder, tail tip) in video coordinates (i.e., pixels: x, y), you need to prepare a numpy array with the shape :code:`(num_frames, num_keypoints, 2)`, where :code:`num_frames` is the number of frames the animal was tracked in, :code:`num_keypoints` is the number of keypoints tracked, and :code:`2` represents the x and y coordinates of each keypoint.
+Assuming you have tracked an animal using four keypoints (e.g., nose, left shoulder, right shoulder, tail tip) in video coordinates, you need to prepare a :class:`~numpy.ndarray` with the shape :code:`(num_frames, num_keypoints, 2)`, with:
+
+- :code:`num_frames` being the number of frames the animal was tracked in,
+- :code:`num_keypoints` the number of keypoints tracked,
+- and :code:`2` representing the number of coordinates for each keypoint (pixel x and y)
 
 .. jupyter-execute::
 
@@ -60,7 +64,7 @@ Assuming you have tracked an animal using four keypoints (e.g., nose, left shoul
 
     print(trajectory.is_sorted, trajectory.is_complete)
 
-Your data does not need to be sorted or complete, the :code:`Trajectory` class provides methods to sort and interpolate missing data.
+Your data does not need to be sorted or complete, the :class:`~vassi.data_structures.trajectory.Trajectory` class provides methods to sort and interpolate missing data.
 
 .. jupyter-execute::
 
@@ -76,7 +80,7 @@ Your data does not need to be sorted or complete, the :code:`Trajectory` class p
 
     print(trajectory.is_sorted, trajectory.is_complete)
 
-Now, you can use the :code:`sort` method to sort the trajectory by timestamps and :code:`interpolate` to fill missing data. The :code:`timestep` property is inferred from the input data as the greatest common divisor of the time differences between consecutive timestamps.
+Now, you can use the :meth:`~vassi.data_structures.timestamped_collection.TimestampedInstanceCollection.sort` method to sort the trajectory by timestamps and :meth:`~vassi.data_structures.trajectory.Trajectory.interpolate` to fill missing data. The :attr:`~vassi.data_structures.trajectory.Trajectory.timestep` property is inferred from the input data as the greatest common divisor of the time differences between consecutive timestamps.
 
 .. jupyter-execute::
 
@@ -90,7 +94,7 @@ Now, you can use the :code:`sort` method to sort the trajectory by timestamps an
     These methods have a :code:`copy=False` parameter to control whether a new trajectory is created or the original one is modified in place.
     Only sorted trajectories can be interpolated.
 
-Interpolation can also be used for temporal resampling. Without providing a :code:`timestep` argument, the trajectory is resampled to its inferred :code:`timestep`. Alternatily, you can pass a :code:`timestep` parameter when initializing the :code:`Trajectory` object:
+Interpolation can also be used for temporal resampling. Without providing a :code:`timestep` argument, the trajectory is resampled to its inferred :attr:`~vassi.data_structures.trajectory.Trajectory.timestep`. Alternatily, you can set it during :class:`~vassi.data_structures.trajectory.Trajectory` initialization:
 
 .. jupyter-execute::
 
@@ -105,13 +109,13 @@ Interpolation can also be used for temporal resampling. Without providing a :cod
     print(trajectory_2.sort().interpolate() == trajectory.sort().interpolate(0.5))
 
 .. hint::
-    You can also set the :code:`timestep` parameter of the configuration object globally. If no configuration is passed when initializing trajectories, the global configuration from :code:`vassi.config.cfg` is used.
+    You can also set the :attr:`~vassi.config.cfg.timestep` parameter of the configuration object globally. If no configuration is passed when initializing trajectories, the global configuration :attr:`~vassi.config.cfg` from :mod:`~vassi.config` is used.
 
 2. Creating groups
 ------------------
 
-The :code:`Trajectory` class is the fundamental data structure to hold individual trajectory data. The *vassi* package provides additional classes to represent groups of multiple animals.
-Depending on whether you want to score individual or social behavior (specified via the :code:`target` parameter), a :code:`Group` consists of either :code:`Individual` or :code:`Dyad` objects. Both are initialized with :code:`Trajectory` objects:
+The :class:`~vassi.data_structures.trajectory.Trajectory` class is the fundamental data structure to hold individual trajectory data. The *vassi* package provides additional classes to represent groups of multiple animals.
+Depending on whether you want to score individual or social behavior (specified via the :code:`target` parameter), a :class:`~vassi.dataset.types.group.Group` consists of either :class:`~vassi.dataset.types.individual.Individual` or :class:`~vassi.dataset.types.dyad.Dyad` objects. Both are initialized with :class:`~vassi.data_structures.trajectory.Trajectory` objects:
 
 .. jupyter-execute::
 
@@ -149,14 +153,14 @@ Depending on whether you want to score individual or social behavior (specified 
         print(f"{identifier}: {type(sampleable)}")
 
 .. hint::
-    Groups can be initialized with a dictionary of :code:`Trajectory` objects, where the keys can be either :code:`str` or :code:`int`. Alternatively, you can pass a list of :code:`Trajectory` objects, in which case the indices are used as identifiers.
+    Groups can be initialized with a dictionary of :class:`~vassi.data_structures.trajectory.Trajectory` objects, where the keys can be either :code:`str` or :code:`int`. Alternatively, you can pass a list of :class:`~vassi.data_structures.trajectory.Trajectory` objects, in which case the indices are used as identifiers.
     When initializing a group, data validation is performed to ensure that all trajectories are sorted and complete, otherwise an error will be raised.
 
 3. Adding behavioral annotations
 --------------------------------
 
-The package also implements the :code:`Dataset` class, which provides a further level of nesting to comprise multiple groups. All dataset types (:code:`Individual`, :code:`Dyad`, :code:`Group`, :code:`Dataset`) can be annotated with behavioral intervals.
-These annotations can be added as :code:`pandas.DataFrame`, with different column requirements depending on the dataset type.
+The package also implements the :class:`~vassi.dataset.types.dataset.Dataset` class, which provides a further level of nesting to comprise multiple groups. All dataset types (:class:`~vassi.dataset.types.individual.Individual`, :class:`~vassi.dataset.types.dyad.Dyad`, :class:`~vassi.dataset.types.group.Group`, :class:`~vassi.dataset.types.dataset.Dataset`) can be annotated with behavioral intervals.
+These annotations can be added as :class:`~pandas.DataFrame`, with different column requirements depending on the dataset type.
 
 .. jupyter-execute::
 
@@ -174,9 +178,9 @@ These annotations can be added as :code:`pandas.DataFrame`, with different colum
             print(dataset_type.REQUIRED_COLUMNS(target), "\n")
 
 Let's create some example behavioral annotations for the two groups that were initialized above. Both have the same number of animals,
-but :code:`group_1` targets individual (non-social) behavior, whereas :code:`group_2` targets social (dyadic) behavior. This is reflected in the required columns, individual annotations only needs an :code:`'actor'` column, but dyadic annotations require an :code:`'actor'` and :code:`'recipient'` column. Each annotation interval (row) also needs a value for the behavioral :code:`category`, and :code:`'start'` and :code:`'stop'` timestamps.
+but :code:`group_1` targets individual (non-social) behavior, whereas :code:`group_2` targets social (dyadic) behavior. This is reflected in the required columns, individual annotations only needs an :code:`'actor'` column, but dyadic annotations require an :code:`'actor'` and :code:`'recipient'` column. Each annotation interval (row) also needs a value for the behavioral :code:`'category'`, and :code:`'start'` and :code:`'stop'` timestamps.
 
-If you collected your behavioral data with scoring software such as BORIS, you can use pandas to read the data into a DataFrame, drop unnecessary columns, and rename columns to match the required columns.
+If you collected your behavioral data with scoring software such as BORIS, you can use :mod:`~pandas` to read the data into a :class:`~pandas.DataFrame`, drop unnecessary columns, and rename columns to match the required columns.
 
 .. attention::
     When creating annotated dataset objects, the behavioral annotation data is checked to meet a few requirements. All required columns must be present and intervals should be strictly non-overlapping per actor (also across different actor-recipient dyads). Intervals should also be sorted by :code:`'start'` timestamps.

@@ -1,4 +1,4 @@
-predict
+predict 
 ========
 
 .. automodule:: vassi.classification.predict

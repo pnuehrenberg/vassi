@@ -1,4 +1,4 @@
-decorators
+decorators 
 ===========
 
 .. automodule:: vassi.features.decorators

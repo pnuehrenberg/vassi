@@ -1,4 +1,4 @@
-visualization
+visualization 
 ==============
 
 .. automodule:: vassi.classification.visualization

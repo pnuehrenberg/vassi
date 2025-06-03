@@ -1,4 +1,4 @@
-individual
+individual 
 ===========
 
 .. automodule:: vassi.dataset.types.individual

@@ -1,4 +1,4 @@
-transform
+transform 
 ==========
 
 .. automodule:: vassi.sliding_metrics.transform

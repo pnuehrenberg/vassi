@@ -1,4 +1,4 @@
-group
+group 
 ======
 
 .. automodule:: vassi.dataset.types.group

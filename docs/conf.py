@@ -12,7 +12,7 @@ sys.path.append("../src")
 # -- Project information -----------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#project-information
 
-project = "automated-scoring"
+project = "vassi"
 copyright = "2025, Paul Nuehrenberg"
 author = "Paul Nuehrenberg"
 release = "0.0.1"
@@ -58,6 +58,12 @@ intersphinx_mapping = {
 
 html_theme = "shibuya"
 html_static_path = ["_static"]
+html_css_files = ["_static/custom.css"]
+html_logo = "source/vassi_text.svg"
+
+html_theme_options = {
+  "accent_color": "cyan",
+}
 
 
 def crawl_source_shorten_titles(path):

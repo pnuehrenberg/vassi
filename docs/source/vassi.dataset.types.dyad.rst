@@ -1,4 +1,4 @@
-dyad
+dyad 
 =====
 
 .. automodule:: vassi.dataset.types.dyad

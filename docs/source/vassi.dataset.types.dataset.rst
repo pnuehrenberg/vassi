@@ -1,4 +1,4 @@
-dataset
+dataset 
 ========
 
 .. automodule:: vassi.dataset.types.dataset

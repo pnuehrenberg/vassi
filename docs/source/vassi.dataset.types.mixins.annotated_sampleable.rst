@@ -1,4 +1,4 @@
-annotated sampleable
+annotated sampleable 
 =====================
 
 .. automodule:: vassi.dataset.types.mixins.annotated_sampleable

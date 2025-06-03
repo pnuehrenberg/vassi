@@ -1,4 +1,4 @@
-trajectory
+trajectory 
 ===========
 
 .. automodule:: vassi.data_structures.trajectory

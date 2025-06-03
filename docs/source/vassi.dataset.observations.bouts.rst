@@ -1,4 +1,4 @@
-bouts
+bouts 
 ======
 
 .. automodule:: vassi.dataset.observations.bouts

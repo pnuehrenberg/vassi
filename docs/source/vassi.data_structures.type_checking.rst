@@ -1,4 +1,4 @@
-type checking
+type checking 
 ==============
 
 .. automodule:: vassi.data_structures.type_checking

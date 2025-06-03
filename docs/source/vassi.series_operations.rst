@@ -1,4 +1,4 @@
-series operations
+series operations 
 ==================
 
 .. automodule:: vassi.series_operations

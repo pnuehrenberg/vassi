@@ -149,7 +149,16 @@ Each timestamp that both animals are present is considered a sample. For each sa
         flat=True,
     )
 
-    features = np.concatenate((distances, angles_actor, angles, speed_actor, speed_recipient), axis=1)
+    features = np.concatenate(
+        (
+            distances,
+            angles_actor,
+            angles,
+            speed_actor,
+            speed_recipient,
+        ),
+        axis=1,
+    )
     print(features.shape)
 
 For more transparency (especially in subsequent classification steps), feature functions can be wrapped using the :func:`~vassi.features.decorators.as_dataframe` decorator, which then returns a :class:`~pandas.DataFrame` with named columns.
@@ -176,7 +185,7 @@ For more transparency (especially in subsequent classification steps), feature f
 .. note ::
 
     In the example above, speed is a temporal feature and needs some padding (:code:`step // 2`) to align with other features, therefore the first values are repeated.
-    Feature names can not distinguish between actor and recipient because they are calculated using the same function.
+    Feature names are independent of the input trajectory, so cannot differentiate between actor and recipient in the example above.
 
 Using feature extractors
 ------------------------

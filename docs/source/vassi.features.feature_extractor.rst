@@ -1,4 +1,4 @@
-feature extractor
+feature extractor 
 ==================
 
 .. automodule:: vassi.features.feature_extractor
