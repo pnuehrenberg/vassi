@@ -5,7 +5,7 @@
 > [!CAUTION]
 > The first release will be published alongside our corresponding paper. The content of this package and its documentation may still change until then.
 
-# Verifiable, automated scoring of social interactions in animal groups using trajectory data
+# Verifiable, automated scoring of social interactions in animal groups
 
 ![vassi logo](docs/source/vassi_logo_large.svg)
 
