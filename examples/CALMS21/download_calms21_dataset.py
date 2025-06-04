@@ -37,16 +37,17 @@ def download_calm21_dataset(
     download_url(url, temp_file)
     shutil.unpack_archive(temp_file, output_directory, format="zip")
     os.remove(temp_file)
-    if remove_taskprog_features:
-        for json_file in [
-            "taskprog_features_task1_train.json",
-            "taskprog_features_task1_test.json",
-        ]:
-            os.remove(
-                os.path.join(
-                    output_directory, "task1_classic_classification", json_file
-                )
+    if not remove_taskprog_features:
+        return
+    for json_file in [
+        "taskprog_features_task1_train.json",
+        "taskprog_features_task1_test.json",
+    ]:
+        os.remove(
+            os.path.join(
+                output_directory, "task1_classic_classification", json_file
             )
+        )
 
 
 def parse_args():
