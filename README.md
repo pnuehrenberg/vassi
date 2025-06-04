@@ -52,7 +52,7 @@ classification_result = predict(dataset_test, classifier, extractor)
 
 # postprocessing
 processed_result = classification_result.smooth(
-    lambda result: sliding_mean(result, window_size=5)
+    lambda array: sliding_mean(array, window_size=5)
 ).threshold(
     [0.1, 0.8]  # assuming two categories
 )

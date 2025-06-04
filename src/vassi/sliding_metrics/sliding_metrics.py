@@ -7,26 +7,26 @@ from . import metrics
 
 
 def apply_multiple_to_sliding_windows(
-    series: np.ndarray,
+    array: np.ndarray,
     window_size: int,
     funcs: Iterable[Callable],
     slices: Optional[Iterable[slice]] = None,
 ) -> np.ndarray:
     """
-    Apply multiple functions to sliding windows of a series.
+    Apply multiple functions to sliding windows of an array.
 
     Parameters:
-        series: The input series.
+        array: The input array.
         window_size: The size of the sliding window.
         funcs: The functions to apply.
         slices: The slices to apply the functions to (slicing the moving window).
     """
     if window_size % 2 == 0:
         raise ValueError("window_size must be odd")
-    if (ndim := series.ndim) == 1:
-        series = series[:, np.newaxis]
+    if (ndim := array.ndim) == 1:
+        array = array[:, np.newaxis]
     sliding_window_view = np.lib.stride_tricks.sliding_window_view(
-        series, window_size, axis=0
+        array, window_size, axis=0
     )
     funcs = list(funcs)
     sliced = False
@@ -60,77 +60,77 @@ def apply_multiple_to_sliding_windows(
     return result
 
 
-def sliding_mean(series: np.ndarray, window_size: int) -> np.ndarray:
+def sliding_mean(array: np.ndarray, window_size: int) -> np.ndarray:
     """
-    Calculate the sliding mean of a series.
+    Calculate the sliding mean of an array.
 
     Parameters:
-        series: The input series
+        array: The input array
         window_size: The size of the sliding window
     """
-    return apply_multiple_to_sliding_windows(series, window_size, [metrics.mean])
+    return apply_multiple_to_sliding_windows(array, window_size, [metrics.mean])
 
 
-def sliding_median(series: np.ndarray, window_size: int) -> np.ndarray:
+def sliding_median(array: np.ndarray, window_size: int) -> np.ndarray:
     """
-    Calculate the sliding median of a series.
+    Calculate the sliding median of an array.
 
     Parameters:
-        series: The input series
+        array: The input array
         window_size: The size of the sliding window
     """
-    return apply_multiple_to_sliding_windows(series, window_size, [metrics.median])
+    return apply_multiple_to_sliding_windows(array, window_size, [metrics.median])
 
 
-def sliding_min(series: np.ndarray, window_size: int) -> np.ndarray:
+def sliding_min(array: np.ndarray, window_size: int) -> np.ndarray:
     """
-    Calculate the sliding minimum of a series.
+    Calculate the sliding minimum of an array.
 
     Parameters:
-        series: The input series
+        array: The input array
         window_size: The size of the sliding window
     """
-    return apply_multiple_to_sliding_windows(series, window_size, [metrics.min])
+    return apply_multiple_to_sliding_windows(array, window_size, [metrics.min])
 
 
-def sliding_max(series: np.ndarray, window_size: int) -> np.ndarray:
+def sliding_max(array: np.ndarray, window_size: int) -> np.ndarray:
     """
-    Calculate the sliding maximum of a series.
+    Calculate the sliding maximum of an array.
 
     Parameters:
-        series: The input series
+        array: The input array
         window_size: The size of the sliding window
     """
-    return apply_multiple_to_sliding_windows(series, window_size, [metrics.max])
+    return apply_multiple_to_sliding_windows(array, window_size, [metrics.max])
 
 
-def sliding_quantile(series: np.ndarray, window_size: int, q: float) -> np.ndarray:
+def sliding_quantile(array: np.ndarray, window_size: int, q: float) -> np.ndarray:
     """
-    Calculate a sliding quantile of a series.
+    Calculate a sliding quantile of an array.
 
     Parameters:
-        series: The input series
+        array: The input array
         window_size: The size of the sliding window
         q: The quantile to calculate
     """
     return apply_multiple_to_sliding_windows(
-        series, window_size, [lambda series: metrics.quantile(series, q)]
+        array, window_size, [lambda array: metrics.quantile(array, q)]
     )
 
 
 def sliding_quantiles(
-    series: np.ndarray, window_size: int, quantiles: Iterable[float]
+    array: np.ndarray, window_size: int, quantiles: Iterable[float]
 ) -> np.ndarray:
     """
-    Calculate sliding quantiles of a series.
+    Calculate sliding quantiles of an array.
 
     Parameters:
-        series: The input series
+        array: The input array
         window_size: The size of the sliding window
         quantiles: The quantiles to calculate
     """
     return apply_multiple_to_sliding_windows(
-        series,
+        array,
         window_size,
-        [lambda series, q=q: metrics.quantile(series, q) for q in quantiles],
+        [lambda array, q=q: metrics.quantile(array, q) for q in quantiles],
     )

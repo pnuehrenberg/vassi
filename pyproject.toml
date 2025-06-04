@@ -20,7 +20,7 @@ dependencies = [
     "loky",
     "loguru",
     "optuna",
-    "observation-library @ git+ssh://git@github.com/pnuehrenberg/observation-library.git",
+    "observation-library @ git+https://github.com/pnuehrenberg/observation-library.git",
     "jupyterlab",
     "tqdm",
 ]

@@ -43,7 +43,7 @@ You can use *vassi* to implement a full behavioral scoring pipeline in Python, t
 
     # postprocessing
     processed_result = classification_result.smooth(
-        lambda result: sliding_mean(result, window_size=5)
+        lambda array: sliding_mean(array, window_size=5)
     ).threshold(
         [0.1, 0.8]  # assuming two categories
     )
