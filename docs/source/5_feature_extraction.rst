@@ -99,7 +99,7 @@ Each timestamp that both animals are present is considered a sample. For each sa
 
 .. hint ::
     All feature functions return a :class:`~numpy.ndarray` containing the computed features. The shape depends on the number of postural elements and whether the feature should be computed :code:`element_wise` with regard to these elements.
-    All feature functions have an additional :code:`flat` parameter, if specified, the features will be returned as an :class:`~numpy.ndarray` with shape :code:`(n_samples, n_features)`.
+    All feature functions have an additional :code:`flat` parameter, if specified, the features will be returned as a :class:`~numpy.ndarray` with shape :code:`(n_samples, n_features)`.
 
 .. jupyter-execute ::
 

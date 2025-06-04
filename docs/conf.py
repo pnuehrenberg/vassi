@@ -7,6 +7,8 @@ import os
 import shutil
 import sys
 
+import urllib.request
+
 sys.path.append("../src")
 
 # -- Project information -----------------------------------------------------
@@ -24,7 +26,6 @@ extensions = [
     "sphinx.ext.autodoc",
     "sphinx.ext.napoleon",
     "sphinx.ext.intersphinx",
-    "sphinxcontrib.video",
     "sphinx_copybutton",
     "jupyter_sphinx",
     "nbsphinx",
@@ -95,18 +96,19 @@ def crawl_source_shorten_titles(path):
 
 crawl_source_shorten_titles("source")
 
-if not os.path.exists("source/SI6_interactive_validation.mp4"):
-    try:
-        import urllib.request
-
-        # this should be moved to edmond as well, to ensure a permanent url
-        urllib.request.urlretrieve(
-            "https://datashare.mpcdf.mpg.de/s/Yjqpc6SGBXcP3fz/download",
-            "source/SI6_interactive_validation.mp4",
-        )
-    except Exception as e:
-        print(f"Error downloading file: {e}")
-        pass
+for video_file, url in {
+    "_static/SI6_interactive_validation.mp4": "https://datashare.mpcdf.mpg.de/s/P1aLCTkYK5AKvKX/download",
+    "_static/social_cichlids.mp4": "https://datashare.mpcdf.mpg.de/s/4vIqdqRprGrHUrJ/download"
+}.items():
+    if not os.path.exists(video_file):
+        try:
+            urllib.request.urlretrieve(
+                url,
+                video_file,
+            )
+        except Exception as e:
+            print(f"Error downloading file: {e}")
+            pass
 
 for rst_file in ["source/vassi.rst", "source/modules.rst"]:
     if not os.path.isfile(rst_file):

@@ -1,3 +1,7 @@
 html[data-accent-color="cyan"] {
     --accent-9: #1e9bb7;
 }
+
+section.hidden > h2 {
+    display: none;
+}

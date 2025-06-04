@@ -3,8 +3,8 @@
    You can adapt this file completely to your liking, but it should at least
    contain the root `toctree` directive.
 
-.. centered::
-   Verifiable, automated scoring of social interactions in animal groups using trajectory data
+Verifiable, automated scoring of social interactions in animal groups
+=====================================================================
 
 .. image:: source/vassi_logo.svg
     :width: 400
@@ -55,8 +55,12 @@ Refer to the :doc:`basic usage <source/3_basic_usage>` page if you want to test 
 
 The following video gives an overview of the interactive validation tool that complements the classification pipeline.
 
-.. video:: source/SI6_interactive_validation.mp4
-    :width: 100%
+.. raw:: html
+
+    <video controls="controls" id="video_interactive_validation" width="100%">
+        <source src="_static/SI6_interactive_validation.mp4" type="video/mp4" />
+        <track src="_static/SI6_interactive_validation.vtt" kind="subtitles" srclang="en" label="English" />
+    </video>
 
 You can also have a look at the :doc:`interactive validation notebook <source/interactive_validation>` that we used to record this video.
 

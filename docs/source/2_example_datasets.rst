@@ -27,7 +27,7 @@ Adjust the path arguments to match the location of the downloaded dataset files 
 
 You will find the converted dataset in the output directory with :code:`train` and :code:`test` subdirectories, containing the converted trajectories and annotations for the train and test data, respectively.
 
-For convinience, we also provide a script to download (and optionally convert) this dataset directly:
+For convinience, we also provide a `script to download <https://github.com/pnuehrenberg/vassi/blob/main/examples/CALMS21/convert_calms21_dataset.py>`_ (and optionally convert) this dataset directly:
 
 .. code-block:: bash
 
@@ -54,6 +54,13 @@ We provide a second dataset (*social cichlids*), which is a dataset of social in
 The dataset is comprised of 9 video recordings of groups with 15 fish. Each fish is individually tracked with three keypoints (head, center and tail).
 We provide matching behavioral annotations, i.e., start-stop intervals with a behavioral category of the following categories: 'approach', 'frontal display', 'lateral display', 'dart/bite', 'chase' and 'quiver'.
 Unlabeled intervals are considered as the background category 'none'.
+
+
+.. raw:: html
+
+    <video controls="controls" id="video_social_cichlids" width="100%">
+        <source src="../_static/social_cichlids.mp4" type="video/mp4" />
+    </video>
 
 You can find this dataset in our `data repository <https://doi.org/10.17617/3.3R0QYI>`_.
 

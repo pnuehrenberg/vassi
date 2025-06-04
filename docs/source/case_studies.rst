@@ -1,7 +1,7 @@
 We tested the *vassi* package on :doc:`two datasets <2_example_datasets>`:
 
-CALMS21 dataset
-===============
+*CALMS21* dataset
+=================
 
 This is an existing dataset on mouse resident-intruder interactions by Sun et al. [CALMS21]_.
 
