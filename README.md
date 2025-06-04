@@ -1,6 +1,6 @@
 ![Read the Docs](https://img.shields.io/readthedocs/vassi)
 ![Python Version from PEP 621 TOML](https://img.shields.io/python/required-version-toml?tomlFilePath=https%3A%2F%2Fraw.githubusercontent.com%2Fpnuehrenberg%2Fvassi%2Frefs%2Fheads%2Fmain%2Fpyproject.toml)
-![GitHub License](https://img.shields.io/github/license/pnuehrenberg/vassi)
+![GitHub License](https://img.shields.io/github/license/pnuehrenberg/vassi?label=license)
 
 
 > [!CAUTION]
