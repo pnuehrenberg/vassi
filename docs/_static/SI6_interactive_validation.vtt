@@ -1,0 +1,424 @@
+WEBVTT
+
+00:00:00.431 --> 00:00:02.151
+We implemented an interactive tool to inspect
+
+00:00:02.151 --> 00:00:03.711
+behavioral data sets
+
+00:00:03.711 --> 00:00:05.711
+that can be used directly within the
+
+00:00:05.711 --> 00:00:07.981
+Jupyter Lab coding environment.
+
+00:00:08.451 --> 00:00:10.831
+Primarily, this tool is composed of a
+
+00:00:10.831 --> 00:00:12.611
+table that supports operations
+
+00:00:12.611 --> 00:00:14.431
+like sorting, filtering and editing
+
+00:00:14.431 --> 00:00:16.271
+in an interactive way.
+
+00:00:16.841 --> 00:00:18.941
+Here for example, we imported the behavioral
+
+00:00:18.941 --> 00:00:20.171
+annotations of the social cichlids
+
+00:00:20.171 --> 00:00:22.271
+data set, the ground truth behavioral intervals
+
+00:00:22.271 --> 00:00:24.071
+that we used to train
+
+00:00:24.071 --> 00:00:25.631
+classifiers.
+
+00:00:26.291 --> 00:00:28.301
+Let's display the table in full screen mode.
+
+00:00:29.011 --> 00:00:30.981
+As you can see here in the
+
+00:00:30.981 --> 00:00:32.451
+navigation widget, we are currently viewing
+
+00:00:32.451 --> 00:00:34.581
+the first 10 out of 1,000
+
+00:00:34.581 --> 00:00:36.341
+614 observations.
+
+00:00:36.831 --> 00:00:38.911
+Each of these observations is represented
+
+00:00:38.911 --> 00:00:40.471
+as a single row in the table,
+
+00:00:40.471 --> 00:00:42.841
+fully described by the visible columns.
+
+00:00:43.551 --> 00:00:45.481
+The table can be sorted, also with
+
+00:00:45.481 --> 00:00:46.611
+multiple columns at once.
+
+00:00:46.971 --> 00:00:48.801
+Let's sort it by group, actor,
+
+00:00:48.801 --> 00:00:50.631
+and start to see the actual order
+
+00:00:50.631 --> 00:00:52.631
+in which each individual performed social behaviors
+
+00:00:52.631 --> 00:00:55.491
+towards its group members.
+
+00:00:56.131 --> 00:00:57.851
+Since this is a lot of data,
+
+00:00:57.851 --> 00:00:59.281
+we can perform filtering to subset
+
+00:00:59.281 --> 00:01:00.441
+the observations, for example by category.
+
+00:01:00.441 --> 00:01:02.401
+Active filters are indicated with the blue
+
+00:01:02.401 --> 00:01:04.121
+tick button and can be removed by
+
+00:01:04.121 --> 00:01:07.681
+clicking the same button.
+
+00:01:08.521 --> 00:01:10.141
+Now, let's select all chasing events
+
+00:01:10.141 --> 00:01:12.621
+and select one group.
+
+00:01:17.501 --> 00:01:19.271
+Now we are left with only 17
+
+00:01:19.271 --> 00:01:20.921
+observations, allowing us to review each row
+
+00:01:20.921 --> 00:01:22.821
+individually.
+
+00:01:23.121 --> 00:01:24.941
+This can be done by clicking on
+
+00:01:24.941 --> 00:01:26.471
+the play action button, which will open
+
+00:01:26.471 --> 00:01:28.331
+a pop-up for video playback.
+
+00:01:29.051 --> 00:01:31.081
+For demonstration purposes, I have clicked on
+
+00:01:31.081 --> 00:01:32.421
+this row before, so our application
+
+00:01:32.421 --> 00:01:35.181
+has already pre-rendered this video.
+
+00:01:35.611 --> 00:01:37.501
+Normally, you would see a progress bar
+
+00:01:37.501 --> 00:01:38.791
+here, which indicates the video rendering
+
+00:01:38.791 --> 00:01:40.221
+progress.
+
+00:01:40.701 --> 00:01:42.451
+Usually, this should not take longer than
+
+00:01:42.451 --> 00:01:44.111
+a few seconds, depending on the duration
+
+00:01:44.111 --> 00:01:47.251
+of the behavioral interval that was selected.
+
+00:01:47.781 --> 00:01:49.861
+Since the video is played back directly
+
+00:01:49.861 --> 00:01:51.491
+in the browser that you use for
+
+00:01:51.491 --> 00:01:52.951
+Jupyter Lab, you have similar options to
+
+00:01:52.951 --> 00:01:54.181
+what you know from online video
+
+00:01:54.181 --> 00:01:55.271
+streaming.
+
+00:01:55.601 --> 00:01:57.361
+The video can be slowed down or
+
+00:01:57.361 --> 00:01:58.821
+sped up, looped, and additionally played
+
+00:01:58.821 --> 00:02:00.631
+in full screen mode.
+
+00:02:01.411 --> 00:02:02.891
+Here you can see the focal individual,
+
+00:02:02.891 --> 00:02:04.321
+the actor in light red, and the
+
+00:02:04.321 --> 00:02:05.781
+recipient of this particular social behavior in
+
+00:02:05.781 --> 00:02:07.811
+blue.
+
+00:02:08.281 --> 00:02:10.361
+The behavioral event itself, the interval between
+
+00:02:10.361 --> 00:02:12.271
+the annotated start and stop timestamps, is
+
+00:02:12.271 --> 00:02:14.071
+highlighted through the label and optionally also
+
+00:02:14.071 --> 00:02:15.671
+by color changes of the interacting
+
+00:02:15.671 --> 00:02:20.661
+individuals' trajectory overlay.
+
+00:02:21.221 --> 00:02:22.891
+Other individuals that do not play a
+
+00:02:22.891 --> 00:02:24.261
+role in this dyadic interactions are shown
+
+00:02:24.261 --> 00:02:25.451
+in gray.
+
+00:02:26.161 --> 00:02:27.841
+The video display can be configured by
+
+00:02:27.841 --> 00:02:30.771
+accessing the rendering options, clicking this button.
+
+00:02:31.511 --> 00:02:33.001
+You can set the rendering resolution,
+
+00:02:33.001 --> 00:02:34.371
+whether to crop the region of interest
+
+00:02:34.371 --> 00:02:35.871
+with the focal individuals, and how much
+
+00:02:35.871 --> 00:02:37.311
+temporal padding should be added before and
+
+00:02:37.311 --> 00:02:40.871
+after the behavioral event.
+
+00:02:41.471 --> 00:02:42.951
+The next page has all the options
+
+00:02:42.951 --> 00:02:44.271
+that you need to modify the trajectory
+
+00:02:44.271 --> 00:02:45.231
+overlay.
+
+00:02:45.641 --> 00:02:47.221
+You can specify which key points to
+
+00:02:47.221 --> 00:02:48.841
+show and which key points to connect
+
+00:02:48.841 --> 00:02:50.961
+as posture segments.
+
+00:02:51.551 --> 00:02:52.991
+On the last page, we have a
+
+00:02:52.991 --> 00:02:54.171
+few more options focusing on the category
+
+00:02:54.171 --> 00:02:55.451
+label.
+
+00:02:56.101 --> 00:02:57.921
+Additionally, you can choose to highlight specific
+
+00:02:57.921 --> 00:03:00.341
+categories with custom colors.
+
+00:03:06.641 --> 00:03:07.981
+Okay, back to Jupiter Lab.
+
+00:03:08.501 --> 00:03:10.131
+We also used this same tool to
+
+00:03:10.131 --> 00:03:11.351
+inspect predictions on a second, already
+
+00:03:11.351 --> 00:03:12.921
+existing behavioral data set of dyadic
+
+00:03:12.921 --> 00:03:15.931
+interactions in mice.
+
+00:03:16.431 --> 00:03:17.981
+We used this data set to benchmark
+
+00:03:17.981 --> 00:03:19.361
+our behavioral classification pipeline and visualize the
+
+00:03:19.361 --> 00:03:23.591
+results in one of the paper's figures.
+
+00:03:24.321 --> 00:03:25.981
+The first panel in the figure shows
+
+00:03:25.981 --> 00:03:27.421
+a behavioral timeline plot of the last
+
+00:03:27.421 --> 00:03:28.961
+resident intruder sequence of the test data
+
+00:03:28.961 --> 00:03:31.151
+set.
+
+00:03:31.661 --> 00:03:33.161
+We see a lot of correct predictions,
+
+00:03:33.161 --> 00:03:34.661
+the orange bars, when compared to the
+
+00:03:34.661 --> 00:03:37.431
+ground truth annotations, the blue bars.
+
+00:03:38.031 --> 00:03:39.631
+However, we can also see wrong predictions,
+
+00:03:39.631 --> 00:03:41.201
+for example here, just shortly after the
+
+00:03:41.201 --> 00:03:42.671
+second minute, a quite long mounting event
+
+00:03:42.671 --> 00:03:48.191
+where the corresponding annotation is much shorter.
+
+00:03:48.601 --> 00:03:50.241
+We can use our interactive table and
+
+00:03:50.241 --> 00:03:51.701
+video rendering to check whether the classification
+
+00:03:51.701 --> 00:03:53.971
+model made a mistake.
+
+00:03:54.521 --> 00:03:56.021
+Instead of annotations, we now imported the
+
+00:03:56.021 --> 00:03:59.431
+classifier's predictions on the test data set.
+
+00:04:00.311 --> 00:04:01.801
+So, let's filter by group, since we
+
+00:04:01.801 --> 00:04:02.941
+know that we visualized the last test
+
+00:04:02.941 --> 00:04:04.261
+sequence, by category, mount, the predicted
+
+00:04:04.261 --> 00:04:05.721
+category, and limit the start and stop
+
+00:04:05.721 --> 00:04:10.581
+time ranges.
+
+00:04:11.061 --> 00:04:12.671
+We saw in the visualization that the
+
+00:04:12.671 --> 00:04:13.941
+interval was between minutes two and three,
+
+00:04:13.941 --> 00:04:15.351
+so we can select this here in
+
+00:04:15.351 --> 00:04:17.411
+the filters.
+
+00:04:20.411 --> 00:04:21.831
+Okay, that now gives us exactly one
+
+00:04:21.831 --> 00:04:22.971
+prediction, and we can see here in
+
+00:04:22.971 --> 00:04:24.341
+the True category column that it was
+
+00:04:24.341 --> 00:04:26.001
+overlapping most of the time with the
+
+00:04:26.001 --> 00:04:29.621
+behavioral background category.
+
+00:04:30.221 --> 00:04:31.841
+So, let's have a look at the video.
+
+00:04:32.591 --> 00:04:40.591
+[VIDEO CONTENT - NO SPEECH]
+
+00:04:40.911 --> 00:04:42.601
+Indeed, it seems that in this case,
+
+00:04:42.601 --> 00:04:43.901
+the classifier made a correct prediction, whereas
+
+00:04:43.901 --> 00:04:47.631
+the annotated interval seems too short.
+
+00:04:47.981 --> 00:04:50.581
+[VIDEO CONTENT - NO SPEECH]
+
+00:04:50.621 --> 00:04:52.211
+We can go back to the table
+
+00:04:52.211 --> 00:04:53.471
+and indicate this row as validated and
+
+00:04:53.471 --> 00:04:54.251
+include a short comment.
+
+00:04:55.171 --> 00:04:56.821
+In that way, you can use this
+
+00:04:56.821 --> 00:04:58.371
+interactive tool to inspect, visualize and validate
+
+00:04:58.371 --> 00:04:59.811
+behavioral data sets of interacting individuals,
+
+00:04:59.811 --> 00:05:02.051
+both for your own behavioral scoring, but
+
+00:05:02.051 --> 00:05:03.721
+also for predictions that result from our
+
+00:05:03.721 --> 00:05:08.841
+behavioral classification pipeline.
