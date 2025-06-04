@@ -126,7 +126,7 @@ Each timestamp that both animals are present is considered a sample. For each sa
         keypoint_pairs_2=((3, 2), ),
         flat=True,
     )
-    # calculate one angle between posture angles between
+    # calculate one angle between posture segments of
     # both individuals using the same function
     angles = posture_angles(
         dyad.trajectory,

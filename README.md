@@ -67,7 +67,7 @@ You can find more examples, including the two case studies presented in our pape
 
 If you encounter any issues or have suggestions for improvements, please open an issue on our [GitHub repository](https://github.com/pnuehrenberg/vassi/issues). We welcome contributions in the form of pull requests as well.
 
-If you need help to format/import your own tracking data (or from some other software), please first have a look at the example [conversion](https://github.com/pnuehrenberg/vassi/blob/main/examples/CALMS21/conversion.py) script.  If that does not help, please open an [issue](https://github.com/pnuehrenberg/vassi/issues) and we can find a solution and add more data loading examples.
+If you need help to format/import your own tracking data (or from some other software), please first have a look at the example [conversion](https://github.com/pnuehrenberg/vassi/blob/main/examples/CALMS21/convert_calms21_dataset.py) script.  If that does not help, please open an [issue](https://github.com/pnuehrenberg/vassi/issues) and we can find a solution and add more data loading examples.
 
 ## Cite *vassi*
 

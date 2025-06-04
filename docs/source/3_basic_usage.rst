@@ -10,7 +10,7 @@ First, we load the *CALMS21* training dataset:
     from vassi.config import cfg
     from vassi.io import load_dataset
 
-    # set configuration keys (see conversion.py for details)
+    # set configuration keys (see convert_calms21_dataset.py for details)
     cfg.key_keypoints = "keypoints"
     cfg.key_timestamp = "timestamps"
     cfg.trajectory_keys = ("keypoints", "timestamps")

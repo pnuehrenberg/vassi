@@ -63,7 +63,7 @@ html_css_files = ["_static/custom.css"]
 html_logo = "source/vassi_text.svg"
 
 html_theme_options = {
-  "accent_color": "cyan",
+    "accent_color": "cyan",
 }
 
 
@@ -96,11 +96,14 @@ def crawl_source_shorten_titles(path):
 crawl_source_shorten_titles("source")
 
 if not os.path.exists("source/SI6_interactive_validation.mp4"):
-
     try:
         import urllib.request
+
         # this should be moved to edmond as well, to ensure a permanent url
-        urllib.request.urlretrieve("https://datashare.mpcdf.mpg.de/s/Yjqpc6SGBXcP3fz/download", "source/SI6_interactive_validation.mp4")
+        urllib.request.urlretrieve(
+            "https://datashare.mpcdf.mpg.de/s/Yjqpc6SGBXcP3fz/download",
+            "source/SI6_interactive_validation.mp4",
+        )
     except Exception as e:
         print(f"Error downloading file: {e}")
         pass

@@ -16,4 +16,4 @@ docs/source/*.ipynb
 *.h5
 docs/source/vassi.*.rst
 docs/source/2_mice-results.svg
-datasets/
+*datasets/

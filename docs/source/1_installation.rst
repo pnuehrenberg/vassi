@@ -16,9 +16,9 @@ Install from GitHub
 -------------------
 
 .. warning::
-    The repository is currently private, ask paul.nuehrenberg@uni-konstanz.de for access.
+    There is no stable version of *vassi* yet. Please install the latest development version from GitHub.
 
-You can install the latest stable or development version from GitHub using pip:
+You can install the latest development version from GitHub using pip:
 
 .. code-block:: bash
 

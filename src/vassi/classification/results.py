@@ -854,7 +854,9 @@ class DatasetClassificationResult(_NestedResult):
             )
 
     @classmethod
-    def from_h5(cls, data_file: str, *, dataset_name: str) -> "DatasetClassificationResult":
+    def from_h5(
+        cls, data_file: str, *, dataset_name: str
+    ) -> "DatasetClassificationResult":
         """
         Load the dataset classification result from an HDF5 file.
 

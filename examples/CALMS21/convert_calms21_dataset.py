@@ -25,11 +25,11 @@ def load_calms21_sequences(
         json_data = json.load(json_file)
         for data in json_data.values():
             # each value is one annotator (task one only has one annotator)
-            for pair in [key for key in data.keys()]:
+            for sequence in [key for key in data.keys()]:
                 # iterate all video sequences
-                pair_data = data.pop(pair)
+                sequence_data = data.pop(sequence)
                 annotations = to_observations(
-                    np.asarray(pair_data["annotations"]),
+                    np.asarray(sequence_data["annotations"]),
                     category_names=["attack", "investigation", "mount", "other"],
                     drop=["other"],
                 )
@@ -40,21 +40,21 @@ def load_calms21_sequences(
                         {
                             "resident": Trajectory(
                                 data={
-                                    "keypoints": np.asarray(pair_data["keypoints"])[
+                                    "keypoints": np.asarray(sequence_data["keypoints"])[
                                         :, 0
                                     ].transpose(0, 2, 1),
                                     "timestamps": np.arange(
-                                        len(pair_data["keypoints"])
+                                        len(sequence_data["keypoints"])
                                     ),
                                 }
                             ),
                             "intruder": Trajectory(
                                 data={
-                                    "keypoints": np.asarray(pair_data["keypoints"])[
+                                    "keypoints": np.asarray(sequence_data["keypoints"])[
                                         :, 1
                                     ].transpose(0, 2, 1),
                                     "timestamps": np.arange(
-                                        len(pair_data["keypoints"])
+                                        len(sequence_data["keypoints"])
                                     ),
                                 }
                             ),
@@ -74,12 +74,16 @@ def parse_args():
     return parser.parse_args()
 
 
-if __name__ == "__main__":
-    args = parse_args()
+def convert_calms21_sequences(
+    train_sequences: str,
+    test_sequences: str,
+    output_directory: str,
+):
+    global cfg
 
+    # this is how the data will be named in all data structures
     cfg.key_keypoints = "keypoints"
     cfg.key_timestamp = "timestamps"
-
     cfg.trajectory_keys = ("keypoints", "timestamps")
 
     groups_train: dict[IndividualIdentifier, AnnotatedGroup] = {
@@ -91,7 +95,7 @@ if __name__ == "__main__":
             background_category="none",
         )
         for idx, (trajectories, annotations) in enumerate(
-            load_calms21_sequences(args.train_sequences)
+            load_calms21_sequences(train_sequences)
         )
     }
 
@@ -104,17 +108,26 @@ if __name__ == "__main__":
             background_category="none",
         )
         for idx, (trajectories, annotations) in enumerate(
-            load_calms21_sequences(args.test_sequences)
+            load_calms21_sequences(test_sequences)
         )
     }
 
     save_dataset(
         AnnotatedDataset.from_groups(groups_train),
-        directory=os.path.join(args.output_directory, "train"),
+        directory=os.path.join(output_directory, "train"),
         dataset_name="mice_train",
     )
     save_dataset(
         AnnotatedDataset.from_groups(groups_test),
-        directory=os.path.join(args.output_directory, "test"),
+        directory=os.path.join(output_directory, "test"),
         dataset_name="mice_test",
+    )
+
+
+if __name__ == "__main__":
+    args = parse_args()
+    convert_calms21_sequences(
+        args.train_sequences,
+        args.test_sequences,
+        args.output_directory,
     )

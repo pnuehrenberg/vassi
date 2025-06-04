@@ -1,16 +1,20 @@
 from collections.abc import Iterable
 from typing import Optional
 
-from .classification.results import BaseResult
-
 import numpy as np
 import pandas as pd
-
-import matplotlib.pyplot as plt
 from matplotlib.axes import Axes
 
+from .classification.results import BaseResult
 
-def summarize_scores(result: BaseResult, *, foreground_categories: Iterable[str], run, postprocessing_step: str):
+
+def summarize_scores(
+    result: BaseResult,
+    *,
+    foreground_categories: Iterable[str],
+    run,
+    postprocessing_step: str,
+):
     # this is a helper function to aggregate the f1 scores for one postprocessing in one run
     scores = result.score()
     summary = scores.stack().reset_index()
@@ -23,7 +27,9 @@ def summarize_scores(result: BaseResult, *, foreground_categories: Iterable[str]
     summary["postprocessing_step"] = postprocessing_step
     summary = summary[["run", "postprocessing_step", *columns]]
     for level in scores.index:
-        summary[f"{level}_f1-macro-foreground"] = scores.loc[level, list(foreground_categories)].mean()
+        summary[f"{level}_f1-macro-foreground"] = scores.loc[
+            level, list(foreground_categories)
+        ].mean()
         summary[f"{level}_f1-macro-all"] = scores.loc[level].mean()
     summary.columns = pd.MultiIndex.from_tuples(
         [
@@ -34,7 +40,9 @@ def summarize_scores(result: BaseResult, *, foreground_categories: Iterable[str]
     return summary
 
 
-def aggregate_scores(summary: pd.DataFrame, score_level: str, *, categories: Iterable[str]):
+def aggregate_scores(
+    summary: pd.DataFrame, score_level: str, *, categories: Iterable[str]
+):
     return (
         summary.loc[:, ["postprocessing_step", score_level]]
         .sort_index(axis=1)  # avoid unsorted index warning
@@ -50,7 +58,7 @@ def plot_errorbars(
     means: Iterable[float],
     stds: Iterable[float],
     *,
-    x: Optional[Iterable[float]]=None,
+    x: Optional[Iterable[float]] = None,
     padding: float = 0.5,
     ls="none",
     marker="_",
@@ -67,7 +75,17 @@ def plot_errorbars(
         x = np.arange(means.size)
     else:
         x = np.array(x)
-    ax.errorbar(x, means, stds, ls=ls, marker=marker, ms=ms, lw=lw, markeredgecolor=markeredgecolor, color=color)
+    ax.errorbar(
+        x,
+        means,
+        stds,
+        ls=ls,
+        marker=marker,
+        ms=ms,
+        lw=lw,
+        markeredgecolor=markeredgecolor,
+        color=color,
+    )
     ax.set_xlim(np.min(x) - padding, np.max(x) + padding)
     ax.set_xticks(x)
     ax.set_xticklabels(xticklabels, rotation=75)

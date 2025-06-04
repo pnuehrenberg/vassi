@@ -17,10 +17,12 @@ class ConfiguredData:
     @property
     def sha1(self) -> str:
         """Calculates the SHA1 hash of the configured data."""
+
         def ensure_c_contiguous(array: np.ndarray) -> np.ndarray:
             if array.flags.c_contiguous:
                 return array
             return array.copy()
+
         items = {
             key: hashlib.sha1(
                 np.round(ensure_c_contiguous(value), decimals=self.cfg.hash_decimals)
