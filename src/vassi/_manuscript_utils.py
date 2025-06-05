@@ -159,8 +159,8 @@ def draw_network(
             edge = FancyArrowPatch(
                 locations[actor_idx],
                 locations[recipient_idx],
-                arrowstyle=ArrowStyle("CurveB", head_length=1, head_width=1),
-                connectionstyle=ConnectionStyle("Arc3", rad=0.5),
+                arrowstyle=ArrowStyle("->", head_length=1, head_width=1),
+                connectionstyle=ConnectionStyle("arc3", rad=0.5),
                 shrinkA=3,
                 shrinkB=3,
                 joinstyle="miter",
