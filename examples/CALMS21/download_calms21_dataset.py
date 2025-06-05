@@ -4,8 +4,9 @@ import shutil
 import tempfile
 import urllib.request
 
-from .convert_calms21_dataset import convert_calms21_sequences
 from tqdm.auto import tqdm
+
+from .convert_calms21_dataset import convert_calms21_sequences
 
 
 class DownloadProgressBar(tqdm):
@@ -44,9 +45,7 @@ def download_calm21_dataset(
         "taskprog_features_task1_test.json",
     ]:
         os.remove(
-            os.path.join(
-                output_directory, "task1_classic_classification", json_file
-            )
+            os.path.join(output_directory, "task1_classic_classification", json_file)
         )
 
 

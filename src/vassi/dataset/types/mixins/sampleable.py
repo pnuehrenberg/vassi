@@ -144,7 +144,6 @@ class SampleableMixin(ABC):
             size: The number of samples to extract.
             random_state: The random state to use for sampling.
             stratify: Whether to stratify the samples.
-            stratification_levels: The stratification levels to use.
             reset_previous_indices: Whether to reset the previous indices.
             exclude_previous_indices: Whether to exclude the previous indices.
             store_indices: Whether to store the indices.

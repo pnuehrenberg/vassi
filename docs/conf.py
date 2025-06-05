@@ -6,7 +6,6 @@
 import os
 import shutil
 import sys
-
 import urllib.request
 
 sys.path.append("../src")
@@ -98,7 +97,7 @@ crawl_source_shorten_titles("source")
 
 for video_file, url in {
     "_static/SI6_interactive_validation.mp4": "https://datashare.mpcdf.mpg.de/s/P1aLCTkYK5AKvKX/download",
-    "_static/social_cichlids.mp4": "https://datashare.mpcdf.mpg.de/s/4vIqdqRprGrHUrJ/download"
+    "_static/social_cichlids.mp4": "https://datashare.mpcdf.mpg.de/s/4vIqdqRprGrHUrJ/download",
 }.items():
     if not os.path.exists(video_file):
         try:
