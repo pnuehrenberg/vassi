@@ -19,16 +19,16 @@ if __name__ == "__main__":
 
     dataset_train = load_dataset(
         "mice_train",
-        directory="../../datasets/CALMS21/train",
+        directory="../../../datasets/CALMS21/train",
         target="dyad",
         background_category="none",
     )
     dataset_train = dataset_train.exclude_individuals(["intruder"])
 
     extractor = DataFrameFeatureExtractor(
-        cache_directory="feature_cache_mice",
+        cache_directory="../feature_cache_mice",
         cache_mode="cached",
-    ).read_yaml("config_file.yaml")
+    ).read_yaml("../config_file.yaml")
 
     log = set_logging_level("info")
 

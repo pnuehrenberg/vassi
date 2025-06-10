@@ -7,14 +7,14 @@ Example datasets
 One of the two datasets that we use to benchmark and test our package is the *CALMS21* dataset of mouse resident-intruder interactions [CALMS21]_.
 You can download the original *CALMS21* dataset `here <https://data.caltech.edu/records/s0vdx-0k302>`_.
 
-We provide a `conversion script <https://github.com/pnuehrenberg/vassi/blob/main/examples/CALMS21/convert_calms21_dataset.py>`_ to load and reformat this dataset.
+We provide a `conversion script <https://github.com/pnuehrenberg/vassi/blob/main/examples/CALMS21/scripts/convert_calms21_dataset.py>`_ to load and reformat this dataset.
 You can run the :code:`convert_calms21_dataset.py` script from the command line. If you have previously created a virtual environment, activate it before running the script to make sure that the package can be imported.
 Adjust the path arguments to match the location of the downloaded dataset files and the desired output directory.
 
 .. code-block:: bash
 
     conda activate vassi  # activate the environment
-    cd path/to/examples/CALMS21  # go to the directory with conversion.py
+    cd path/to/examples/CALMS21  # go to the directory with convert_calms21_dataset.py
     python -m convert_calms21_dataset \
         --train_sequences path/to/calms21_task1_train.json \
         --test_sequences path/to/calms21_task1_test.json \
@@ -27,7 +27,7 @@ Adjust the path arguments to match the location of the downloaded dataset files 
 
 You will find the converted dataset in the output directory with :code:`train` and :code:`test` subdirectories, containing the converted trajectories and annotations for the train and test data, respectively.
 
-For convinience, we also provide a `script to download <https://github.com/pnuehrenberg/vassi/blob/main/examples/CALMS21/convert_calms21_dataset.py>`_ (and optionally convert) this dataset directly:
+For convinience, we also provide a `script to download <https://github.com/pnuehrenberg/vassi/blob/main/examples/CALMS21/scripts/download_calms21_dataset.py>`_ (and optionally convert) this dataset directly:
 
 .. code-block:: bash
 

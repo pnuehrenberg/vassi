@@ -29,7 +29,7 @@ def download_url(url: str, output_directory: str):
 
 def download_calm21_dataset(
     *,
-    output_directory: str | Path = "../../datasets/CALMS21",
+    output_directory: str | Path = "../../../datasets/CALMS21",
     remove_taskprog_features: bool = True,
 ):
     output_directory = Path(output_directory)

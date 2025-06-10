@@ -21,16 +21,16 @@ def step_1():
 
     dataset_train = load_dataset(
         "mice_train",
-        directory="../../datasets/CALMS21/train",
+        directory="../../../datasets/CALMS21/train",
         target="dyad",
         background_category="none",
     )
     dataset_train = dataset_train.exclude_individuals(["intruder"])
 
     extractor = DataFrameFeatureExtractor(
-        cache_directory="feature_cache_mice",
+        cache_directory="../feature_cache_mice",
         cache_mode="cached",
-    ).read_yaml("config_file.yaml")
+    ).read_yaml("../config_file.yaml")
 
     experiment = DistributedExperiment(20, random_state=1)
 

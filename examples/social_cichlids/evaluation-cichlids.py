@@ -84,6 +84,7 @@ if __name__ == "__main__":
 
     experiment = DistributedExperiment(20, random_state=1)
     cache_directory = "samples_cache"
+    test_result = None  # dummy variable if no predictions are made
 
     for run in experiment:
         classifier = from_cache(os.path.join(cache_directory, f"clf_{run:02d}.cache"))
@@ -178,23 +179,28 @@ if __name__ == "__main__":
 
     log.info("collected results")
 
-    if experiment.is_root:
-        for run, confusion_data in enumerate(confusion):
-            save_data(
-                "results.h5",
-                confusion_data["true"],
-                os.path.join(f"run_{run:02d}", "true"),
-            )
-            save_data(
-                "results.h5",
-                confusion_data["pred"],
-                os.path.join(f"run_{run:02d}", "pred"),
-            )
+    if not experiment.is_root:
+        exit()
+
+    for run, confusion_data in enumerate(confusion):
         save_data(
             "results.h5",
-            {"runs": np.array([f"run_{run:02d}" for run in range(len(confusion))])},
+            confusion_data["true"],
+            os.path.join(f"run_{run:02d}", "true"),
         )
-        summary.to_hdf("results.h5", key="summary")
-        test_result.to_h5("results.h5", dataset_name="test_dataset")
+        save_data(
+            "results.h5",
+            confusion_data["pred"],
+            os.path.join(f"run_{run:02d}", "pred"),
+        )
+    save_data(
+        "results.h5",
+        {"runs": np.array([f"run_{run:02d}" for run in range(len(confusion))])},
+    )
+    summary.to_hdf("results.h5", key="summary")
 
+    if test_result is None:
+        log.error("no results to save")
+    else:
+        test_result.to_h5("results.h5", dataset_name="test_dataset")
         log.info("saved results")
