@@ -2,13 +2,14 @@ import os
 import pickle
 import tempfile
 from collections.abc import ItemsView, Mapping
+from pathlib import Path
 from typing import Any, Literal, Optional, overload
 
 import h5py
 import numpy as np
 import pandas as pd
 import yaml
-from numpy.dtypes import StringDType  # type: ignore
+from numpy.dtypes import StringDType
 
 from .data_structures.trajectory import Trajectory
 from .dataset.types import (
@@ -24,7 +25,11 @@ from .logging import set_logging_level
 from .utils import to_scalars
 
 
-def remove_cache(cache_file: str) -> bool:
+def _h5_path_join(*elements: str) -> str:
+    return "/".join(elements)
+
+
+def remove_cache(cache_file: str | Path) -> bool:
     """
     Helper function to remove a cache file.
 
@@ -44,7 +49,9 @@ def remove_cache(cache_file: str) -> bool:
 
 
 def to_cache(
-    obj: Any, cache_file: Optional[str] = None, directory: Optional[str] = None
+    obj: Any,
+    cache_file: Optional[str | Path] = None,
+    directory: Optional[str | Path] = None,
 ) -> str:
     """
     Helper function to write an object to a cache file using :mod:`~pickle`.
@@ -57,20 +64,20 @@ def to_cache(
     Returns:
         The path to the cache file.
     """
-    if directory is not None:
-        os.makedirs(directory, exist_ok=True)
-    else:
-        directory = "."
+    path = Path(directory if directory is not None else ".")
+    if not path.exists():
+        path.mkdir(parents=True)
     if cache_file is None:
-        _, cache_file = tempfile.mkstemp(suffix=".cache", dir=directory)
+        cache_handle, cache_file = tempfile.mkstemp(suffix=".cache", dir=path)
+        os.close(cache_handle)
     else:
-        cache_file = os.path.join(directory, cache_file)
+        cache_file = path / cache_file
     with open(cache_file, "wb") as cached:
         pickle.dump(obj, cached)
-    return cache_file
+    return str(cache_file)
 
 
-def from_cache(cache_file: str) -> Any:
+def from_cache(cache_file: str | Path) -> Any:
     """
     Helper function to read an object from a cache file using :mod:`~pickle`.
 
@@ -83,7 +90,8 @@ def from_cache(cache_file: str) -> Any:
     Raises:
         FileNotFoundError: If the cache file does not exist.
     """
-    if not os.path.isfile(cache_file):
+    cache_file = Path(cache_file)
+    if not cache_file.is_file():
         raise FileNotFoundError(f"Cache file {cache_file} not found")
     with open(cache_file, "rb") as cached:
         return pickle.load(cached)
@@ -119,7 +127,7 @@ class _TupleLoader(yaml.SafeLoader):
 _TupleLoader.add_constructor("tag:yaml.org,2002:seq", _construct_yaml_tuple)
 
 
-def to_yaml(dump: Any, *, file_name: str) -> None:
+def to_yaml(dump: Any, *, file_name: str | Path) -> None:
     """
     Helper function to write an object to a YAML file.
 
@@ -131,7 +139,7 @@ def to_yaml(dump: Any, *, file_name: str) -> None:
         yaml_file.write(yaml.dump(dump, Dumper=_NoAliasDumper, sort_keys=False))
 
 
-def from_yaml(file_name: str) -> Any:
+def from_yaml(file_name: str | Path) -> Any:
     """
     Helper function to read an object from a YAML file.
 
@@ -160,7 +168,9 @@ Data = BaseData | dict[str, "Data"]
 
 
 def load_data(
-    data_file: str, data_path: str | None = None, exclude: list[str] | None = None
+    data_file: str | Path,
+    data_path: str | None = None,
+    exclude: list[str] | None = None,
 ) -> Data:
     """
     Loads data (:class:`~numpy.ndarray` or nested :class:`dict` of :class:`~numpy.ndarray`) from an HDF5 file.
@@ -202,7 +212,7 @@ def load_data(
                 continue
             if isinstance(value, h5py.Group):
                 data[key] = load_data(
-                    data_file, os.path.join(data_path, key), exclude=exclude
+                    data_file, _h5_path_join(data_path, key), exclude=exclude
                 )
                 continue
             data[key] = read_dataset(value)
@@ -210,7 +220,7 @@ def load_data(
 
 
 def save_data(
-    data_file: str,
+    data_file: str | Path,
     data: Mapping[str, np.ndarray],
     data_path: str | None = None,
     exclude: list[str] | None = None,
@@ -258,7 +268,7 @@ def save_data(
 
 
 def save_trajectories(
-    trajectory_file: str,
+    trajectory_file: str | Path,
     trajectories: dict[int | str, Trajectory],
     prefix: Optional[str] = None,
     exclude: Optional[list[str]] = None,
@@ -287,13 +297,15 @@ def save_trajectories(
         save_data(
             trajectory_file,
             trajectories[identity].data,
-            os.path.join(prefix, str(identity)),
+            _h5_path_join(prefix, str(identity)),
             exclude=exclude,
         )
 
 
 def load_trajectories(
-    trajectory_file: str, data_path: str | None = None, exclude: list[str] | None = None
+    trajectory_file: str | Path,
+    data_path: str | None = None,
+    exclude: list[str] | None = None,
 ) -> dict[IndividualIdentifier, Trajectory]:
     """
     Load trajectories from an HDF5 file that was created with :func:`save_trajectories`.
@@ -321,7 +333,7 @@ def load_trajectories(
             )
         identities = np.asarray(list(h5_data.keys()))
     try:
-        identities = load_data(trajectory_file, os.path.join(data_path, "_identities"))
+        identities = load_data(trajectory_file, _h5_path_join(data_path, "_identities"))
         if not isinstance(identities, np.ndarray):
             raise ValueError(f"invalid identities of type {type(identities)}")
     except KeyError:
@@ -330,7 +342,7 @@ def load_trajectories(
     trajectories = {}
     for identity in to_scalars(identities):
         data = load_data(
-            trajectory_file, os.path.join(data_path, str(identity)), exclude=exclude
+            trajectory_file, _h5_path_join(data_path, str(identity)), exclude=exclude
         )
         if isinstance(data, dict):
             trajectories[identity] = Trajectory(
@@ -345,7 +357,7 @@ def save_dataset(
     dataset: Dataset,
     *,
     dataset_name: str,
-    directory: str = ".",
+    directory: str | Path = ".",
     observation_suffix: Literal["annotations", "predictions"] = "annotations",
 ) -> None:
     """
@@ -360,12 +372,11 @@ def save_dataset(
     Returns:
         None
     """
-    if not os.path.exists(directory):
-        os.makedirs(directory, exist_ok=True)
-    observation_file = os.path.join(
-        directory, f"{dataset_name}_{observation_suffix}.csv"
-    )
-    trajectory_file = os.path.join(directory, f"{dataset_name}_trajectories.h5")
+    path = Path(directory)
+    if not path.exists():
+        path.mkdir(parents=True)
+    observation_file = path / f"{dataset_name}_{observation_suffix}.csv"
+    trajectory_file = path / f"{dataset_name}_trajectories.h5"
     observations = None
     if isinstance(dataset, AnnotatedDataset):
         observations = dataset.observations
@@ -382,7 +393,7 @@ def save_dataset(
 def load_dataset(
     dataset_name: str,
     *,
-    directory: str = ".",
+    directory: str | Path = ".",
     target: Literal["individual", "dyad"],
     load_observations: Literal[True] = True,
     categories: Optional[tuple[str, ...]] = None,
@@ -395,7 +406,7 @@ def load_dataset(
 def load_dataset(
     dataset_name: str,
     *,
-    directory: str = ".",
+    directory: str | Path = ".",
     target: Literal["individual", "dyad"],
     load_observations: Literal[False],
     categories: Optional[tuple[str, ...]] = None,
@@ -407,7 +418,7 @@ def load_dataset(
 def load_dataset(
     dataset_name: str,
     *,
-    directory: str = ".",
+    directory: str | Path = ".",
     target: Literal["individual", "dyad"],
     load_observations: bool = True,
     categories: Optional[tuple[str, ...]] = None,
@@ -429,12 +440,11 @@ def load_dataset(
     Returns:
         The loaded dataset.
     """
-    observation_file = os.path.join(
-        directory, f"{dataset_name}_{observation_suffix}.csv"
-    )
-    trajectory_file = os.path.join(directory, f"{dataset_name}_trajectories.h5")
+    path = Path(directory)
+    observation_file = path / f"{dataset_name}_{observation_suffix}.csv"
+    trajectory_file = path / f"{dataset_name}_trajectories.h5"
     observations = None
-    if load_observations and os.path.exists(observation_file):
+    if load_observations and observation_file.exists():
         observations = pd.read_csv(observation_file)
     elif load_observations:
         raise FileNotFoundError(f"{observation_file} does not exist.")

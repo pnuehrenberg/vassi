@@ -3,10 +3,11 @@ import os
 import shutil
 import tempfile
 import urllib.request
+from pathlib import Path
 
+# the convert_calms21_dataset.py file should be in the same directory as this file
+from convert_calms21_dataset import convert_calms21_sequences
 from tqdm.auto import tqdm
-
-from .convert_calms21_dataset import convert_calms21_sequences
 
 
 class DownloadProgressBar(tqdm):
@@ -28,15 +29,19 @@ def download_url(url: str, output_directory: str):
 
 def download_calm21_dataset(
     *,
-    output_directory: str = "../../datasets/CALMS21",
+    output_directory: str | Path = "../../datasets/CALMS21",
     remove_taskprog_features: bool = True,
 ):
-    if not os.path.exists(output_directory):
-        os.makedirs(output_directory)
+    output_directory = Path(output_directory)
+    if not output_directory.exists():
+        output_directory.mkdir(parents=True)
     url = "https://data.caltech.edu/records/s0vdx-0k302/files/task1_classic_classification.zip?download=1"
-    _, temp_file = tempfile.mkstemp(suffix=".calms21.temp", dir=output_directory)
+    temp_handle, temp_file = tempfile.mkstemp(
+        suffix=".calms21.temp", dir=output_directory
+    )
     download_url(url, temp_file)
     shutil.unpack_archive(temp_file, output_directory, format="zip")
+    os.close(temp_handle)
     os.remove(temp_file)
     if not remove_taskprog_features:
         return
@@ -44,9 +49,7 @@ def download_calm21_dataset(
         "taskprog_features_task1_train.json",
         "taskprog_features_task1_test.json",
     ]:
-        os.remove(
-            os.path.join(output_directory, "task1_classic_classification", json_file)
-        )
+        os.remove(output_directory / "task1_classic_classification" / json_file)
 
 
 def parse_args():
@@ -62,25 +65,18 @@ def parse_args():
 
 if __name__ == "__main__":
     args = parse_args()
+    output_directory = Path(args.output_directory)
     download_calm21_dataset(
-        output_directory=args.output_directory,
+        output_directory=output_directory,
         remove_taskprog_features=args.remove_taskprog_features,
     )
     if args.download_only:
         exit()
     convert_calms21_sequences(
-        os.path.join(
-            args.output_directory,
-            "task1_classic_classification",
-            "calms21_task1_train.json",
-        ),
-        os.path.join(
-            args.output_directory,
-            "task1_classic_classification",
-            "calms21_task1_test.json",
-        ),
-        args.output_directory,
+        output_directory / "task1_classic_classification" / "calms21_task1_train.json",
+        output_directory / "task1_classic_classification" / "calms21_task1_test.json",
+        output_directory,
     )
     if args.keep_original:
         exit()
-    shutil.rmtree(os.path.join(args.output_directory, "task1_classic_classification"))
+    shutil.rmtree(output_directory / "task1_classic_classification")

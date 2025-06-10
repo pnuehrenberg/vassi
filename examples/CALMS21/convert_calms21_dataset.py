@@ -1,6 +1,6 @@
 import argparse
 import json
-import os
+from pathlib import Path
 
 import numpy as np
 import pandas as pd
@@ -17,7 +17,7 @@ from vassi.io import save_dataset
 
 
 def load_calms21_sequences(
-    calms21_json_file: str,
+    calms21_json_file: str | Path,
 ) -> list[tuple[dict[IndividualIdentifier, Trajectory], pd.DataFrame]]:
     sequences = []
     with open(calms21_json_file) as json_file:
@@ -75,11 +75,13 @@ def parse_args():
 
 
 def convert_calms21_sequences(
-    train_sequences: str,
-    test_sequences: str,
-    output_directory: str,
+    train_sequences: str | Path,
+    test_sequences: str | Path,
+    output_directory: str | Path,
 ):
     global cfg
+
+    output_directory = Path(output_directory)
 
     # this is how the data will be named in all data structures
     cfg.key_keypoints = "keypoints"
@@ -114,12 +116,12 @@ def convert_calms21_sequences(
 
     save_dataset(
         AnnotatedDataset.from_groups(groups_train),
-        directory=os.path.join(output_directory, "train"),
+        directory=output_directory / "train",
         dataset_name="mice_train",
     )
     save_dataset(
         AnnotatedDataset.from_groups(groups_test),
-        directory=os.path.join(output_directory, "test"),
+        directory=output_directory / "test",
         dataset_name="mice_test",
     )
 

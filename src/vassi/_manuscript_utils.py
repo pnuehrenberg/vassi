@@ -1,11 +1,8 @@
-from collections.abc import Iterable, Sequence, Callable
+from collections.abc import Callable, Iterable, Sequence
 from typing import (
     TYPE_CHECKING,
-    Generic,
     Literal,
     Optional,
-    Self,
-    TypeVar,
 )
 
 import matplotlib.pyplot as plt
@@ -14,11 +11,10 @@ import pandas as pd
 from matplotlib.axes import Axes
 from matplotlib.patches import ArrowStyle, ConnectionStyle, FancyArrowPatch
 
-from .dataset.types import AnnotatedGroup
-from .dataset.types.dyad import AnnotatedDyad
-
 from .classification.results import BaseResult
 from .classification.visualization import _Array
+from .dataset.types import AnnotatedGroup
+from .dataset.types.dyad import AnnotatedDyad
 
 
 def summarize_scores(

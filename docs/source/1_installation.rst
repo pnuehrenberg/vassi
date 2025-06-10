@@ -24,6 +24,12 @@ You can install the latest development version from GitHub using pip:
 
     pip install git+https://github.com/pnuehrenberg/vassi.git
 
+If you are on Windows or macOS, you may need to `install git <https://github.com/git-guides/install-git>`_ first. You can also do so via conda (crossplatform):
+
+.. code-block:: bash
+
+    conda install git
+
 Install from local directory
 ----------------------------
 
