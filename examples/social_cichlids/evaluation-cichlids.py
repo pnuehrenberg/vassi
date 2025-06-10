@@ -8,12 +8,14 @@ from sklearn.compose import ColumnTransformer, make_column_selector
 from sklearn.impute import KNNImputer
 from sklearn.pipeline import Pipeline
 
+import vassi._manuscript_utils as manuscript_utils
 from vassi.classification import (
     predict,
 )
 from vassi.config import cfg
 from vassi.features import DataFrameFeatureExtractor
-from vassi.io import from_cache, from_yaml, load_dataset, to_cache
+from vassi.io import from_cache, from_yaml, load_dataset, save_data
+from vassi.logging import set_logging_level
 from vassi.sliding_metrics import (
     SlidingWindowAggregator,
     get_window_slices,
@@ -24,33 +26,6 @@ cfg.key_keypoints = "pose"
 cfg.key_timestamp = "time_stamp"
 
 cfg.trajectory_keys = ("pose", "time_stamp")
-
-
-def summarize_scores(result, *, foreground_categories, run, postprocessing_step):
-    scores = test_result.score()
-    summary = scores.stack().reset_index()
-    summary = pd.DataFrame(
-        np.array(summary[0]),
-        index=summary["level_0"] + "_f1" + "-" + summary["level_1"],
-    ).T
-    columns = summary.columns
-    summary["run"] = run
-    summary["postprocessing_step"] = postprocessing_step
-    summary = summary[["run", "postprocessing_step", *columns]]
-    for level in scores.index:
-        summary[f"{level}_f1-macro-foreground"] = scores.loc[
-            level, list(foreground_categories)
-        ].mean()
-        summary[f"{level}_f1-macro-all"] = scores.loc[level].mean()
-    summary.columns = pd.MultiIndex.from_tuples(
-        [
-            (
-                tuple(column.split("-", 1)) if "-" in column else (column, "")
-            )  # this should be updated in the notebooks as well
-            for column in summary.columns
-        ]
-    )
-    return summary
 
 
 if __name__ == "__main__":
@@ -105,17 +80,21 @@ if __name__ == "__main__":
         cache_mode="cached",
     ).read_yaml("config_file-cichlids.yaml")
 
+    log = set_logging_level("info")
+
     experiment = DistributedExperiment(20, random_state=1)
     cache_directory = "samples_cache"
 
     for run in experiment:
         classifier = from_cache(os.path.join(cache_directory, f"clf_{run:02d}.cache"))
 
+        log.info("classifier loaded")
+
         summary = []
         y = {"true": {}, "pred": {}}
 
         test_result = predict(
-            dataset_test, classifier, extractor, log=None
+            dataset_test, classifier, extractor, log=log
         ).remove_overlapping_predictions(
             priority_function=priority_function,
             prefilter_recipient_bouts=best_parameters["prefilter_recipient_bouts"],
@@ -123,13 +102,15 @@ if __name__ == "__main__":
             max_allowed_bout_overlap=best_parameters["max_allowed_bout_overlap"],
         )
         summary.append(
-            summarize_scores(
+            manuscript_utils.summarize_scores(
                 test_result,
                 foreground_categories=dataset_test.foreground_categories,
                 run=run,
                 postprocessing_step="model_outputs",
             )
         )
+
+        log.info("finished scoring model outputs")
 
         test_result = test_result.smooth(
             partial(smooth_model_outputs, best_parameters)
@@ -140,13 +121,15 @@ if __name__ == "__main__":
             max_allowed_bout_overlap=best_parameters["max_allowed_bout_overlap"],
         )
         summary.append(
-            summarize_scores(
+            manuscript_utils.summarize_scores(
                 test_result,
                 foreground_categories=dataset_test.foreground_categories,
                 run=run,
                 postprocessing_step="smoothed",
             )
         )
+
+        log.info("finished scoring smoothed results")
 
         test_result = test_result.threshold(
             best_thresholds, default_decision="none"
@@ -157,13 +140,15 @@ if __name__ == "__main__":
             max_allowed_bout_overlap=best_parameters["max_allowed_bout_overlap"],
         )
         summary.append(
-            summarize_scores(
+            manuscript_utils.summarize_scores(
                 test_result,
                 foreground_categories=dataset_test.foreground_categories,
                 run=run,
                 postprocessing_step="thresholded",
             )
         )
+
+        log.info("finished scoring thresholded results")
 
         summary = pd.concat(summary, ignore_index=True)
 
@@ -184,11 +169,32 @@ if __name__ == "__main__":
 
         experiment.add((summary, y))
 
-    summary = pd.concat(
-        [summary for summary, _ in experiment.collect().values()], ignore_index=True
-    )
-    confusion = [y for _, y in experiment.collect().values()]
+        log.info("finished run")
+
+    results = experiment.collect()
+
+    summary = pd.concat([summary for summary, _ in results.values()], ignore_index=True)
+    confusion = [y for _, y in results.values()]
+
+    log.info("collected results")
 
     if experiment.is_root:
-        to_cache([summary, confusion], cache_file="results.cache")
-        to_cache(test_result, cache_file="predictions.cache")  # type: ignore
+        for run, confusion_data in enumerate(confusion):
+            save_data(
+                "results.h5",
+                confusion_data["true"],
+                os.path.join(f"run_{run:02d}", "true"),
+            )
+            save_data(
+                "results.h5",
+                confusion_data["pred"],
+                os.path.join(f"run_{run:02d}", "pred"),
+            )
+        save_data(
+            "results.h5",
+            {"runs": np.array([f"run_{run:02d}" for run in range(len(confusion))])},
+        )
+        summary.to_hdf("results.h5", key="summary")
+        test_result.to_h5("results.h5", dataset_name="test_dataset")
+
+        log.info("saved results")
