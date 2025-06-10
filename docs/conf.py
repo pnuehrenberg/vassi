@@ -64,6 +64,7 @@ html_logo = "source/vassi_text.svg"
 
 html_theme_options = {
     "accent_color": "cyan",
+    "github_url": "https://github.com/pnuehrenberg/vassi"
 }
 
 

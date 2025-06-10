@@ -26,7 +26,7 @@ Install the package and all dependencies from this repository:
 pip install git+https://github.com/pnuehrenberg/vassi.git
 ```
 
-Refer to the online documentation for more information.
+Refer to the [online documentation](https://vassi.readthedocs.io/en/latest/) for more information.
 
 ## Getting started
 
@@ -62,7 +62,7 @@ processed_result = classification_result.smooth(
 processed_result.predictions.to_csv("predictions.csv")
 ```
 
-You can find more examples, including the two case studies presented in our paper, in the online documentation. The respective jupyter notebooks are also available here at [examples/CALMS21](https://github.com/pnuehrenberg/vassi/tree/main/examples/CALMS21) and [examples/social_cichlids](https://github.com/pnuehrenberg/vassi/tree/main/examples/social_cichlids).
+You can find more examples, including the two case studies presented in our paper, in the [online documentation](https://vassi.readthedocs.io/en/latest/). The respective jupyter notebooks are also available here at [examples/CALMS21](https://github.com/pnuehrenberg/vassi/tree/main/examples/CALMS21) and [examples/social_cichlids](https://github.com/pnuehrenberg/vassi/tree/main/examples/social_cichlids).
 
 ## Issues and contributions
 
