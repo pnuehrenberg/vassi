@@ -27,7 +27,7 @@ Adjust the path arguments to match the location of the downloaded dataset files 
 
 You will find the converted dataset in the output directory with :code:`train` and :code:`test` subdirectories, containing the converted trajectories and annotations for the train and test data, respectively.
 
-For convinience, we also provide a `script to download <https://github.com/pnuehrenberg/vassi/blob/main/examples/CALMS21/scripts/download_calms21_dataset.py>`_ (and optionally convert) this dataset directly:
+For convenience, we also provide a `script to download <https://github.com/pnuehrenberg/vassi/blob/main/examples/CALMS21/scripts/download_calms21_dataset.py>`_ (and optionally convert) this dataset directly:
 
 .. code-block:: bash
 

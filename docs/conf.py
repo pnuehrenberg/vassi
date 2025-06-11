@@ -116,10 +116,14 @@ for rst_file in ["source/vassi.rst", "source/modules.rst"]:
     # not needed
     os.remove(rst_file)
 
-shutil.copy2("../examples/CALMS21/minimal_example.ipynb", "source")
-shutil.copy2("../examples/CALMS21/2_mice-results.svg", "source")
-shutil.copy2("../examples/CALMS21/interactive_validation.ipynb", "source")
-shutil.copy2("../examples/CALMS21/results_and_figures.ipynb", "source")
-shutil.copy2("../examples/CALMS21/postprocessing_parameters.ipynb", "source")
+for file in [
+    "../examples/CALMS21/minimal_example.ipynb",
+    "../examples/CALMS21/2_mice-results.svg",
+    "../examples/CALMS21/interactive_validation.ipynb",
+    "../examples/CALMS21/results_and_figures-mice.ipynb",
+    "../examples/CALMS21/postprocessing_parameters.ipynb",
+    "../examples/social_cichlids/results_and_figures-cichlids.ipynb",
+]:
+    shutil.copy2(file, "source")
 
 # pip install .. && sphinx-apidoc -f -e -o source/ ../src/vassi && make clean && make html
