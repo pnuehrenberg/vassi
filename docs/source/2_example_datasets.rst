@@ -7,15 +7,14 @@ Example datasets
 One of the two datasets that we use to benchmark and test our package is the *CALMS21* dataset of mouse resident-intruder interactions [CALMS21]_.
 You can download the original *CALMS21* dataset `here <https://data.caltech.edu/records/s0vdx-0k302>`_.
 
-We provide a `conversion script <https://github.com/pnuehrenberg/vassi/blob/main/examples/CALMS21/scripts/convert_calms21_dataset.py>`_ to load and reformat this dataset.
-You can run the :code:`convert_calms21_dataset.py` script from the command line. If you have previously created a virtual environment, activate it before running the script to make sure that the package can be imported.
+We provide a `conversion script <https://github.com/pnuehrenberg/vassi/blob/main/src/vassi/case_studies/calms21/convert.py>`_ to format this dataset for the use with *vassi*.
+You can run the :code:`convert.py` script from the command line. If you have previously created a virtual environment, activate it before running the script to make sure that the package can be imported.
 Adjust the path arguments to match the location of the downloaded dataset files and the desired output directory.
 
 .. code-block:: bash
 
     conda activate vassi  # activate the environment
-    cd path/to/examples/CALMS21  # go to the directory with convert_calms21_dataset.py
-    python -m convert_calms21_dataset \
+    python -m vassi.case_studies.calms21.convert \
         --train_sequences path/to/calms21_task1_train.json \
         --test_sequences path/to/calms21_task1_test.json \
         --output_directory path/to/output/CALMS21
@@ -27,25 +26,31 @@ Adjust the path arguments to match the location of the downloaded dataset files 
 
 You will find the converted dataset in the output directory with :code:`train` and :code:`test` subdirectories, containing the converted trajectories and annotations for the train and test data, respectively.
 
-For convenience, we also provide a `script to download <https://github.com/pnuehrenberg/vassi/blob/main/examples/CALMS21/scripts/download_calms21_dataset.py>`_ (and optionally convert) this dataset directly:
+For convenience, we also provide a `script to download <https://github.com/pnuehrenberg/vassi/blob/main/src/vassi/case_studies/calms21/download.py>`_ (and optionally convert) this dataset directly:
 
 .. code-block:: bash
 
-    python -m download_calms21_dataset \
-        # if not specified, this will default to "../../datasets/CALMS21"
+    python -m vassi.case_studies.calms21.download \
+        # if not specified, this will default to "datasets/CALMS21"
         --output_directory path/to/datasets/CALMS21
 
 If you want to keep the original dataset as well, or only want to download it, you can specify the following options:
 
 .. code-block:: bash
 
-    python -m download_calms21_dataset --download-only
+    python -m vassi.case_studies.calms21.download --download-only
 
 Or (only relevant when converting):
 
 .. code-block:: bash
 
-    python -m download_calms21_dataset --keep-original
+    python -m vassi.case_studies.calms21.download --keep-original
+
+You can also download the videos along with the dataset, not that this requires additional storage space (~60 GB for download and extraction, ~30 GB afterwards):
+
+.. code-block:: bash
+
+    python -m vassi.case_studies.calms21.download --download-videos
 
 2. *Social cichlids* dataset
 ----------------------------
@@ -63,6 +68,20 @@ Unlabeled intervals are considered as the background category 'none'.
     </video>
 
 You can find this dataset in our `data repository <https://doi.org/10.17617/3.3R0QYI>`_.
+
+Again, for convenience, we provide a script to download this dataset directly:
+
+.. code-block:: bash
+
+    python -m vassi.case_studies.social_cichlids.download
+    # optionally specify output directory, otherwise defaults to datasets/social_cichlids
+    --output_directory path/to/datasets/social_cichlids
+
+Or, if you want to additionally download the videos alongside the dataset, you can use the following command (this requires ~5 GB of additional disk space):
+
+.. code-block:: bash
+
+    python -m vassi.case_studies.social_cichlids.download --download-videos
 
 |
 
