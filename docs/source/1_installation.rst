@@ -17,7 +17,7 @@ Then, create a virtual environment:
 
     .. code-block:: bash
 
-        conda install tbb
+        conda install tbb numba
 
 Install from GitHub
 -------------------
