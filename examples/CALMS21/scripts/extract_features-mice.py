@@ -26,7 +26,7 @@ if __name__ == "__main__":
 
     extractor = DataFrameFeatureExtractor(
         cache_directory="../feature_cache_mice"
-    ).read_yaml("../config_file.yaml")
+    ).read_yaml("../features-mice.yaml")
 
     for _, group in dataset_train.exclude_individuals(["intruder"]):
         for _, sampleable in group:

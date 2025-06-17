@@ -30,7 +30,7 @@ def step_1():
     extractor = DataFrameFeatureExtractor(
         cache_directory="../feature_cache_mice",
         cache_mode="cached",
-    ).read_yaml("../config_file.yaml")
+    ).read_yaml("../features-mice.yaml")
 
     experiment = DistributedExperiment(20, random_state=1)
 

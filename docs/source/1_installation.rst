@@ -12,6 +12,13 @@ Then, create a virtual environment:
     conda create -n vassi python=3.12
     conda activate vassi
 
+.. important::
+    All dependencies are installed automatically on Linux and Windows. There is currently one exception on macOS (Darwin), :code:`tbb` which can be installed via conda (for example):
+
+    .. code-block:: bash
+
+        conda install tbb
+
 Install from GitHub
 -------------------
 

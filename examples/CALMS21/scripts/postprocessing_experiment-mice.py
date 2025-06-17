@@ -28,7 +28,7 @@ if __name__ == "__main__":
     extractor = DataFrameFeatureExtractor(
         cache_directory="../feature_cache_mice",
         cache_mode="cached",
-    ).read_yaml("../config_file.yaml")
+    ).read_yaml("../features-mice.yaml")
 
     log = set_logging_level("info")
 

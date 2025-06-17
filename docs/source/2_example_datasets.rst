@@ -46,7 +46,7 @@ Or (only relevant when converting):
 
     python -m vassi.case_studies.calms21.download --keep-original
 
-You can also download the videos along with the dataset, not that this requires additional storage space (~60 GB for download and extraction, ~30 GB afterwards):
+You can also download the videos along with the dataset, note that this requires additional storage space (~60 GB for download and extraction, ~30 GB afterwards):
 
 .. code-block:: bash
 
@@ -73,9 +73,9 @@ Again, for convenience, we provide a script to download this dataset directly:
 
 .. code-block:: bash
 
-    python -m vassi.case_studies.social_cichlids.download
-    # optionally specify output directory, otherwise defaults to datasets/social_cichlids
-    --output_directory path/to/datasets/social_cichlids
+    python -m vassi.case_studies.social_cichlids.download \
+        # if not specified, this will default to "datasets/social_cichlids"
+        --output_directory path/to/datasets/social_cichlids
 
 Or, if you want to additionally download the videos alongside the dataset, you can use the following command (this requires ~5 GB of additional disk space):
 

@@ -6,7 +6,7 @@ build-backend = "setuptools.build_meta"
 name = "vassi"
 version = "0.0.1"
 dependencies = [
-    "tbb",
+    "tbb ; platform_system != 'Darwin'",
     "numba",
     "numpy>=2.0",
     "h5py",
