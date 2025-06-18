@@ -39,7 +39,7 @@ Then, we can create a feature extractor to sample the dataset.
     from vassi.features import DataFrameFeatureExtractor
 
     extractor = DataFrameFeatureExtractor(cache_mode=False)
-    extractor.read_yaml("config_file.yaml")
+    extractor.read_yaml("features-mice.yaml")
 
 With this extractor, we can compute the defined features for all dyads in the training dataset. For this quick example, we subsample the dataset so that each behavioral category is represented with 1000 samples each. This produces a :class:`~pandas.DataFrame` for the features, and a :class:`~numpy.ndarray` containing corresponding labels.
 

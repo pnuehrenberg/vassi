@@ -1,17 +1,22 @@
 from collections.abc import Iterable, Sequence
 from typing import (
     TYPE_CHECKING,
+    Any,
     Callable,
     Generic,
+    Literal,
     Optional,
     Self,
     TypeVar,
+    Union,
 )
 
+import matplotlib.patches as patches
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 from matplotlib.axes import Axes
+from matplotlib.colors import Colormap, Normalize
 from sklearn.metrics import confusion_matrix
 
 # Little helper class, only used for array type annotations.
@@ -24,6 +29,88 @@ class _Array(np.ndarray, Generic[DType]):
         return super().__getitem__(key)  # type: ignore
 
     def ravel(self, *args, **kwargs) -> Self: ...
+
+
+def _matshow_patches(
+    ax: Axes,
+    X: np.ndarray,
+    cmap: Optional[Union[str, Colormap]] = None,
+    norm: Optional[Normalize] = None,
+    aspect: Union[Literal["equal"], float] = "equal",
+    vmin: Optional[float] = None,
+    vmax: Optional[float] = None,
+    line_width: float = 0.5,
+    **kwargs: Any,
+) -> plt.cm.ScalarMappable:
+    """
+    Plot a matrix as an image using matplotlib.patches.Rectangle,
+    mimicking plt.matshow for confusion matrices with explicit pixel rendering.
+
+    Parameters:
+        X: The matrix to be plotted.
+        cmap: A Colormap instance or registered colormap name. If :code:`None`, defaults
+            to Matplotlib's default.
+        norm: A Normalize instance is used to map the data values to the 0-1 range
+            before mapping to colors using the colormap.
+        aspect: The aspect ratio of the axes. 'equal' makes cells square.
+        vmin: Minimum and maximum values to normalize the colormap. If not provided,
+            they are inferred from the data.
+        vmax: Minimum and maximum values to normalize the colormap. If not provided,
+            they are inferred from the data.
+        line_width: The width of the edge line for each patch. Setting this to a non-zero
+            value (e.g., 0.5) with :code:`edgecolor` matching :code:`facecolor` can help
+            prevent tiny white lines/gaps in SVG exports due to anti-aliasing.
+        kwargs: Additional keyword arguments are not directly used by this function's
+            core drawing logic but are accepted for API compatibility.
+
+    Returns:
+        The ScalarMappable object that can be passed to :code:`plt.colorbar()`
+        for external colorbar creation.
+    """
+
+    X = np.asarray(X)
+    rows, cols = X.shape
+
+    if cmap is None:
+        cmap = plt.rcParams["image.cmap"]
+    colormap = plt.get_cmap(cmap)
+
+    if norm is None:
+        norm = Normalize(
+            vmin=vmin if vmin is not None else np.min(X),
+            vmax=vmax if vmax is not None else np.max(X),
+        )
+
+    for i in range(rows):
+        for j in range(cols):
+            color = colormap(norm(X[i, j]))
+            rect = patches.Rectangle(
+                (j - 0.5, i - 0.5),  # Position of the patch
+                1,
+                1,  # Size of the patch
+                facecolor=color,
+                edgecolor=color,  # Set edge color to match face color
+                linewidth=line_width,  # Use the specified line width
+            )
+            ax.add_patch(rect)
+
+    ax.set_xlim(-0.5, cols - 0.5)
+    ax.set_ylim(rows - 0.5, -0.5)  # Invert y-axis to match matshow
+
+    ax.set_xticks(np.arange(cols))
+    ax.set_yticks(np.arange(rows))
+
+    ax.tick_params(axis="x", top=True, labeltop=True, bottom=False, labelbottom=False)
+    ax.tick_params(axis="y", left=True, labelleft=True, right=False, labelright=False)
+
+    ax.set_aspect(aspect)
+
+    # Create a dummy mappable for potential external colorbar creation
+    sm = plt.cm.ScalarMappable(cmap=colormap, norm=norm)
+    sm.set_array([])  # Important: set an empty array for the scalar mappable
+
+    # Return the ScalarMappable for compatibility with colorbar creation
+    return sm
 
 
 def plot_confusion_matrix(
@@ -94,7 +181,9 @@ def plot_confusion_matrix(
     ax_colorbar = None
     if show_colorbar:
         ax_colorbar = ax.inset_axes((1.05, 0, 0.05, 1))
-    mappable = ax.matshow(cm_prob, vmin=0, vmax=1, interpolation="none")
+    mappable = _matshow_patches(
+        ax, cm_prob, vmin=0, vmax=1, interpolation="none", rasterized=True
+    )
     grid = np.indices(cm_prob.shape)
     for row_idx, col_idx in zip(grid[0].ravel(), grid[1].ravel()):
         ax.text(

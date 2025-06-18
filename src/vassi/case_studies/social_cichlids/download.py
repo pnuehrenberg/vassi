@@ -19,9 +19,11 @@ def download_social_cichlids_dataset(
         output_directory.mkdir(parents=True)
     urls = {
         "cichlids_annotations.csv": f"https://edmond.mpg.de/api/access/datafile/311990?key={API_TOKEN}",
-        "cichlids_trajectories.h5": f"https://edmond.mpg.de/api/access/datafile/311993?key={API_TOKEN}"
+        "cichlids_trajectories.h5": f"https://edmond.mpg.de/api/access/datafile/311993?key={API_TOKEN}",
     }
-    log.info(f"Downloading social cichlids trajectories and annotations to {output_directory}")
+    log.info(
+        f"Downloading social cichlids trajectories and annotations to {output_directory}"
+    )
     log.warning("this requires ~100 MB of disk space")
     for file_name, url in urls.items():
         if (output_path := output_directory / file_name).exists():
@@ -51,6 +53,7 @@ def download_social_cichlids_dataset(
             log.info(f"Skipping {video_file} as it already exists ({video_path})")
             continue
         download_url(url, video_path)
+
 
 def _parse_args():
     parser = argparse.ArgumentParser()

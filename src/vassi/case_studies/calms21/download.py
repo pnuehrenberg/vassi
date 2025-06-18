@@ -24,14 +24,18 @@ def download_calm21_dataset(
         suffix=".calms21.temp", dir=output_directory
     )
     log.info(f"Downloading CALMS21 trajectories and annotations to {output_directory}")
-    log.warning("download and extraction require 1 GB of disk space (~190 MB after conversion if original files are discarded)")
+    log.warning(
+        "download and extraction require 1 GB of disk space (~190 MB after conversion if original files are discarded)"
+    )
     download_url(url, temp_file)
     shutil.unpack_archive(temp_file, output_directory, format="zip")
     os.close(temp_handle)
     os.remove(temp_file)
     if download_videos:
         log.info(f"Downloading CALMS21 videos to {output_directory}")
-        log.warning("download and extraction require 60 GB of disk space (< 30 GB after extraction)")
+        log.warning(
+            "download and extraction require 60 GB of disk space (< 30 GB after extraction)"
+        )
         url = "https://data.caltech.edu/records/s0vdx-0k302/files/task1_videos_mp4.zip?download=1"
         temp_handle, temp_file = tempfile.mkstemp(
             suffix=".calms21-videos.temp", dir=output_directory
@@ -51,9 +55,7 @@ def download_calm21_dataset(
 
 def _parse_args():
     parser = argparse.ArgumentParser()
-    parser.add_argument(
-        "--output_directory", default="datasets/CALMS21", type=str
-    )
+    parser.add_argument("--output_directory", default="datasets/CALMS21", type=str)
     parser.add_argument("--remove-taskprog-features", action="store_false")
     parser.add_argument("--download-only", action="store_true")
     parser.add_argument("--keep-original", action="store_true")
