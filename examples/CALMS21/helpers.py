@@ -30,7 +30,8 @@ def subsample_train[F: Shaped](
         extractor,
         {
             ("attack", "mount"): 1.0,
-            ("none", "investigation"): 30000,
+            "none": 30000,
+            "investigation": 30000,
         },
         random_state=random_state,
         log=log,
