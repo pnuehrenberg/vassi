@@ -59,13 +59,6 @@ if __name__ == "__main__":
     experiment = DistributedExperiment(20, random_state=1)
     test_result = None  # dummy variable if no predictions are made
 
-    # for _log, run in log_loop(
-    #     experiment,
-    #     level="info",
-    #     name="run",
-    #     total=experiment.num_runs,
-    #     message="evaluation",
-    # ):
     for run in experiment:
         _log, _ = with_loop(log, name="run", step=run)
 
