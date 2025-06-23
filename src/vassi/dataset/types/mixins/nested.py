@@ -101,12 +101,15 @@ class NestedSampleableMixin(ABC):
     def _sample_X[F: Shaped](
         self,
         extractor: BaseExtractor[F],
+        *,
+        indices: Optional[np.ndarray] = None,
     ) -> F:
-        return extractor.concatenate(
+        X = extractor.concatenate(
             *[sampleable.sample_X(extractor) for identifier, sampleable in self],
             axis=0,
             ignore_index=True,
         )
+        return extractor.select_indices(X, indices=indices)
 
     def _get_available_indices(
         self,

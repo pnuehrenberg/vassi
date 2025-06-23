@@ -1,7 +1,8 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional
 
+import numpy as np
 import pandas as pd
 
 from ...data_structures import Trajectory
@@ -80,8 +81,12 @@ class Dyad(BaseSampleable):
     def _sample_X[F: Shaped](
         self,
         extractor: BaseExtractor[F],
+        *,
+        indices: Optional[np.ndarray] = None,
     ) -> F:
-        return extractor.extract(self.trajectory, self.trajectory_other)
+        return extractor.extract(
+            self.trajectory, self.trajectory_other, indices=indices
+        )
 
     def annotate(
         self,

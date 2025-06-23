@@ -302,6 +302,9 @@ class BaseExtractor[F: Shaped](ABC):
     @abstractmethod
     def concatenate(cls, *args: F, axis: int = 1, **kwargs: Any) -> F: ...
 
+    @abstractmethod
+    def select_indices(self, X: F, *, indices: np.ndarray | None) -> F: ...
+
     @classmethod
     @abstractmethod
     def empty(cls) -> F:
@@ -379,6 +382,8 @@ class BaseExtractor[F: Shaped](ABC):
         self,
         trajectory: Trajectory,
         trajectory_other: Optional[Trajectory] = None,
+        *,
+        indices: Optional[np.ndarray] = None,
     ) -> F:
         """
         Extract features from a trajectory.
@@ -412,14 +417,26 @@ class BaseExtractor[F: Shaped](ABC):
                 "Extracting only non-dyadic features, although dyadic features are specified."
             )
         if trajectory_other is None:
-            return extract_category("individual")
+            return self.select_indices(
+                extract_category("individual"),
+                indices=indices,
+            )
         if len(self._feature_functions_dyadic) == 0:
-            return extract_category("individual")
+            return self.select_indices(
+                extract_category("individual"),
+                indices=indices,
+            )
         if len(self._feature_functions_individual) == 0:
-            return extract_category("dyadic")
-        return type(self).concatenate(
-            extract_category("individual"),
-            extract_category("dyadic"),
+            return self.select_indices(
+                extract_category("dyadic"),
+                indices=indices,
+            )
+        return self.select_indices(
+            self.concatenate(
+                extract_category("individual"),
+                extract_category("dyadic"),
+            ),
+            indices=indices,
         )
 
 
@@ -456,6 +473,13 @@ class FeatureExtractor(BaseExtractor[np.ndarray]):
         prepared_args = [prepare_array(arg, num_features) for arg in args]
         return np.concatenate(prepared_args, axis=axis, **kwargs)
 
+    def select_indices(
+        self, X: np.ndarray, *, indices: np.ndarray | None
+    ) -> np.ndarray:
+        if indices is None:
+            return X
+        return X[indices]
+
     @classmethod
     def empty(cls) -> np.ndarray:
         """Returns an empty :code:`~numpy.ndarray`."""
@@ -472,7 +496,11 @@ class FeatureExtractor(BaseExtractor[np.ndarray]):
         ) -> np.ndarray: ...
 
         def extract(
-            self, trajectory: Trajectory, trajectory_other: Optional[Trajectory] = None
+            self,
+            trajectory: Trajectory,
+            trajectory_other: Optional[Trajectory] = None,
+            *,
+            indices: Optional[np.ndarray] = None,
         ) -> np.ndarray: ...
 
 
@@ -545,6 +573,21 @@ class DataFrameFeatureExtractor(BaseExtractor[pd.DataFrame]):
         assert isinstance(dataframe, pd.DataFrame)
         return dataframe
 
+    def _to_dataframe(self, X: np.ndarray | pd.DataFrame) -> pd.DataFrame:
+        columns = self.feature_names
+        if not isinstance(X, pd.DataFrame):
+            X = pd.DataFrame(X)
+        X.columns = columns
+        return X
+
+    def select_indices(
+        self, X: pd.DataFrame | np.ndarray, *, indices: np.ndarray | None
+    ) -> pd.DataFrame:
+        X = self._to_dataframe(X)
+        if indices is None:
+            return X
+        return X.iloc[indices]
+
     @classmethod
     def empty(cls) -> pd.DataFrame:
         """Returns an empty :class:`~pandas.DataFrame`."""
@@ -561,5 +604,9 @@ class DataFrameFeatureExtractor(BaseExtractor[pd.DataFrame]):
         ) -> pd.DataFrame: ...
 
         def extract(
-            self, trajectory: Trajectory, trajectory_other: Trajectory | None = None
+            self,
+            trajectory: Trajectory,
+            trajectory_other: Trajectory | None = None,
+            *,
+            indices: Optional[np.ndarray] = None,
         ) -> pd.DataFrame: ...

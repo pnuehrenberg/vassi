@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
-from typing import TYPE_CHECKING, Literal, Optional, cast
+from typing import TYPE_CHECKING, Literal, Optional
 
 import numpy as np
 import pandas as pd
@@ -154,14 +154,7 @@ class BaseSampleable(SampleableMixin):
             y = self.sample_y()
         if store_indices:
             self._previous_indices.append(indices)
-        if isinstance(X, pd.DataFrame):
-            X = X.iloc[indices]
-        elif isinstance(X, np.ndarray):
-            X = X[indices]
-        else:
-            raise TypeError("unsupported sample type")
+        X = extractor.select_indices(X, indices=indices)
         if y is not None:
             y = y[indices]
-        if TYPE_CHECKING:
-            X = cast(F, X)
         return X, y

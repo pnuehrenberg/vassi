@@ -3,7 +3,7 @@ import pickle
 import tempfile
 from collections.abc import ItemsView, Mapping
 from pathlib import Path
-from typing import Any, Literal, Optional, overload
+from typing import TYPE_CHECKING, Any, Literal, Optional, overload
 
 import h5py
 import numpy as np
@@ -52,6 +52,8 @@ def to_cache(
     obj: Any,
     cache_file: Optional[str | Path] = None,
     directory: Optional[str | Path] = None,
+    *,
+    file_type: Optional[Literal["pickle", "h5"]] = "pickle",
 ) -> str:
     """
     Helper function to write an object to a cache file using :mod:`~pickle`.
@@ -68,16 +70,32 @@ def to_cache(
     if not path.exists():
         path.mkdir(parents=True)
     if cache_file is None:
-        cache_handle, cache_file = tempfile.mkstemp(suffix=".cache", dir=path)
+        cache_handle, cache_file = tempfile.mkstemp(
+            suffix=f".{file_type}cache", dir=path
+        )
         os.close(cache_handle)
     else:
         cache_file = path / cache_file
-    with open(cache_file, "wb") as cached:
-        pickle.dump(obj, cached)
+    match file_type:
+        case "pickle":
+            with open(cache_file, "wb") as cached:
+                pickle.dump(obj, cached)
+        case "h5":
+            arr = np.asarray(obj)
+            with h5py.File(cache_file, "w") as cached:
+                # lossless compression does not help much, but takes quite long
+                cached.create_dataset("cache", data=arr)
+        case _:
+            raise ValueError(f"Unsupported file type: {file_type}")
     return str(cache_file)
 
 
-def from_cache(cache_file: str | Path) -> Any:
+def from_cache(
+    cache_file: str | Path,
+    *,
+    file_type: Optional[Literal["pickle", "h5"]] = "pickle",
+    indices: Optional[np.ndarray] = None,
+) -> Any:
     """
     Helper function to read an object from a cache file using :mod:`~pickle`.
 
@@ -93,8 +111,32 @@ def from_cache(cache_file: str | Path) -> Any:
     cache_file = Path(cache_file)
     if not cache_file.is_file():
         raise FileNotFoundError(f"Cache file {cache_file} not found")
-    with open(cache_file, "rb") as cached:
-        return pickle.load(cached)
+    match file_type:
+        case "pickle":
+            with open(cache_file, "rb") as cached:
+                data = pickle.load(cached)
+                if indices is None:
+                    return data
+                if isinstance(data, np.ndarray):
+                    return data[indices]
+                if isinstance(data, pd.DataFrame):
+                    return data.iloc[indices]
+                try:
+                    return data[indices]
+                except Exception as e:
+                    raise ValueError(f"Failed to index cached data: {e}")
+        case "h5":
+            with h5py.File(cache_file, "r") as cached:
+                data = cached["cache"]
+                if TYPE_CHECKING:
+                    assert isinstance(data, h5py.Dataset)
+                if indices is None:
+                    return data[:]
+                # chunked reading unfortunately does not speed up semi-random row-wise access
+                # so just use numpy fancy indexing after reading everything
+                return data[:][indices]
+        case _:
+            raise ValueError(f"Unsupported file type: {file_type}")
 
 
 class _NoAliasDumper(yaml.SafeDumper):

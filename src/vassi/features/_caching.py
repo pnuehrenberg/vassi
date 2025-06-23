@@ -2,6 +2,8 @@ import functools
 import os
 from typing import TYPE_CHECKING, Callable
 
+import numpy as np
+
 from ..data_structures import Trajectory
 from ..io import from_cache, to_cache
 from ..utils import hash_dict
@@ -53,18 +55,24 @@ def cache[**P, T](func: Callable[P, T]) -> Callable[P, T]:
             assert isinstance(extractor, BaseExtractor)
         if not extractor.cache_mode:
             return func(*args, **kwargs)
+        indices = kwargs.pop("indices", None)  # TODO!
         hash_value = hash_args(*args, **kwargs)
         if TYPE_CHECKING:
             assert isinstance(extractor.cache_directory, str)
-        cache_file = os.path.join(extractor.cache_directory, hash_value)
+            assert indices is None or isinstance(indices, np.ndarray)
+        cache_file = os.path.join(extractor.cache_directory, f"{hash_value}")
         if extractor.cache_mode == "cached":
-            from_cache(cache_file)
+            return extractor.select_indices(
+                from_cache(cache_file, file_type="h5"), indices=indices
+            )
         try:
-            return from_cache(cache_file)
+            return extractor.select_indices(
+                from_cache(cache_file, file_type="h5"), indices=indices
+            )
         except FileNotFoundError:
             pass
         value = func(*args, **kwargs)
-        to_cache(value, cache_file)
-        return value
+        to_cache(value, cache_file, file_type="h5")
+        return extractor.select_indices(value, indices=indices)
 
     return _cache

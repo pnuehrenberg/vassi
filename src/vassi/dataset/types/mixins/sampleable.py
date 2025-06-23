@@ -70,6 +70,8 @@ class SampleableMixin(ABC):
     def _sample_X[F: Shaped](
         self,
         extractor: BaseExtractor[F],
+        *,
+        indices: Optional[np.ndarray] = None,
     ) -> F: ...
 
     def sample_X[F: Shaped](
