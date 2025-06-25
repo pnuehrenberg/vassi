@@ -19,7 +19,7 @@ if __name__ == "__main__":
 
     dataset_full = load_dataset(
         "cichlids",
-        directory="../../datasets/social_cichlids",
+        directory="../../../datasets/social_cichlids",
         target="dyad",
         background_category="none",
     )
@@ -43,10 +43,9 @@ if __name__ == "__main__":
     ).set_output(transform="pandas")
 
     extractor = DataFrameFeatureExtractor(
-        cache_directory="cichlids_cache",
+        cache_directory="../cichlids_cache",
         pipeline=pipeline,
-        refit_pipeline=True,
-    ).read_yaml("config_file-cichlids.yaml")
+    ).read_yaml("../config_file-cichlids.yaml")
 
     for _, group in dataset_full:
         for _, sampleable in group:

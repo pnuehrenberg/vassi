@@ -2,7 +2,6 @@ import sys
 
 sys.path.append("..")
 
-import os
 from functools import partial
 
 import numpy as np
@@ -17,7 +16,7 @@ from vassi.classification import (
 )
 from vassi.config import cfg
 from vassi.features import DataFrameFeatureExtractor
-from vassi.io import from_yaml, load_dataset, save_data
+from vassi.io import _h5_path_join, from_yaml, load_dataset, save_data
 from vassi.logging import set_logging_level, with_loop  # log_loop
 
 cfg.key_keypoints = "keypoints"
@@ -146,12 +145,12 @@ if __name__ == "__main__":
         save_data(
             "results.h5",
             confusion_data["true"],
-            os.path.join(f"run_{run:02d}", "true"),
+            _h5_path_join(f"run_{run:02d}", "true"),
         )
         save_data(
             "results.h5",
             confusion_data["pred"],
-            os.path.join(f"run_{run:02d}", "pred"),
+            _h5_path_join(f"run_{run:02d}", "pred"),
         )
     save_data(
         "results.h5",

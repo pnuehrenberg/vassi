@@ -1,5 +1,4 @@
 import functools
-import os
 from typing import TYPE_CHECKING, Callable
 
 import numpy as np
@@ -55,12 +54,13 @@ def cache[**P, T](func: Callable[P, T]) -> Callable[P, T]:
             assert isinstance(extractor, BaseExtractor)
         if not extractor.cache_mode:
             return func(*args, **kwargs)
-        indices = kwargs.pop("indices", None)  # TODO!
+        indices = kwargs.pop("indices", None)
         hash_value = hash_args(*args, **kwargs)
+        if extractor.cache_directory is None:
+            raise ValueError("caching features requires a set cache_directory")
         if TYPE_CHECKING:
-            assert isinstance(extractor.cache_directory, str)
             assert indices is None or isinstance(indices, np.ndarray)
-        cache_file = os.path.join(extractor.cache_directory, f"{hash_value}")
+        cache_file = extractor.cache_directory / f"{hash_value}"
         if extractor.cache_mode == "cached":
             return extractor.select_indices(
                 from_cache(cache_file, file_type="h5"), indices=indices

@@ -81,10 +81,13 @@ def to_cache(
             with open(cache_file, "wb") as cached:
                 pickle.dump(obj, cached)
         case "h5":
+            columns = np.array(obj.columns) if isinstance(obj, pd.DataFrame) else None
             arr = np.asarray(obj)
             with h5py.File(cache_file, "w") as cached:
                 # lossless compression does not help much, but takes quite long
                 cached.create_dataset("cache", data=arr)
+                if columns is not None:
+                    cached.create_dataset("columns", data=columns)
         case _:
             raise ValueError(f"Unsupported file type: {file_type}")
     return str(cache_file)
@@ -127,14 +130,23 @@ def from_cache(
                     raise ValueError(f"Failed to index cached data: {e}")
         case "h5":
             with h5py.File(cache_file, "r") as cached:
+                columns = None
                 data = cached["cache"]
+                if "columns" in cached:
+                    columns = cached["columns"]
+                    if TYPE_CHECKING:
+                        assert isinstance(columns, h5py.Dataset)
+                    columns = columns[:].tolist()
                 if TYPE_CHECKING:
                     assert isinstance(data, h5py.Dataset)
-                if indices is None:
-                    return data[:]
                 # chunked reading unfortunately does not speed up semi-random row-wise access
                 # so just use numpy fancy indexing after reading everything
-                return data[:][indices]
+                data = data[:]
+                if indices is not None:
+                    data = data[:][indices]
+                if columns is None:
+                    return data
+                return pd.DataFrame(data, columns=columns)
         case _:
             raise ValueError(f"Unsupported file type: {file_type}")
 

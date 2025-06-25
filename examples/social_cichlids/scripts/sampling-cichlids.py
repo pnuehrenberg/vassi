@@ -1,16 +1,16 @@
-from helpers import postprocessing, subsample_train, suggest_postprocessing_parameters
+import sys
+
+# required to import from helpers.py
+sys.path.append("..")
+
+from helpers import subsample_train
 from sklearn.compose import ColumnTransformer, make_column_selector
 from sklearn.impute import KNNImputer
 from sklearn.pipeline import Pipeline
-from xgboost import XGBClassifier
 
-from vassi.classification.postprocessing import (
-    optimize_postprocessing_parameters,
-    summarize_experiment,
-)
 from vassi.config import cfg
 from vassi.features import DataFrameFeatureExtractor
-from vassi.io import load_dataset
+from vassi.io import load_dataset, to_cache
 from vassi.logging import set_logging_level
 from vassi.sliding_metrics import (
     SlidingWindowAggregator,
@@ -29,7 +29,7 @@ if __name__ == "__main__":
 
     dataset_full = load_dataset(
         "cichlids",
-        directory="../../datasets/social_cichlids",
+        directory="../../../datasets/social_cichlids",
         target="dyad",
         background_category="none",
     )
@@ -59,31 +59,27 @@ if __name__ == "__main__":
     ).set_output(transform="pandas")
 
     extractor = DataFrameFeatureExtractor(
-        cache_directory="cichlids_cache",
+        cache_directory="../cichlids_cache",
         pipeline=pipeline,
-        refit_pipeline=True,
         cache_mode="cached",
-    ).read_yaml("config_file-cichlids.yaml")
+    ).read_yaml("../config_file-cichlids.yaml")
 
     log = set_logging_level("info")
 
     experiment = DistributedExperiment(20, random_state=1)
+    cache_directory = "samples_cache"
 
-    studies = optimize_postprocessing_parameters(
-        dataset_train,
-        extractor,
-        XGBClassifier(n_estimators=1000),
-        postprocessing_function=postprocessing,
-        suggest_postprocessing_parameters_function=suggest_postprocessing_parameters,
-        num_trials=4000,
-        k=5,
-        sampling_function=subsample_train,
-        balance_sample_weights=True,
-        experiment=experiment,
-        optimize_across_runs=True,
-        parallel_optimization=True,
-        log=log,
-    )
-
-    if experiment.is_root:
-        summarize_experiment(studies, log=log)
+    for run in experiment:
+        X, y = subsample_train(
+            dataset_train,
+            extractor,
+            random_state=experiment.random_state,
+            log=None,
+        )
+        y = dataset_train.encode(y)
+        to_cache(
+            # can be used to train classifiers directly, see training-cichlids.py
+            (X, y),
+            cache_file=f"samples_{run:02d}.cache",
+            directory=cache_directory,
+        )

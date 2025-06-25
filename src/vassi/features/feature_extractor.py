@@ -1,6 +1,6 @@
-import os
 from abc import ABC, abstractmethod
 from collections.abc import Hashable, Mapping
+from pathlib import Path
 from typing import (
     TYPE_CHECKING,
     Any,
@@ -72,7 +72,6 @@ class BaseExtractor[F: Shaped](ABC):
         cache_mode: Whether to use caching or to allow only precomputed features.
         cache_directory: The directory to use for caching.
         pipeline: The pipeline to use for further feature transformation.
-        refit_pipeline: Whether to refit the pipeline for each extraction call.
     """
 
     allowed_additional_kwargs: tuple[str, ...] = (
@@ -87,9 +86,8 @@ class BaseExtractor[F: Shaped](ABC):
         features: list[tuple[utils.Feature, Mapping[str, Any]]] | None = None,
         dyadic_features: list[tuple[utils.Feature, Mapping[str, Any]]] | None = None,
         cache_mode: Literal["cached"] | bool = True,
-        cache_directory: Optional[str] = None,
+        cache_directory: Optional[str | Path] = None,
         pipeline: Optional[Pipeline] = None,
-        refit_pipeline: bool = False,
     ):
         self._feature_functions_individual: list[
             tuple[utils.Feature, dict[str, Any]]
@@ -107,13 +105,12 @@ class BaseExtractor[F: Shaped](ABC):
                 raise ValueError(
                     f"cache_directory must be specified with cache={self.cache_mode}"
                 )
-            self.cache_directory = cache_directory
-            if not os.path.exists(self.cache_directory):
-                os.makedirs(self.cache_directory, exist_ok=True)
+            self.cache_directory = Path(cache_directory)
+            if not self.cache_directory.exists():
+                self.cache_directory.mkdir(parents=True)
         else:
             self.cache_directory = None
         self.pipeline = pipeline
-        self.refit_pipeline = refit_pipeline
 
     @property
     def sha1(self):
@@ -372,9 +369,7 @@ class BaseExtractor[F: Shaped](ABC):
         if self.pipeline is not None:
             if isinstance(features, pd.DataFrame):
                 self.pipeline.set_output(transform="pandas")
-            if self.refit_pipeline:
-                self.pipeline.fit(features)
-            return self.pipeline.transform(features)
+            return self.pipeline.fit_transform(features)
         return features
 
     @cache
@@ -573,17 +568,9 @@ class DataFrameFeatureExtractor(BaseExtractor[pd.DataFrame]):
         assert isinstance(dataframe, pd.DataFrame)
         return dataframe
 
-    def _to_dataframe(self, X: np.ndarray | pd.DataFrame) -> pd.DataFrame:
-        columns = self.feature_names
-        if not isinstance(X, pd.DataFrame):
-            X = pd.DataFrame(X)
-        X.columns = columns
-        return X
-
     def select_indices(
-        self, X: pd.DataFrame | np.ndarray, *, indices: np.ndarray | None
+        self, X: pd.DataFrame, *, indices: np.ndarray | None
     ) -> pd.DataFrame:
-        X = self._to_dataframe(X)
         if indices is None:
             return X
         return X.iloc[indices]

@@ -1,4 +1,3 @@
-import os
 from abc import ABC, abstractmethod
 from collections.abc import Iterable, Mapping
 from copy import deepcopy
@@ -24,7 +23,7 @@ from ..dataset.observations import (
     remove_overlapping_observations,
 )
 from ..dataset.types import encode_categories
-from ..io import load_data, save_data
+from ..io import _h5_path_join, load_data, save_data
 from ..logging import set_logging_level
 from ..utils import SmoothingFunction, available_resources, to_scalars
 from .utils import (
@@ -324,14 +323,14 @@ class ClassificationResult(BaseResult):
             data["_y_proba_smoothed"] = self._y_proba_smoothed
         if self._y_true_numeric is not None:
             data["_y_true_numeric"] = self._y_true_numeric
-        save_data(data_file, data, os.path.join(data_path, "data"))
+        save_data(data_file, data, _h5_path_join(data_path, "data"))
         if self._predictions is not None:
             self._predictions.to_hdf(
-                data_file, key=os.path.join(data_path, "predictions")
+                data_file, key=_h5_path_join(data_path, "predictions")
             )
         if self._annotations is not None:
             self._annotations.to_hdf(
-                data_file, key=os.path.join(data_path, "annotations")
+                data_file, key=_h5_path_join(data_path, "annotations")
             )
 
     @classmethod
@@ -343,20 +342,20 @@ class ClassificationResult(BaseResult):
             data_file (str): Path to the HDF5 file.
             data_path (str): Path within the HDF5 file to load the data.
         """
-        _data = load_data(data_file, os.path.join(data_path, "data"))
+        _data = load_data(data_file, _h5_path_join(data_path, "data"))
         if TYPE_CHECKING:
             assert isinstance(_data, dict)
         data: dict[str, Any] = {**_data}
         data["categories"] = tuple(data["categories"])
         try:
             data["_predictions"] = pd.read_hdf(
-                data_file, os.path.join(data_path, "predictions")
+                data_file, _h5_path_join(data_path, "predictions")
             )
         except KeyError:
             data["_predictions"] = None
         try:
             data["_annotations"] = pd.read_hdf(
-                data_file, os.path.join(data_path, "annotations")
+                data_file, _h5_path_join(data_path, "annotations")
             )
         except KeyError:
             data["_annotations"] = None
@@ -705,7 +704,7 @@ class GroupClassificationResult(_NestedResult):
         )
         for identifier in identifiers:
             self.classification_results[identifier].to_h5(
-                data_file, os.path.join(data_path, "results", str(identifier))
+                data_file, _h5_path_join(data_path, "results", str(identifier))
             )
 
     @classmethod
@@ -721,21 +720,21 @@ class GroupClassificationResult(_NestedResult):
             The loaded group classification result.
         """
         individuals = tuple(
-            load_data(data_file, os.path.join(data_path, "individuals"))
+            load_data(data_file, _h5_path_join(data_path, "individuals"))
         )
-        target = to_scalars(load_data(data_file, os.path.join(data_path, "target")))[0]
+        target = to_scalars(load_data(data_file, _h5_path_join(data_path, "target")))[0]
         identifiers = [
             cast(
                 Identifier,
                 identifier if isinstance(identifier, str) else tuple(identifier),
             )
             for identifier in to_scalars(
-                load_data(data_file, os.path.join(data_path, "identifiers"))
+                load_data(data_file, _h5_path_join(data_path, "identifiers"))
             )
         ]
         classification_results = {
             identifier: ClassificationResult.from_h5(
-                data_file, os.path.join(data_path, "results", str(identifier))
+                data_file, _h5_path_join(data_path, "results", str(identifier))
             )
             for identifier in identifiers
         }
@@ -850,7 +849,7 @@ class DatasetClassificationResult(_NestedResult):
         )
         for identifier in identifiers:
             self.classification_results[identifier].to_h5(
-                data_file, os.path.join(dataset_name, "group_results", str(identifier))
+                data_file, _h5_path_join(dataset_name, "group_results", str(identifier))
             )
 
     @classmethod
@@ -867,15 +866,15 @@ class DatasetClassificationResult(_NestedResult):
         Returns:
             The loaded dataset classification result.
         """
-        target = to_scalars(load_data(data_file, os.path.join(dataset_name, "target")))[
-            0
-        ]
+        target = to_scalars(
+            load_data(data_file, _h5_path_join(dataset_name, "target"))
+        )[0]
         identifiers = to_scalars(
-            load_data(data_file, os.path.join(dataset_name, "identifiers"))
+            load_data(data_file, _h5_path_join(dataset_name, "identifiers"))
         )
         classification_results = {
             identifier: GroupClassificationResult.from_h5(
-                data_file, os.path.join(dataset_name, "group_results", str(identifier))
+                data_file, _h5_path_join(dataset_name, "group_results", str(identifier))
             )
             for identifier in identifiers
         }

@@ -1,5 +1,10 @@
-import os
+import sys
+
+# required to import from helpers.py
+sys.path.append("..")
+
 from functools import partial
+from pathlib import Path
 
 import numpy as np
 import pandas as pd
@@ -14,7 +19,7 @@ from vassi.classification import (
 )
 from vassi.config import cfg
 from vassi.features import DataFrameFeatureExtractor
-from vassi.io import from_cache, from_yaml, load_dataset, save_data
+from vassi.io import _h5_path_join, from_cache, from_yaml, load_dataset, save_data
 from vassi.logging import set_logging_level
 from vassi.sliding_metrics import (
     SlidingWindowAggregator,
@@ -33,7 +38,7 @@ if __name__ == "__main__":
 
     dataset_full = load_dataset(
         "cichlids",
-        directory="../../datasets/social_cichlids",
+        directory="../../../datasets/social_cichlids",
         target="dyad",
         background_category="none",
     )
@@ -43,6 +48,7 @@ if __name__ == "__main__":
         random_state=1,
     )
 
+    # run postprocessing_experiment-cichlids.py first
     best_parameters = from_yaml("optimization-summary.yaml")
 
     priority_function = partial(
@@ -74,20 +80,19 @@ if __name__ == "__main__":
     ).set_output(transform="pandas")
 
     extractor = DataFrameFeatureExtractor(
-        cache_directory="cichlids_cache",
+        cache_directory="../cichlids_cache",
         pipeline=pipeline,
-        refit_pipeline=True,
         cache_mode="cached",
-    ).read_yaml("config_file-cichlids.yaml")
+    ).read_yaml("../config_file-cichlids.yaml")
 
     log = set_logging_level("info")
 
     experiment = DistributedExperiment(20, random_state=1)
-    cache_directory = "samples_cache"
+    cache_directory = Path("samples_cache")
     test_result = None  # dummy variable if no predictions are made
 
     for run in experiment:
-        classifier = from_cache(os.path.join(cache_directory, f"clf_{run:02d}.cache"))
+        classifier = from_cache(cache_directory / f"clf_{run:02d}.cache")
 
         log.info("classifier loaded")
 
@@ -186,12 +191,12 @@ if __name__ == "__main__":
         save_data(
             "results.h5",
             confusion_data["true"],
-            os.path.join(f"run_{run:02d}", "true"),
+            _h5_path_join(f"run_{run:02d}", "true"),
         )
         save_data(
             "results.h5",
             confusion_data["pred"],
-            os.path.join(f"run_{run:02d}", "pred"),
+            _h5_path_join(f"run_{run:02d}", "pred"),
         )
     save_data(
         "results.h5",
