@@ -136,7 +136,7 @@ def from_cache(
                     columns = cached["columns"]
                     if TYPE_CHECKING:
                         assert isinstance(columns, h5py.Dataset)
-                    columns = [str(column) for column in columns[:]]
+                    columns = [column.decode() for column in columns[:]]
                 if TYPE_CHECKING:
                     assert isinstance(data, h5py.Dataset)
                 # chunked reading unfortunately does not speed up semi-random row-wise access
