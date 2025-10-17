@@ -11,6 +11,8 @@ from typing import (
 import numpy as np
 import pandas as pd
 
+from ...utils import class_name
+from ...logging import set_logging_level
 from ...data_structures import Trajectory
 from ..observations.utils import with_duration
 from ..utils import DyadIdentifier, Identifier, IndividualIdentifier, get_actor
@@ -266,11 +268,15 @@ class Group(NestedSampleableMixin, SampleableMixin):
                     == (identifier if isinstance(identifier, tuple) else (identifier,))
                 ).all(axis=1)
             ]
-            self._sampleables[identifier] = sampleable.annotate(
-                observations=observations_sample,
-                categories=self.categories,
-                background_category=self.background_category,
-            )
+            try:
+                self._sampleables[identifier] = sampleable.annotate(
+                    observations=observations_sample,
+                    categories=self.categories,
+                    background_category=self.background_category,
+                )
+            except Exception as e:
+                set_logging_level("error").error(f"invalid observations for {class_name(sampleable)} '{identifier}'")
+                raise e
 
     @with_duration
     def _get_observations(self) -> pd.DataFrame:

@@ -140,7 +140,7 @@ def infill_observations(
     observations: pd.DataFrame,
     observation_stop: Optional[int] = None,
     *,
-    background_category: str = "none",
+    background_category: str,
 ) -> pd.DataFrame:
     """
     Infill observations with intervals of the background category.

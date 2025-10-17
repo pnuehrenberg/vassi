@@ -114,6 +114,7 @@ def validate_predictions(
     *,
     on: Literal["predictions", "annotations"] = "predictions",
     key_columns: Iterable[str] = ("group", "actor", "recipient"),
+    background_category: str,
 ) -> pd.DataFrame:
     """
     Validate the predictions or annotations.
@@ -146,8 +147,8 @@ def validate_predictions(
     predictions = check_observations(predictions, ("start", "stop", "category"))
     annotations = check_observations(annotations, ("start", "stop", "category"))
     stop: int = max(predictions["stop"].max(), annotations["stop"].max())  # type: ignore
-    predictions = infill_observations(predictions, stop)
-    annotations = infill_observations(annotations, stop)
+    predictions = infill_observations(predictions, stop, background_category=background_category)
+    annotations = infill_observations(annotations, stop, background_category=background_category)
     alternative_categories = []
     intervals_predictions = predictions[["start", "stop"]].to_numpy()
     intervals_annotations = annotations[["start", "stop"]].to_numpy()

@@ -159,6 +159,7 @@ def _threshold_probabilities(
 @dataclass
 class ClassificationResult(BaseResult):
     categories: tuple[str, ...]
+    background_category: str
     timestamps: np.ndarray
     y_proba: np.ndarray
     y_pred_numeric: np.ndarray
@@ -225,10 +226,10 @@ class ClassificationResult(BaseResult):
         try:
             annotations = self.annotations
             self._predictions = validate_predictions(
-                self.predictions, annotations, on="predictions"
+                self.predictions, annotations, on="predictions", background_category=self.background_category
             )
             self._annotations = validate_predictions(
-                self.predictions, annotations, on="annotations"
+                self.predictions, annotations, on="annotations", background_category=self.background_category
             )
         except ValueError:
             pass
@@ -457,6 +458,21 @@ class _NestedResult(BaseResult, ABC):
         return self
 
     @property
+    def background_category(self) -> str:
+        background_category = None
+        for classification_result in self.classification_results.values():
+            if background_category is None:
+                background_category = classification_result.background_category
+                continue
+            if classification_result.background_category != background_category:
+                raise ValueError("classification results with missmatched categories")
+        if background_category is None:
+            raise ValueError(
+                "nested results should contain at least one classification result"
+            )
+        return background_category
+
+    @property
     def categories(self) -> tuple[str, ...]:
         categories = None
         for classification_result in self.classification_results.values():
@@ -616,6 +632,7 @@ class GroupClassificationResult(_NestedResult):
                 predictions_dyad = infill_observations(
                     predictions_dyad,
                     observation_stop=classification_result.timestamps[-1],
+                    background_category=self.background_category,
                 )
                 try:
                     predictions_dyad.loc[:, "mean_probability"] = predictions_dyad[
@@ -635,6 +652,7 @@ class GroupClassificationResult(_NestedResult):
                         classification_result.annotations,
                         on="predictions",
                         key_columns=[],
+                        background_category=self.background_category,
                     )
                 except ValueError:
                     pass

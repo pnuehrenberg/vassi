@@ -11,7 +11,8 @@ import numpy as np
 import pandas as pd
 from sklearn.model_selection import KFold, StratifiedKFold, train_test_split
 
-from ...utils import to_int_seed
+from ...utils import to_int_seed, class_name
+from ...logging import set_logging_level
 from ..observations.utils import check_observations, with_duration
 from ..utils import GroupIdentifier, IndividualIdentifier, SubjectIdentifier
 from .group import Group
@@ -201,11 +202,15 @@ class Dataset(NestedSampleableMixin, SampleableMixin):
         )
         for identifier, group in self:
             observations_group = observations.loc[observations["group"] == identifier]
-            self._sampleables[identifier] = group.annotate(
-                observations=observations_group,
-                categories=self.categories,
-                background_category=self.background_category,
-            )
+            try:
+                self._sampleables[identifier] = group.annotate(
+                    observations=observations_group,
+                    categories=self.categories,
+                    background_category=self.background_category,
+                )
+            except Exception as e:
+                set_logging_level("error").error(f"invalid observations for {class_name(group)} '{identifier}'")
+                raise e
 
     @with_duration
     def _get_observations(self) -> pd.DataFrame:

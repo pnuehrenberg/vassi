@@ -67,7 +67,9 @@ class BaseSampleable(SampleableMixin):
             allow_unsorted=False,
         )
         observations = infill_observations(
-            observations, observation_stop=self.trajectory.timestamps[-1]
+            observations,
+            observation_stop=self.trajectory.timestamps[-1],
+            background_category=self.background_category,
         )
         self._observations = observations
 
