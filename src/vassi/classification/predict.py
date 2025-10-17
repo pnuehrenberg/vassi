@@ -35,42 +35,34 @@ from .utils import (
 )
 
 
+def _extract_category_metadata(sampleable: AnnotatedMixin) -> tuple[tuple[str, ...], str, EncodingFunction]:
+    return (
+        sampleable.categories,
+        sampleable.background_category,
+        sampleable.encode,
+    )
+
+
 def _predict_sampleable[F: Shaped](
     sampleable: BaseSampleable,
     classifier: Classifier,
     extractor: BaseExtractor[F],
     *,
-    encoding_function: Optional[EncodingFunction] = None,
-    categories: Optional[Iterable[str]] = None,
-    background_category: Optional[str] = None,
+    encoding_function: EncodingFunction,
+    categories: Iterable[str],
+    background_category: str,
     log: loguru.Logger,
 ) -> ClassificationResult:
     X, y = sampleable.sample(extractor)
     y_pred_numeric: np.ndarray = classifier.predict(X)
     y_proba: np.ndarray = classifier.predict_proba(X).astype(float)
     y_true_numeric: Optional[np.ndarray] = None
-    if encoding_function is None and isinstance(sampleable, AnnotatedMixin):
-        encoding_function = sampleable.encode
-    elif encoding_function is None:
-        raise ValueError(
-            "encoding_function must be provided for non-annotated sampleables"
-        )
     if y is not None:
         y_true_numeric = encoding_function(y)
     timestamps = sampleable.trajectory.timestamps
     annotations = None
     if isinstance(sampleable, AnnotatedMixin):
         annotations = sampleable.observations
-        if categories is not None:
-            log.warning(
-                "ignoring categories parameter for annotated sampleable, using categories from sampleable instead"
-            )
-        categories = sampleable.categories
-        background_category = sampleable.background_category
-    if categories is None:
-        raise ValueError("specify categories when classifying unannotated sampleables.")
-    if background_category is None:
-        raise ValueError("specify background_category when classifying unannotated sampleables.")
     return ClassificationResult(
         categories=tuple(categories),
         background_category=background_category,
@@ -88,9 +80,9 @@ def _predict_group[F: Shaped](
     classifier: Classifier,
     extractor: BaseExtractor[F],
     *,
-    encoding_function: Optional[EncodingFunction] = None,
-    categories: Optional[Iterable[str]] = None,
-    background_category: Optional[str] = None,
+    encoding_function: EncodingFunction,
+    categories: Iterable[str],
+    background_category: str,
     exclude: Optional[Iterable[Identifier]] = None,
     log: loguru.Logger,
 ) -> GroupClassificationResult:
@@ -132,9 +124,9 @@ def _predict[F: Shaped](
     classifier: Classifier,
     extractor: BaseExtractor[F],
     *,
-    encoding_function: Optional[EncodingFunction] = None,
-    categories: Optional[Iterable[str]] = None,
-    background_category: Optional[str] = None,
+    encoding_function: EncodingFunction,
+    categories: Iterable[str],
+    background_category: str,
     exclude: Optional[Iterable[Identifier]] = None,
     log: loguru.Logger,
 ) -> DatasetClassificationResult:
@@ -238,6 +230,19 @@ def predict[F: Shaped](
     """
     if log is None:
         log = set_logging_level()
+    if isinstance(sampleable, AnnotatedMixin):
+        for param, name in zip(
+            [categories, background_category, encoding_function],
+            ["categories", "background_category", "encoding_function"]
+        ):
+            if param is None:
+                continue
+            log.warning(
+                f"ignoring {name} parameter for annotated sampleable, using {name} from sampleable instead"
+            )
+        categories, background_category, encoding_function = _extract_category_metadata(sampleable)
+    elif categories is None or background_category is None or encoding_function is None:
+        raise ValueError("categories, background_category, and encoding_function must be provided for non-annotated sampleables")
     if isinstance(sampleable, Dataset):
         return _predict(
             sampleable,
