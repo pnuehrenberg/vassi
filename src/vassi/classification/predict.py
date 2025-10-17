@@ -42,6 +42,7 @@ def _predict_sampleable[F: Shaped](
     *,
     encoding_function: Optional[EncodingFunction] = None,
     categories: Optional[Iterable[str]] = None,
+    background_category: Optional[str] = None,
     log: loguru.Logger,
 ) -> ClassificationResult:
     X, y = sampleable.sample(extractor)
@@ -65,10 +66,14 @@ def _predict_sampleable[F: Shaped](
                 "ignoring categories parameter for annotated sampleable, using categories from sampleable instead"
             )
         categories = sampleable.categories
+        background_category = sampleable.background_category
     if categories is None:
         raise ValueError("specify categories when classifying unannotated sampleables.")
+    if background_category is None:
+        raise ValueError("specify background_category when classifying unannotated sampleables.")
     return ClassificationResult(
         categories=tuple(categories),
+        background_category=background_category,
         timestamps=timestamps,  # type:ignore
         y_proba=y_proba,
         y_pred_numeric=y_pred_numeric,
@@ -85,6 +90,7 @@ def _predict_group[F: Shaped](
     *,
     encoding_function: Optional[EncodingFunction] = None,
     categories: Optional[Iterable[str]] = None,
+    background_category: Optional[str] = None,
     exclude: Optional[Iterable[Identifier]] = None,
     log: loguru.Logger,
 ) -> GroupClassificationResult:
@@ -106,6 +112,7 @@ def _predict_group[F: Shaped](
             extractor,
             encoding_function=encoding_function,
             categories=categories,
+            background_category=background_category,
             log=log,
         )
     return GroupClassificationResult(
@@ -127,6 +134,7 @@ def _predict[F: Shaped](
     *,
     encoding_function: Optional[EncodingFunction] = None,
     categories: Optional[Iterable[str]] = None,
+    background_category: Optional[str] = None,
     exclude: Optional[Iterable[Identifier]] = None,
     log: loguru.Logger,
 ) -> DatasetClassificationResult:
@@ -149,6 +157,7 @@ def _predict[F: Shaped](
             extractor,
             encoding_function=encoding_function,
             categories=categories,
+            background_category=background_category,
             exclude=exclude,
             log=log,
         )
@@ -166,6 +175,7 @@ def predict[F: Shaped](
     *,
     encoding_function: Optional[EncodingFunction] = None,
     categories: Optional[Iterable[str]] = None,
+    background_category: Optional[str] = None,
     exclude: Optional[Iterable[Identifier]] = None,
     log: Optional[loguru.Logger] = None,
 ) -> ClassificationResult: ...
@@ -179,6 +189,7 @@ def predict[F: Shaped](
     *,
     encoding_function: Optional[EncodingFunction] = None,
     categories: Optional[Iterable[str]] = None,
+    background_category: Optional[str] = None,
     exclude: Optional[Iterable[Identifier]] = None,
     log: Optional[loguru.Logger] = None,
 ) -> GroupClassificationResult: ...
@@ -192,6 +203,7 @@ def predict[F: Shaped](
     *,
     encoding_function: Optional[EncodingFunction] = None,
     categories: Optional[Iterable[str]] = None,
+    background_category: Optional[str] = None,
     exclude: Optional[Iterable[Identifier]] = None,
     log: Optional[loguru.Logger] = None,
 ) -> DatasetClassificationResult: ...
@@ -204,6 +216,7 @@ def predict[F: Shaped](
     *,
     encoding_function: Optional[EncodingFunction] = None,
     categories: Optional[Iterable[str]] = None,
+    background_category: Optional[str] = None,
     exclude: Optional[Iterable[Identifier]] = None,
     log: Optional[loguru.Logger] = None,
 ) -> ClassificationResult | GroupClassificationResult | DatasetClassificationResult:
@@ -216,6 +229,7 @@ def predict[F: Shaped](
         extractor: The extractor to use.
         encoding_function: The encoding function to use.
         categories: The categories to use.
+        background_category: The background category to use.
         exclude: The identifiers to exclude.
         log: The logger to use.
 
@@ -231,6 +245,7 @@ def predict[F: Shaped](
             extractor,
             encoding_function=encoding_function,
             categories=categories,
+            background_category=background_category,
             exclude=exclude,
             log=log,
         )
@@ -241,6 +256,7 @@ def predict[F: Shaped](
             extractor,
             encoding_function=encoding_function,
             categories=categories,
+            background_category=background_category,
             exclude=exclude,
             log=log,
         )
@@ -254,6 +270,7 @@ def predict[F: Shaped](
         extractor,
         encoding_function=encoding_function,
         categories=categories,
+        background_category=background_category,
         log=log,
     )
 
