@@ -49,7 +49,7 @@ def _predict_sampleable[F: Shaped](
     extractor: BaseExtractor[F],
     *,
     encoding_function: EncodingFunction,
-    categories: Iterable[str],
+    categories: tuple[str, ...],
     background_category: str,
     log: loguru.Logger,
 ) -> ClassificationResult:
@@ -72,7 +72,7 @@ def _predict_sampleable[F: Shaped](
         _y_proba_smoothed=None,
         _annotations=annotations,
         _y_true_numeric=y_true_numeric,
-    ).threshold()
+    ).threshold(default_decision=background_category)
 
 
 def _predict_group[F: Shaped](
@@ -81,7 +81,7 @@ def _predict_group[F: Shaped](
     extractor: BaseExtractor[F],
     *,
     encoding_function: EncodingFunction,
-    categories: Iterable[str],
+    categories: tuple[str, ...],
     background_category: str,
     exclude: Optional[Iterable[Identifier]] = None,
     log: loguru.Logger,
@@ -125,7 +125,7 @@ def _predict[F: Shaped](
     extractor: BaseExtractor[F],
     *,
     encoding_function: EncodingFunction,
-    categories: Iterable[str],
+    categories: tuple[str, ...],
     background_category: str,
     exclude: Optional[Iterable[Identifier]] = None,
     log: loguru.Logger,
@@ -166,7 +166,7 @@ def predict[F: Shaped](
     extractor: BaseExtractor[F],
     *,
     encoding_function: Optional[EncodingFunction] = None,
-    categories: Optional[Iterable[str]] = None,
+    categories: Optional[tuple[str, ...]] = None,
     background_category: Optional[str] = None,
     exclude: Optional[Iterable[Identifier]] = None,
     log: Optional[loguru.Logger] = None,
@@ -180,7 +180,7 @@ def predict[F: Shaped](
     extractor: BaseExtractor[F],
     *,
     encoding_function: Optional[EncodingFunction] = None,
-    categories: Optional[Iterable[str]] = None,
+    categories: Optional[tuple[str, ...]] = None,
     background_category: Optional[str] = None,
     exclude: Optional[Iterable[Identifier]] = None,
     log: Optional[loguru.Logger] = None,
@@ -194,7 +194,7 @@ def predict[F: Shaped](
     extractor: BaseExtractor[F],
     *,
     encoding_function: Optional[EncodingFunction] = None,
-    categories: Optional[Iterable[str]] = None,
+    categories: Optional[tuple[str, ...]] = None,
     background_category: Optional[str] = None,
     exclude: Optional[Iterable[Identifier]] = None,
     log: Optional[loguru.Logger] = None,
@@ -207,7 +207,7 @@ def predict[F: Shaped](
     extractor: BaseExtractor[F],
     *,
     encoding_function: Optional[EncodingFunction] = None,
-    categories: Optional[Iterable[str]] = None,
+    categories: Optional[tuple[str, ...]] = None,
     background_category: Optional[str] = None,
     exclude: Optional[Iterable[Identifier]] = None,
     log: Optional[loguru.Logger] = None,
@@ -227,22 +227,27 @@ def predict[F: Shaped](
 
     Returns:
         The classification result.
+
+    Note:
+        The optional parameters `encoding_function`, `categories`, and `background_category`
+        can be used to override the attributes of the sampleable object, if it is annotated.
+
+        The specified `categories` should match the class labels of the trained classifier.
     """
     if log is None:
         log = set_logging_level()
     if isinstance(sampleable, AnnotatedMixin):
-        for param, name in zip(
-            [categories, background_category, encoding_function],
-            ["categories", "background_category", "encoding_function"]
-        ):
-            if param is None:
-                continue
-            log.warning(
-                f"ignoring {name} parameter for annotated sampleable, using {name} from sampleable instead"
-            )
-        categories, background_category, encoding_function = _extract_category_metadata(sampleable)
+        _categories, _background_category, _encoding_function = _extract_category_metadata(sampleable)
+        if categories is None:
+            categories = _categories
+        if background_category is None:
+            background_category = _background_category
+        if encoding_function is None:
+            encoding_function = _encoding_function
     elif categories is None or background_category is None or encoding_function is None:
         raise ValueError("categories, background_category, and encoding_function must be provided for non-annotated sampleables")
+    classes_ = getattr(classifier, "classes_", None)
+    assert classes_ is not None and len(categories) == len(classes_), "The number of categories must match the number of classes in the fitted classifier."
     if isinstance(sampleable, Dataset):
         return _predict(
             sampleable,
