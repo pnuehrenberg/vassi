@@ -7,7 +7,7 @@ from vassi.classification.postprocessing import (
     summarize_experiment,
 )
 from vassi.config import cfg
-from vassi.features import DataFrameFeatureExtractor
+from vassi.features import DataFrameExtractor
 from vassi.io import from_cache, from_yaml, load_dataset, to_yaml
 from vassi.logging import set_logging_level
 
@@ -27,7 +27,7 @@ def step_1():
     )
     dataset_train = dataset_train.exclude_individuals(["intruder"])
 
-    extractor = DataFrameFeatureExtractor(
+    extractor = DataFrameExtractor(
         cache_directory="../feature_cache_mice",
         cache_mode="cached",
     ).read_yaml("../features-mice.yaml")

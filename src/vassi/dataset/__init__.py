@@ -1,3 +1,8 @@
+from .observations import (
+    aggregate_observations_as_bouts,
+    densify_observations,
+    remove_overlapping_observations,
+)
 from .types import (
     AnnotatedDataset,
     AnnotatedDyad,
@@ -8,15 +13,11 @@ from .types import (
     Group,
     Individual,
 )
-from .utils import (
-    DyadIdentifier,
-    GroupIdentifier,
-    Identifier,
-    IndividualIdentifier,
-    SubjectIdentifier,
-)
 
 __all__ = [
+    "aggregate_observations_as_bouts",
+    "densify_observations",
+    "remove_overlapping_observations",
     "AnnotatedDataset",
     "AnnotatedDyad",
     "AnnotatedGroup",
@@ -25,9 +26,4 @@ __all__ = [
     "Dyad",
     "Group",
     "Individual",
-    "Identifier",
-    "DyadIdentifier",
-    "GroupIdentifier",
-    "IndividualIdentifier",
-    "SubjectIdentifier",
 ]

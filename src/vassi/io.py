@@ -1,14 +1,13 @@
 import os
 import pickle
 import tempfile
-from collections.abc import ItemsView, Mapping
+from collections.abc import Hashable, ItemsView, Iterable, Mapping
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Literal, Optional, overload
+from typing import TYPE_CHECKING, Literal, TypeGuard, overload
 
 import h5py
 import numpy as np
 import pandas as pd
-import yaml
 from numpy.dtypes import StringDType
 
 from .data_structures.trajectory import Trajectory
@@ -17,12 +16,8 @@ from .dataset.types import (
     Dataset,
     Group,
 )
-from .dataset.utils import (
-    GroupIdentifier,
-    IndividualIdentifier,
-)
-from .logging import set_logging_level
 from .utils import to_scalars
+from .warnings import warn
 
 
 def _h5_path_join(*elements: str) -> str:
@@ -49,11 +44,11 @@ def remove_cache(cache_file: str | Path) -> bool:
 
 
 def to_cache(
-    obj: Any,
-    cache_file: Optional[str | Path] = None,
-    directory: Optional[str | Path] = None,
+    obj: object,
+    cache_file: str | Path | None = None,
+    directory: str | Path | None = None,
     *,
-    file_type: Optional[Literal["pickle", "h5"]] = "pickle",
+    file_type: Literal["pickle", "h5"] = "pickle",
 ) -> str:
     """
     Helper function to write an object to a cache file using :mod:`~pickle`.
@@ -76,29 +71,28 @@ def to_cache(
         os.close(cache_handle)
     else:
         cache_file = path / cache_file
-    match file_type:
-        case "pickle":
-            with open(cache_file, "wb") as cached:
-                pickle.dump(obj, cached)
-        case "h5":
-            columns = np.array(obj.columns) if isinstance(obj, pd.DataFrame) else None
-            arr = np.asarray(obj)
-            with h5py.File(cache_file, "w") as cached:
-                # lossless compression does not help much, but takes quite long
-                cached.create_dataset("cache", data=arr)
-                if columns is not None:
-                    cached.create_dataset("columns", data=columns)
-        case _:
-            raise ValueError(f"Unsupported file type: {file_type}")
+    if file_type == "pickle":
+        with open(cache_file, "wb") as cached:
+            pickle.dump(obj, cached)
+    elif file_type == "h5":
+        columns = np.array(obj.columns) if isinstance(obj, pd.DataFrame) else None
+        arr = np.asarray(obj)
+        with h5py.File(cache_file, "w") as cached:
+            # lossless compression does not help much, but takes quite long
+            cached.create_dataset("cache", data=arr)
+            if columns is not None:
+                cached.create_dataset("columns", data=columns)
+    else:
+        raise ValueError(f"Unsupported file type: {file_type}")
     return str(cache_file)
 
 
 def from_cache(
     cache_file: str | Path,
     *,
-    file_type: Optional[Literal["pickle", "h5"]] = "pickle",
-    indices: Optional[np.ndarray] = None,
-) -> Any:
+    file_type: Literal["pickle", "h5"] = "pickle",
+    indices: np.ndarray | None = None,
+) -> object:
     """
     Helper function to read an object from a cache file using :mod:`~pickle`.
 
@@ -114,99 +108,45 @@ def from_cache(
     cache_file = Path(cache_file)
     if not cache_file.is_file():
         raise FileNotFoundError(f"Cache file {cache_file} not found")
-    match file_type:
-        case "pickle":
-            with open(cache_file, "rb") as cached:
-                data = pickle.load(cached)
-                if indices is None:
-                    return data
-                if isinstance(data, np.ndarray):
-                    return data[indices]
-                if isinstance(data, pd.DataFrame):
-                    return data.iloc[indices]
-                try:
-                    return data[indices]
-                except Exception as e:
-                    raise ValueError(f"Failed to index cached data: {e}")
-        case "h5":
-            with h5py.File(cache_file, "r") as cached:
-                columns = None
-                data = cached["cache"]
-                if "columns" in cached:
-                    columns = cached["columns"]
-                    if TYPE_CHECKING:
-                        assert isinstance(columns, h5py.Dataset)
-                    columns = [column.decode() for column in columns[:]]
+    if file_type == "pickle":
+        with open(cache_file, "rb") as cached:
+            data = pickle.load(cached)
+            if indices is None:
+                return data
+            if isinstance(data, np.ndarray):
+                return data[indices]
+            if isinstance(data, pd.DataFrame):
+                return data.iloc[indices]
+            try:
+                return data[indices]
+            except Exception as e:
+                raise ValueError(f"Failed to index cached data: {e}")
+    elif file_type == "h5":
+        with h5py.File(cache_file, "r") as cached:
+            columns = None
+            data = cached["cache"]
+            if "columns" in cached:
+                columns = cached["columns"]
                 if TYPE_CHECKING:
-                    assert isinstance(data, h5py.Dataset)
-                # chunked reading unfortunately does not speed up semi-random row-wise access
-                # so just use numpy fancy indexing after reading everything
-                data = data[:]
-                if indices is not None:
-                    data = data[:][indices]
-                if columns is None:
-                    return data
-                return pd.DataFrame(data, columns=columns)
-        case _:
-            raise ValueError(f"Unsupported file type: {file_type}")
+                    assert isinstance(columns, h5py.Dataset)
+                columns = [column.decode() for column in columns[:]]
+            if TYPE_CHECKING:
+                assert isinstance(data, h5py.Dataset)
+            # chunked reading unfortunately does not speed up semi-random row-wise access
+            # so just use numpy fancy indexing after reading everything
+            data = data[:]
+            if indices is not None:
+                data = data[:][indices]
+            if columns is None:
+                return data
+            return pd.DataFrame(data, columns=columns)
+    else:
+        raise ValueError(f"Unsupported file type: {file_type}")
 
 
-class _NoAliasDumper(yaml.SafeDumper):
-    """
-    Helper class to dump yaml without aliases.
-    """
-
-    def ignore_aliases(self, data):
-        return True
-
-
-def _construct_yaml_tuple(self, node):
-    """
-    Helper function to construct a tuple from a YAML sequence.
-    """
-    seq = self.construct_sequence(node)
-    if seq and isinstance(seq, list):
-        return tuple(seq)
-    return seq
-
-
-class _TupleLoader(yaml.SafeLoader):
-    """
-    Helper class to load all sequences in YAML as tuples.
-    """
-
-    pass
-
-
-_TupleLoader.add_constructor("tag:yaml.org,2002:seq", _construct_yaml_tuple)
-
-
-def to_yaml(dump: Any, *, file_name: str | Path) -> None:
-    """
-    Helper function to write an object to a YAML file.
-
-    Parameters:
-        dump: The object to be dumped.
-        file_name: The name of the file to write the YAML to.
-    """
-    with open(file_name, "w") as yaml_file:
-        yaml_file.write(yaml.dump(dump, Dumper=_NoAliasDumper, sort_keys=False))
-
-
-def from_yaml(file_name: str | Path) -> Any:
-    """
-    Helper function to read an object from a YAML file.
-
-    Note that all lists are loaded as tuples.
-
-    Parameters:
-        file_name: The name of the file to read the YAML from.
-    """
-    with open(file_name, "r") as yaml_file:
-        return yaml.load(yaml_file, Loader=_TupleLoader)
-
-
-def _is_string_array(array: np.ndarray):
+def _is_string_array(
+    array: np.ndarray,
+) -> TypeGuard[np.ndarray[tuple[int, ...], np.dtype[np.str_]]]:
     """
     Returns whether an array is of dtype np.dtypes.StringDType or np.str_.
     """
@@ -224,7 +164,7 @@ Data = BaseData | dict[str, "Data"]
 def load_data(
     data_file: str | Path,
     data_path: str | None = None,
-    exclude: list[str] | None = None,
+    exclude: Iterable[str] | None = None,
 ) -> Data:
     """
     Loads data (:class:`~numpy.ndarray` or nested :class:`dict` of :class:`~numpy.ndarray`) from an HDF5 file.
@@ -240,7 +180,7 @@ def load_data(
 
     def read_dataset(dataset: h5py.Dataset) -> np.ndarray:
         if dataset.dtype == "O":
-            value = dataset.asstr()[:]
+            value = dataset.astype("T")[:]
             if not isinstance(value, np.ndarray):
                 raise ValueError(f"invalid dataset value of type {type(value)}")
             return value.astype(StringDType)
@@ -248,7 +188,7 @@ def load_data(
 
     if exclude is None:
         exclude = []
-    with h5py.File(data_file, "r") as h5_file:
+    with h5py.File(str(data_file), "r") as h5_file:
         if data_path is not None:
             h5_data = h5_file[data_path]
             if isinstance(h5_data, h5py.Group):
@@ -277,7 +217,7 @@ def save_data(
     data_file: str | Path,
     data: Mapping[str, np.ndarray],
     data_path: str | None = None,
-    exclude: list[str] | None = None,
+    exclude: Iterable[str] | None = None,
 ) -> None:
     """
     Saves data (mapping of :class:`str` and :class:`~numpy.ndarray`) to an HDF5 file.
@@ -291,9 +231,15 @@ def save_data(
     Returns:
         None
     """
-    if exclude is None:
+
+    if isinstance(exclude, str):
+        exclude = [exclude]
+    elif isinstance(exclude, Iterable):
+        exclude = list(exclude)
+    else:
         exclude = []
-    with h5py.File(data_file, "a") as h5_file:
+
+    with h5py.File(str(data_file), "a") as h5_file:
         if data_path is not None:
             if data_path in h5_file:
                 h5_data = h5_file[data_path]
@@ -323,9 +269,9 @@ def save_data(
 
 def save_trajectories(
     trajectory_file: str | Path,
-    trajectories: dict[int | str, Trajectory],
-    prefix: Optional[str] = None,
-    exclude: Optional[list[str]] = None,
+    trajectories: dict[Hashable, Trajectory],
+    prefix: str | None = None,
+    exclude: Iterable[str] | None = None,
 ) -> None:
     """
     Save trajectories to an HDF5 file.
@@ -334,14 +280,14 @@ def save_trajectories(
         trajectory_file: The name of the HDF5 file to save trajectories to.
         trajectories: A dictionary mapping individual identifiers to trajectories.
         prefix: An optional prefix to prepend to the trajectory paths.
-        exclude: An optional list of keys to exclude from saving.
+        exclude: An optional iterable of keys to exclude from saving.
 
     Returns:
         None
     """
     if prefix is None:
         prefix = ""
-    identities = np.asarray(list(trajectories.keys()))
+    identities = list(trajectories.keys())
     save_data(
         trajectory_file, {"_identities": np.asarray(identities)}, data_path=prefix
     )
@@ -359,8 +305,8 @@ def save_trajectories(
 def load_trajectories(
     trajectory_file: str | Path,
     data_path: str | None = None,
-    exclude: list[str] | None = None,
-) -> dict[IndividualIdentifier, Trajectory]:
+    exclude: Iterable[str] | None = None,
+) -> dict[Hashable, Trajectory]:
     """
     Load trajectories from an HDF5 file that was created with :func:`save_trajectories`.
 
@@ -450,10 +396,10 @@ def load_dataset(
     directory: str | Path = ".",
     target: Literal["individual", "dyad"],
     load_observations: Literal[True] = True,
-    categories: Optional[tuple[str, ...]] = None,
+    categories: set[str] | None = None,
     background_category: str,
     observation_suffix: str = "annotations",
-) -> AnnotatedDataset: ...
+) -> tuple[AnnotatedDataset, dict[Hashable, dict[Hashable, Trajectory]]]: ...
 
 
 @overload
@@ -463,10 +409,10 @@ def load_dataset(
     directory: str | Path = ".",
     target: Literal["individual", "dyad"],
     load_observations: Literal[False],
-    categories: Optional[tuple[str, ...]] = None,
+    categories: set[str] | None = None,
     background_category: str,
     observation_suffix: str = "annotations",
-) -> Dataset: ...
+) -> tuple[Dataset, dict[Hashable, dict[Hashable, Trajectory]]]: ...
 
 
 def load_dataset(
@@ -475,10 +421,10 @@ def load_dataset(
     directory: str | Path = ".",
     target: Literal["individual", "dyad"],
     load_observations: bool = True,
-    categories: Optional[tuple[str, ...]] = None,
+    categories: set[str] | None = None,
     background_category: str,
     observation_suffix: str = "annotations",
-) -> AnnotatedDataset | Dataset:
+) -> tuple[AnnotatedDataset | Dataset, dict[Hashable, dict[Hashable, Trajectory]]]:
     """
     Load a dataset from a HDF5 file that was created with :func:`save_dataset`.
 
@@ -502,31 +448,27 @@ def load_dataset(
         observations = pd.read_csv(observation_file)
     elif load_observations:
         raise FileNotFoundError(f"{observation_file} does not exist.")
-    groups: dict[GroupIdentifier, Group] = {}
+    groups: dict[Hashable, Group] = {}
     identifiers = load_data(trajectory_file, "_groups")
     if not isinstance(identifiers, np.ndarray):
         raise ValueError(
             f"invalid dataset file with group identifiers of type {type(groups)}"
         )
-    for identifier in identifiers.tolist():
-        group = Group(
-            load_trajectories(trajectory_file, str(identifier)),
-            target=target,
-        )
-        groups[identifier] = group
+    trajectories = {
+        identifier: load_trajectories(trajectory_file, str(identifier))
+        for identifier in identifiers.tolist()
+    }
     if observations is not None:
         if categories is None:
-            categories = tuple(
-                sorted(set([*np.unique(observations["category"]), background_category]))
-            )
-            set_logging_level().warning(
+            categories = set(observations["category"]) | {background_category}
+            warn(
                 f"Loading categories ({', '.join(categories)}) from observations file, specify categories argument if incomplete."
             )
         return AnnotatedDataset(
-            groups,
+            trajectories,
             target=target,
             observations=observations,
             categories=categories,
             background_category=background_category,
-        )
-    return Dataset(groups, target=target)
+        ), trajectories
+    return Dataset(trajectories, target=target), trajectories

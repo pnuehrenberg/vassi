@@ -1,13 +1,64 @@
-from typing import TYPE_CHECKING, Iterable, Optional, Self, overload
+import hashlib
+from collections.abc import Callable, Iterable
+from functools import partial
+from typing import Self, final, overload, override
 
 import numpy as np
 import pandas as pd
+import sklearn.utils.validation as sklearn_validation
 from sklearn.base import BaseEstimator, TransformerMixin
-from sklearn.utils.validation import _check_feature_names_in, validate_data
 
-from ..logging import set_logging_level
-from ..utils import ArrayToArray, closest_odd_divisible, flatten, to_scalars
-from .sliding_metrics import apply_multiple_to_sliding_windows
+from .._utils import get_inner
+from ..utils import closest_odd_divisible
+from ..warnings import warn
+
+
+def apply_multiple_to_sliding_windows(
+    array: np.ndarray,
+    window_size: int,
+    funcs: Iterable[Callable[..., np.ndarray] | tuple[Callable[..., np.ndarray], int]],
+    slices: slice | Iterable[slice] | None = None,
+    *,
+    out: np.ndarray | None = None,
+) -> np.ndarray:
+    """
+    Apply multiple functions to sliding windows of an array.
+
+    Parameters:
+        array: The input array.
+        window_size: The size of the sliding window.
+        funcs: The functions to apply.
+        slices: The slices to apply the functions to (slicing the moving window).
+    """
+    funcs = list(funcs)
+    if isinstance(slices, Iterable):
+        slices = list(slices)
+    result_shape = (
+        *array.shape,
+        sum(func[1] if isinstance(func, tuple) else 1 for func in funcs),
+    )
+    if slices is not None:
+        result_shape += (1 if isinstance(slices, slice) else len(slices),)
+    if out is None:
+        out = np.zeros(result_shape)
+    elif out.shape != result_shape:
+        raise ValueError(f"Expected output shape {result_shape}, but got {out.shape}")
+    feature_idx = 0
+    for func_idx in range(len(funcs)):
+        _func = funcs[func_idx]
+        if isinstance(_func, tuple):
+            func, num_features = _func
+        else:
+            func = _func
+            num_features = 1
+        func = partial(func, window_size=window_size, window_slice=slices)
+        result = func(array)
+        if slices is None:
+            out[..., feature_idx : feature_idx + num_features] = result
+        else:
+            out[..., feature_idx : feature_idx + num_features, :] = result
+        feature_idx += num_features
+    return out
 
 
 @overload
@@ -30,9 +81,9 @@ def get_window_slices(
 def get_window_slices(
     num_windows_per_scale: int,
     *,
-    time_scales: Optional[Iterable[int]] = None,
-    durations: Optional[np.ndarray] = None,
-    time_scale_quantiles: Optional[Iterable[float]] = None,
+    time_scales: Iterable[float] | None = None,
+    durations: np.ndarray | None = None,
+    time_scale_quantiles: Iterable[float] | None = None,
 ) -> tuple[list[int], list[slice]]:
     """
     Find consecutive window slices for time scales, either explicitly specified or derived from durations and quantiles.
@@ -50,26 +101,24 @@ def get_window_slices(
         ValueError: If neither :code:`time_scales` nor :code:`durations` and :code:`time_scale_quantiles` are specified.
         ValueError: If :code:`time_scale_quantiles` are specified but :code:`durations` are not.
     """
-    if time_scales is None and durations is not None:
-        if time_scale_quantiles is not None:
-            time_scales = to_scalars(
-                np.quantile(durations, tuple(time_scale_quantiles))
-            )
-        else:
-            raise ValueError("Specify time_scale_quantiles.")
     if time_scales is None:
-        raise ValueError(
-            "Specify either time_scales or durations and time_scale_quantiles"
-        )
+        if durations is None or time_scale_quantiles is None:
+            raise ValueError(
+                "Specify either time_scales or durations and time_scale_quantiles"
+            )
+        time_scales = [
+            float(time_scale)
+            for time_scale in np.quantile(durations, tuple(time_scale_quantiles))
+        ]
     time_scales_adjusted = [
         closest_odd_divisible(scale, num_windows_per_scale) for scale in time_scales
     ]
     if set(time_scales) != set(time_scales_adjusted):
-        set_logging_level().warning(
+        warn(
             f"Time scales adjusted to match num_windows_per_scale: {time_scales} -> {time_scales_adjusted}."
         )
     time_scales = time_scales_adjusted
-    window_slices = []
+    window_slices: list[slice] = []
     max_time_scale = max(time_scales)
     for time_scale in time_scales:
         window_size = time_scale // num_windows_per_scale
@@ -81,6 +130,7 @@ def get_window_slices(
     return time_scales, window_slices
 
 
+@final
 class SlidingWindowAggregator(BaseEstimator, TransformerMixin):
     """
     Sliding window aggregator for time series data.
@@ -96,16 +146,34 @@ class SlidingWindowAggregator(BaseEstimator, TransformerMixin):
 
     def __init__(
         self,
-        metric_funcs: list[ArrayToArray],
+        metric_funcs: Iterable[
+            Callable[..., np.ndarray] | tuple[Callable[..., np.ndarray], int]
+        ],
         window_size: int | Iterable[int],
-        window_slices: Optional[list[slice]] = None,
+        *,
+        window_slices: Iterable[slice] | None,
+        keep_original: bool,
     ):
         self.metric_funcs = metric_funcs
         if isinstance(window_size, int):
             self.window_size = window_size
         else:
             self.window_size = max(window_size)
-        self.window_slices = window_slices
+        self.window_slices = list(window_slices) if window_slices is not None else None
+        self.keep_original = keep_original
+        self.num_transformations = sum(
+            func[1] if isinstance(func, tuple) else 1 for func in self.metric_funcs
+        )
+
+    @property
+    def sha1(self):
+        return hashlib.sha1(self._feature_names_out(["f"])).hexdigest()
+
+    @override
+    def __eq__(self, other: object) -> bool:
+        if not isinstance(other, type(self)):
+            return False
+        return hash(self) == hash(other)
 
     def fit(self, X: np.ndarray | pd.DataFrame, y: None = None) -> Self:
         """
@@ -115,9 +183,19 @@ class SlidingWindowAggregator(BaseEstimator, TransformerMixin):
             X: Ignored.
             y: Ignored.
         """
+        del X, y  # unused parameters
         return self
 
-    def transform(self, X: np.ndarray | pd.DataFrame) -> np.ndarray:
+    def get_num_features_out(self, num_features_in: int) -> int:
+        return (
+            num_features_in if self.keep_original else 0
+        ) + num_features_in * self.num_transformations * (
+            1 if self.window_slices is None else len(self.window_slices)
+        )
+
+    def transform(
+        self, X: np.ndarray | pd.DataFrame, *, out: np.ndarray | None = None
+    ) -> np.ndarray:
         """
         Transform the input data by applying the metric functions to sliding windows.
         The transformed data is returned as a 2D array, flattened along all axes except the first.
@@ -128,21 +206,101 @@ class SlidingWindowAggregator(BaseEstimator, TransformerMixin):
         Returns:
             Transformed data as a 2D array.
         """
-        # X is not typed in pandas
-        X_numpy = validate_data(
-            self,
-            X,  # type: ignore
-        )
-        if TYPE_CHECKING:
-            assert isinstance(X_numpy, np.ndarray)
-        return flatten(
-            apply_multiple_to_sliding_windows(
-                X_numpy,
-                self.window_size,
-                self.metric_funcs,
-                slices=self.window_slices,
+        # scikit-learn is not fully typed
+        X_validated = np.asarray(
+            sklearn_validation.validate_data(  # pyright: ignore[reportUnknownMemberType]
+                self,
+                X,  # pyright: ignore[reportArgumentType]
+                ensure_all_finite="allow-nan",
             )
         )
+        num_samples, num_features_in = X_validated.shape
+        window_slices = self.window_slices
+        if window_slices is not None:
+            window_slices = list(window_slices)
+        shape = (num_samples, self.get_num_features_out(num_features_in))
+        if out is None:
+            out = np.zeros(shape)
+        elif out.shape != shape:
+            raise ValueError(f"Expected output shape {shape}, but got {out.shape}")
+        if self.keep_original:
+            out[:, :num_features_in] = X_validated
+        _ = apply_multiple_to_sliding_windows(
+            X_validated,
+            self.window_size,
+            self.metric_funcs,
+            slices=window_slices,
+            out=(out[:, num_features_in:] if self.keep_original else out).reshape(
+                *X_validated.shape,
+                self.num_transformations,
+                1 if window_slices is None else len(window_slices),
+            ),
+        )
+        return out.reshape(out.shape[0], -1)
+
+    def _get_feature_name(
+        self, func_name: str, feature_name: str, selection_slice: slice | None
+    ) -> str:
+        if selection_slice is None:
+            return f"{func_name}({self.window_size})-{feature_name}"
+        start = selection_slice.start
+        stop = selection_slice.stop
+        return f"{func_name}({self.window_size}|{start if start is not None else ''}:{stop if stop is not None else ''})-{feature_name}"
+
+    def _feature_names_out(self, input_features: Iterable[str]) -> np.ndarray:
+        feature_names: list[str] = []
+        selection = (
+            self.window_slices
+            if isinstance(self.window_slices, Iterable)
+            else [
+                self.window_slices,
+            ]
+        )
+        if self.keep_original:
+            feature_names.extend(input_features)
+        for feature_name in input_features:
+            for selection_slice in selection:
+                for aggregation_func in self.metric_funcs:
+                    if isinstance(aggregation_func, tuple):
+                        aggregation_func, num_features = aggregation_func
+                        params = None
+                        if isinstance(aggregation_func, partial):
+                            if (
+                                len(aggregation_func.keywords) > 0
+                                and isinstance(
+                                    values := next(
+                                        iter(aggregation_func.keywords.values())
+                                    ),
+                                    Iterable,
+                                )
+                                and len(values := list(values)) == num_features
+                            ):
+                                params = values
+                        for feature_idx in range(num_features):
+                            param = None
+                            if params is not None:
+                                param = params[feature_idx]
+                                param = (
+                                    f"{param:.2g}"
+                                    if isinstance(param, (int, float))
+                                    else str(param)
+                                )
+                            feature_names.append(
+                                self._get_feature_name(
+                                    f"{get_inner(aggregation_func).__name__}({feature_idx if param is None else param})",  # pyright: ignore[reportUnknownArgumentType]
+                                    feature_name,
+                                    selection_slice,
+                                )
+                            )
+                        continue
+                    feature_names.append(
+                        self._get_feature_name(
+                            get_inner(aggregation_func).__name__,
+                            feature_name,
+                            selection_slice,
+                        )
+                    )
+        return np.asarray(feature_names, dtype=str)
 
     def get_feature_names_out(
         self, input_features: Iterable[str] | None = None
@@ -157,28 +315,9 @@ class SlidingWindowAggregator(BaseEstimator, TransformerMixin):
             Output feature names as a 1D array.
         """
         # https://github.com/scikit-learn/scikit-learn/blob/70fdc843a/sklearn/preprocessing/_polynomial.py#L99
-        input_features = _check_feature_names_in(self, input_features)
+        input_features = sklearn_validation._check_feature_names_in(  # pyright: ignore[reportPrivateUsage, reportUnknownMemberType]
+            self, input_features
+        )
         if input_features is None:
             raise ValueError
-        feature_names = []
-        selection = (
-            self.window_slices
-            if isinstance(self.window_slices, list)
-            else [
-                self.window_slices,
-            ]
-        )
-        for feature_name in input_features:
-            for selection_slice in selection:
-                for aggregation_func in self.metric_funcs:
-                    name = f"{feature_name}-{aggregation_func.__name__}"
-                    if selection_slice is not None:
-                        start = selection_slice.start
-                        if start is not None:
-                            start -= self.window_size // 2
-                        stop = selection_slice.stop
-                        if stop is not None:
-                            stop -= self.window_size // 2
-                        name = f"{name}({start}:{stop})"
-                    feature_names.append(name)
-        return np.asarray(feature_names, dtype=object)
+        return self._feature_names_out(input_features)

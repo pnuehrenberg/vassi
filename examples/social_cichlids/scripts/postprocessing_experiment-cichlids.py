@@ -9,7 +9,7 @@ from vassi.classification.postprocessing import (
     summarize_experiment,
 )
 from vassi.config import cfg
-from vassi.features import DataFrameFeatureExtractor
+from vassi.features import DataFrameExtractor
 from vassi.io import load_dataset
 from vassi.logging import set_logging_level
 from vassi.sliding_metrics import (
@@ -58,7 +58,7 @@ if __name__ == "__main__":
         [("impute", KNNImputer()), ("aggregate", aggregator)]
     ).set_output(transform="pandas")
 
-    extractor = DataFrameFeatureExtractor(
+    extractor = DataFrameExtractor(
         cache_directory="../cichlids_cache",
         pipeline=pipeline,
         cache_mode="cached",

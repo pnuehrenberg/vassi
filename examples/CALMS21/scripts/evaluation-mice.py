@@ -15,7 +15,7 @@ from vassi.classification import (
     predict,
 )
 from vassi.config import cfg
-from vassi.features import DataFrameFeatureExtractor
+from vassi.features import DataFrameExtractor
 from vassi.io import _h5_path_join, from_yaml, load_dataset, save_data
 from vassi.logging import set_logging_level, with_loop  # log_loop
 
@@ -44,7 +44,7 @@ if __name__ == "__main__":
         background_category="none",
     ).exclude_individuals(["intruder"])
 
-    extractor = DataFrameFeatureExtractor(
+    extractor = DataFrameExtractor(
         cache_directory="../feature_cache_mice", cache_mode="cached"
     ).read_yaml("../features-mice.yaml")
 

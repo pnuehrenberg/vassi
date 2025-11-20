@@ -5,7 +5,6 @@ from typing import Mapping, Optional, Self, overload
 import numpy as np
 from numpy.dtypes import StringDType  # type: ignore
 
-#
 from .. import config
 from . import _type_checking as type_checking
 from . import instance, utils
@@ -27,6 +26,7 @@ class InstanceCollection(ConfiguredData):
     _view_of: list[Self]
     _views: list[Self]
     _validate: bool
+    _length: int
 
     def __init__(
         self,
@@ -41,6 +41,7 @@ class InstanceCollection(ConfiguredData):
         if cfg is None:
             cfg = config.cfg.copy()
         self._cfg = cfg
+        self._length = 0
         if data is not None:
             with self.validate(validate_on_init):
                 self.data = data
@@ -65,13 +66,14 @@ class InstanceCollection(ConfiguredData):
     @property
     def length(self) -> int:
         """Returns the number of instances in the collection."""
-        if self._data is None:
-            return 0
-        if not self._validate:
-            return len(self[self.keys()[0]])
-        length = utils.validated_length(*self.values(copy=False))
-        assert length is not None
-        return length
+        return self._length
+        # if self._data is None:
+        #     return 0
+        # if not self._validate:
+        #     return len(self[self.keys()[0]])
+        # length = utils.validated_length(*self.values(copy=False))
+        # assert length is not None
+        # return length
 
     def __len__(self) -> int:
         return self.length
@@ -156,6 +158,7 @@ class InstanceCollection(ConfiguredData):
         if self._validate:
             self.validate_data(data, require_array_like=True)
         self._data = {key: value for key, value in data.items()}
+        self._length = len(next(iter(data.values())))
 
     def init_other(
         self,

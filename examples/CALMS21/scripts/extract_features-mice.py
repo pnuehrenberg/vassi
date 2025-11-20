@@ -1,5 +1,5 @@
 from vassi.config import cfg
-from vassi.features import DataFrameFeatureExtractor
+from vassi.features import DataFrameExtractor
 from vassi.io import load_dataset
 
 cfg.key_keypoints = "keypoints"
@@ -24,9 +24,9 @@ if __name__ == "__main__":
         background_category="none",
     )
 
-    extractor = DataFrameFeatureExtractor(
-        cache_directory="../feature_cache_mice"
-    ).read_yaml("../features-mice.yaml")
+    extractor = DataFrameExtractor(cache_directory="../feature_cache_mice").read_yaml(
+        "../features-mice.yaml"
+    )
 
     for _, group in dataset_train.exclude_individuals(["intruder"]):
         for _, sampleable in group:

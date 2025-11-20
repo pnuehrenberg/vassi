@@ -3,14 +3,15 @@ This module provides a collection of jitted (using :func:`~numba.njit`) function
 """
 
 import numpy as np
-from numba import config, njit
 
-# set the threading layer before any parallel target compilation
-# this requires tbb!
-config.THREADING_LAYER = "safe"  # type: ignore
+# from numba import config, njit
+
+# # set the threading layer before any parallel target compilation
+# # this requires tbb!
+# config.THREADING_LAYER = "safe"  # type: ignore
 
 
-@njit
+# @njit
 def subtract(array_1: np.ndarray, array_2: np.ndarray) -> np.ndarray:
     """
     Subtract :code:`array_2` from :code:`array_1`.
@@ -22,7 +23,7 @@ def subtract(array_1: np.ndarray, array_2: np.ndarray) -> np.ndarray:
     return array_2 - array_1
 
 
-@njit
+# @njit
 def unit_vector(vectors: np.ndarray) -> np.ndarray:
     """
     Vectors to unit vectors.
@@ -30,11 +31,11 @@ def unit_vector(vectors: np.ndarray) -> np.ndarray:
     Parameters:
         vectors: The input vectors.
     """
-    # with np.errstate(divide="ignore", invalid="ignore"):
-    return vectors / np.expand_dims(magnitude(vectors), -1)
+    with np.errstate(divide="ignore", invalid="ignore"):
+        return vectors / np.expand_dims(magnitude(vectors), -1)
 
 
-@njit
+# @njit
 def magnitude(vectors: np.ndarray) -> np.ndarray:
     """
     Vector magnitudes.
@@ -45,7 +46,7 @@ def magnitude(vectors: np.ndarray) -> np.ndarray:
     return np.sqrt(np.sum(vectors**2, axis=-1))
 
 
-@njit
+# @njit
 def euclidean_distance(array_1: np.ndarray, array_2: np.ndarray) -> np.ndarray:
     """Euclidean distance between two vector arrays.
 
@@ -56,7 +57,7 @@ def euclidean_distance(array_1: np.ndarray, array_2: np.ndarray) -> np.ndarray:
     return magnitude(array_2 - array_1)
 
 
-@njit
+# @njit
 def dot_product(vectors_1: np.ndarray, vectors_2: np.ndarray) -> np.ndarray:
     """Dot product between two vector arrays.
 
@@ -67,7 +68,7 @@ def dot_product(vectors_1: np.ndarray, vectors_2: np.ndarray) -> np.ndarray:
     return np.sum(vectors_1 * vectors_2, axis=-1)
 
 
-@njit
+# @njit
 def perp(vectors: np.ndarray) -> np.ndarray:
     """Perpendicular vectors (rotated counterclockwise).
 
@@ -80,7 +81,7 @@ def perp(vectors: np.ndarray) -> np.ndarray:
     return vectors_perp
 
 
-@njit
+# @njit
 def perp_dot_product(vectors_1: np.ndarray, vectors_2: np.ndarray) -> np.ndarray:
     """Perpendicular dot product between two vector arrays.
 
@@ -91,7 +92,7 @@ def perp_dot_product(vectors_1: np.ndarray, vectors_2: np.ndarray) -> np.ndarray
     return np.sum(vectors_1 * perp(vectors_2), axis=-1)
 
 
-@njit
+# @njit
 def scalar_projection(vectors_1: np.ndarray, vectors_2: np.ndarray) -> np.ndarray:
     """
     Scalar projection of :code:`vectors_1` onto :code:`vectors_2`.
@@ -100,11 +101,11 @@ def scalar_projection(vectors_1: np.ndarray, vectors_2: np.ndarray) -> np.ndarra
         vectors_1: The first array of vectors.
         vectors_2: The second array of vectors.
     """
-    # with np.errstate(divide="ignore", invalid="ignore"):
-    return dot_product(vectors_1, vectors_2) / magnitude(vectors_2)
+    with np.errstate(divide="ignore", invalid="ignore"):
+        return dot_product(vectors_1, vectors_2) / magnitude(vectors_2)
 
 
-@njit
+# @njit
 def projection(vectors_1: np.ndarray, vectors_2: np.ndarray) -> np.ndarray:
     """
     Projection vectors of :code:`vectors_1` onto :code:`vectors_2`.
@@ -118,7 +119,7 @@ def projection(vectors_1: np.ndarray, vectors_2: np.ndarray) -> np.ndarray:
     )
 
 
-@njit
+# @njit
 def scalar_rejection(vectors_1: np.ndarray, vectors_2: np.ndarray) -> np.ndarray:
     """
     Scalar rejection of :code:`vectors_1` from :code:`vectors_2`.
@@ -127,11 +128,11 @@ def scalar_rejection(vectors_1: np.ndarray, vectors_2: np.ndarray) -> np.ndarray
         vectors_1: The first array of vectors.
         vectors_2: The second array of vectors.
     """
-    # with np.errstate(divide="ignore", invalid="ignore"):
-    return perp_dot_product(vectors_1, vectors_2) / magnitude(vectors_2)
+    with np.errstate(divide="ignore", invalid="ignore"):
+        return perp_dot_product(vectors_1, vectors_2) / magnitude(vectors_2)
 
 
-@njit
+# @njit
 def rejection(vectors_1: np.ndarray, vectors_2: np.ndarray) -> np.ndarray:
     """
     Rejection vectors of :code:`vectors_1` from :code:`vectors_2`.
@@ -145,7 +146,7 @@ def rejection(vectors_1: np.ndarray, vectors_2: np.ndarray) -> np.ndarray:
     )
 
 
-@njit
+# @njit
 def rotate(vectors: np.ndarray, angles: np.ndarray) -> np.ndarray:
     """
     Rotate vectors around angles in radians.
@@ -164,7 +165,7 @@ def rotate(vectors: np.ndarray, angles: np.ndarray) -> np.ndarray:
     return vectors_rotated
 
 
-@njit
+# @njit
 def as_angle(vectors: np.ndarray) -> np.ndarray:
     """
     Represent vectors as angles in radians on the unit circle.
@@ -181,7 +182,7 @@ def as_angle(vectors: np.ndarray) -> np.ndarray:
     return np.arctan2(y, x)
 
 
-@njit
+# @njit
 def wrap_angle(radians: np.ndarray) -> np.ndarray:
     """
     Wrap angles in radians into the :code:`[-pi, pi]` range.
@@ -192,7 +193,7 @@ def wrap_angle(radians: np.ndarray) -> np.ndarray:
     return (radians + np.pi) % (2 * np.pi) - np.pi
 
 
-@njit
+# @njit
 def signed_angle(vectors_1: np.ndarray, vectors_2: np.ndarray) -> np.ndarray:
     """
     Signed angles between vectors.
@@ -206,7 +207,7 @@ def signed_angle(vectors_1: np.ndarray, vectors_2: np.ndarray) -> np.ndarray:
     return wrap_angle(as_angle(vectors_2) - as_angle(vectors_1))
 
 
-@njit
+# @njit
 def unsigned_angle(vectors_1: np.ndarray, vectors_2: np.ndarray) -> np.ndarray:
     """
     Unsigned angles between vectors.
@@ -218,14 +219,14 @@ def unsigned_angle(vectors_1: np.ndarray, vectors_2: np.ndarray) -> np.ndarray:
         vectors_2: The second array of vectors.
     """
     # slightly faster than np.abs(signed_angle(vectors_2, vectors_1))
-    # with np.errstate(divide="ignore", invalid="ignore"):
-    return np.acos(
-        dot_product(vectors_1, vectors_2)
-        / (magnitude(vectors_1) * magnitude(vectors_2))
-    )
+    with np.errstate(divide="ignore", invalid="ignore"):
+        return np.acos(
+            dot_product(vectors_1, vectors_2)
+            / (magnitude(vectors_1) * magnitude(vectors_2))
+        )
 
 
-@njit
+# @njit
 def as_unit_vector(radians: np.ndarray) -> np.ndarray:
     """
     Unit vectors representing angles in radians on the unit circle.
@@ -239,7 +240,7 @@ def as_unit_vector(radians: np.ndarray) -> np.ndarray:
     return unit_vectors
 
 
-@njit
+# @njit
 def shift(array: np.ndarray, step: int) -> np.ndarray:
     """
     Similar to :func:`numpy.roll` on axis 0 (shift to right with step > 0, shift to left with step < 0).

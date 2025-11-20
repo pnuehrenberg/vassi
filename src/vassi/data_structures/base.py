@@ -5,7 +5,7 @@ from typing import Optional
 import numpy as np
 
 from .. import config
-from ..utils import hash_dict
+from ..utils import hash_mapping
 
 
 class ConfiguredData:
@@ -23,14 +23,14 @@ class ConfiguredData:
                 return array
             return array.copy()
 
-        items = {
+        items: dict[object, object] = {
             key: hashlib.sha1(
                 np.round(ensure_c_contiguous(value), decimals=self.cfg.hash_decimals)
             ).hexdigest()
             for key, value in self.items(copy=False)
         }
-        items["cfg"] = hash_dict(self.cfg())
-        return hash_dict(items)
+        items["cfg"] = hash_mapping(self.cfg())
+        return hash_mapping(items)
 
     def __hash__(self) -> int:
         return hash(self.sha1)

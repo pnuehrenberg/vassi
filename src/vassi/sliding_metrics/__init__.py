@@ -1,5 +1,4 @@
 from .sliding_metrics import (
-    apply_multiple_to_sliding_windows,
     sliding_max,
     sliding_mean,
     sliding_median,
@@ -16,7 +15,6 @@ __all__ = [
     "sliding_max",
     "sliding_quantile",
     "sliding_quantiles",
-    "apply_multiple_to_sliding_windows",
     "get_window_slices",
     "SlidingWindowAggregator",
 ]

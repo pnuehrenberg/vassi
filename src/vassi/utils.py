@@ -2,8 +2,9 @@ from __future__ import annotations
 
 import hashlib
 import json
+from collections.abc import Iterable, Mapping
 from multiprocessing import cpu_count
-from typing import Any, Iterable, Optional, Protocol, Self
+from typing import Any, Optional, Protocol, Self
 
 import numpy as np
 from joblib.parallel import get_active_backend
@@ -113,23 +114,17 @@ def class_name(obj: object) -> str:
     return obj.__class__.__name__
 
 
-def hash_dict(dictionary: dict) -> str:
+def hash_mapping(mapping: Mapping[object, object]) -> str:
     """
-    Hashes a dictionary to a SHA1 hexadecimal string.
+    Hashes a mapping to a SHA1 hexadecimal string.
 
-    Parameters
-    ----------
-    dictionary : dict
-        The dictionary to hash. All keys and values must be json-serializable.
+    Parameters:
+        mapping: The mapping to hash. All keys and values must be json-serializable.
 
-    Returns
-    -------
-    str
+    Returns:
         The SHA1 hexadecimal hash of the dictionary.
     """
-    return hashlib.sha1(
-        json.dumps(dictionary, sort_keys=True).encode("utf-8")
-    ).hexdigest()
+    return hashlib.sha1(json.dumps(mapping, sort_keys=True).encode("utf-8")).hexdigest()
 
 
 class ToArray(Protocol):

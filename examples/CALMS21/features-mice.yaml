@@ -152,7 +152,7 @@ individual:
     - - 6
       - 5
     element_wise: true
-dyadic:
+dyad:
 - - target_velocity
   - step: 5
     keypoints_1:

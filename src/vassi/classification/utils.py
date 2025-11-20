@@ -1,110 +1,52 @@
 from __future__ import annotations
 
 from collections.abc import Iterable
-from typing import Any, Callable, Literal, Optional, Protocol, Self
+from typing import Callable, Literal
 
-import loguru
 import numpy as np
 import pandas as pd
 
-from ..data_structures.utils import get_interval_slice
 from ..dataset.observations import (
-    aggregate_bouts,
-    check_observations,
-    infill_observations,
+    aggregate_observations_as_bouts,
+    assert_singular_index_combination,
+    densify_observations,
+    interval_overlap,
     remove_overlapping_observations,
     to_observations,
 )
-from ..dataset.observations.utils import (
-    ensure_matching_index_columns,
-    ensure_single_index,
-)
-from ..dataset.utils import interval_contained, interval_overlap
-from ..utils import to_int_seed
-
-
-class Classifier(Protocol):
-    """Protocol for classifiers.
-
-    This protocol defines the methods that a classifier should implement.
-
-    See also:
-        :class:`~sklearn.base.ClassifierMixin` for the classifier interface in :mod:`~sklearn`.
-    """
-
-    def predict(self, *args, **kwargs) -> np.ndarray: ...
-
-    def predict_proba(self, *args, **kwargs) -> np.ndarray: ...
-
-    def get_params(self) -> dict[str, Any]: ...
-
-    def fit(self, *args, **kwargs) -> Self: ...
-
-
-def init_new_classifier(
-    classifier: Classifier, random_state: Optional[np.random.Generator | int]
-) -> Classifier:
-    """
-    Initialize a new classifier with the same parameters as the given classifier.
-
-    Parameters:
-        classifier: The classifier to copy the parameters from.
-        random_state: The random state to use for the new classifier.
-    """
-    random_state = np.random.default_rng(random_state)
-    params = classifier.get_params()
-    params["random_state"] = to_int_seed(random_state)
-    return type(classifier)(**params)
-
-
-def fit_classifier(
-    classifier: Classifier,
-    X: np.ndarray,
-    y: np.ndarray,
-    *,
-    sample_weight: Optional[np.ndarray] = None,
-    log: Optional[loguru.Logger] = None,
-):
-    """
-    Fit the given classifier to the given data.
-
-    Parameters:
-        classifier: The classifier to fit.
-        X: The feature matrix.
-        y: The target vector.
-        sample_weight: The sample weights.
-        log: The logger to use.
-    """
-    if sample_weight is None:
-        return classifier.fit(X, y)
-    return classifier.fit(X, y, sample_weight=sample_weight)
 
 
 def to_predictions(
-    y: np.ndarray,
+    labels: np.ndarray,
     y_proba: np.ndarray,
-    category_names: Iterable[str],
     timestamps: np.ndarray,
+    categories: set[str],
 ) -> pd.DataFrame:
     """
     Convert the given predictions to a DataFrame.
 
     Parameters:
-        y: The target vector.
+        y: The predicted integer labels.
         y_proba: The predicted probabilities.
-        category_names: The category names.
+        categories: Category names.
         timestamps: The timestamps.
+
+    See also:
+        :func:`to_observations`for more information how categories and labels are mapped.
     """
-    predictions = to_observations(y, category_names, timestamps=timestamps)
-    y_max_proba = y_proba.max(axis=1)
-    mean_probability = []
-    max_probability = []
-    for start, stop in np.asarray(predictions[["start", "stop"]]):
-        y_max_proba_interval = y_max_proba[get_interval_slice(timestamps, start, stop)]
-        mean_probability.append(np.mean(y_max_proba_interval))
-        max_probability.append(np.max(y_max_proba_interval))
-    predictions["mean_probability"] = np.array(mean_probability, dtype=float)
-    predictions["max_probability"] = np.array(max_probability, dtype=float)
+    predictions = to_observations(labels, categories, timestamps=timestamps)
+    y_proba_predicted = y_proba[np.arange(len(labels)), labels]
+    start_indices = np.searchsorted(
+        timestamps, np.asarray(predictions["start"]), side="left"
+    )
+    end_indices = np.r_[start_indices[1:], len(labels)]
+    durations = end_indices - start_indices
+    predictions["mean_probability"] = (
+        np.add.reduceat(y_proba_predicted, start_indices) / durations
+    )
+    predictions["max_probability"] = np.maximum.reduceat(
+        y_proba_predicted, start_indices
+    )
     return predictions
 
 
@@ -113,127 +55,93 @@ def validate_predictions(
     annotations: pd.DataFrame,
     *,
     on: Literal["predictions", "annotations"] = "predictions",
-    key_columns: Iterable[str] = ("group", "actor", "recipient"),
+    index_columns: Iterable[str] = ("group", "actor", "recipient"),
     background_category: str,
 ) -> pd.DataFrame:
-    """
-    Validate the predictions or annotations.
-
-    This calculates the mean and maximum probabilities for each predicted interval
-    and retrieves the corresponding ground truth category as the category of
-    the annotated interval with the highest overlap (:code:`on="predictions"`),
-    or correspondingly, the category of the predicted interval with the highest overlap (:code:`on="annotations"`).
-
-    Parameters:
-        predictions: The predictions.
-        annotations: The annotations.
-        on: The type of data to validate.
-        key_columns: The key columns.
-
-    Returns:
-        The validated predictions or annotations.
-    """
-    available_index_columns = []
-    for column_name in key_columns:
+    available_index_columns: list[str] = []
+    for column_name in index_columns:
         if column_name not in predictions:
             continue
         if column_name not in annotations:
             raise ValueError("columns do not match")
         available_index_columns.append(column_name)
     if len(available_index_columns) > 0:
-        predictions, annotations = ensure_matching_index_columns(
-            predictions, annotations, tuple(available_index_columns)
+        predictions = assert_singular_index_combination(
+            predictions, tuple(available_index_columns)
         )
-    predictions = check_observations(predictions, ("start", "stop", "category"))
-    annotations = check_observations(annotations, ("start", "stop", "category"))
-    stop: int = max(predictions["stop"].max(), annotations["stop"].max())  # type: ignore
-    predictions = infill_observations(predictions, stop, background_category=background_category)
-    annotations = infill_observations(annotations, stop, background_category=background_category)
-    alternative_categories = []
-    intervals_predictions = predictions[["start", "stop"]].to_numpy()
-    intervals_annotations = annotations[["start", "stop"]].to_numpy()
-    if on == "predictions":
-        overlap = interval_overlap(
-            intervals_predictions, intervals_annotations, mask_diagonal=False
+        annotations = assert_singular_index_combination(
+            annotations, tuple(available_index_columns)
         )
-        for idx, (_, prediction) in enumerate(predictions.iterrows()):
-            overlap_idx = np.argwhere(overlap[idx] > 0).ravel()
-            overlap_duration = overlap[idx, overlap_idx]
-            overlap_category = annotations.iloc[overlap_idx]["category"].tolist()
-            alternative_categories.append(overlap_category[np.argmax(overlap_duration)])
-        predictions["true_category"] = alternative_categories
-        return predictions
-    elif on == "annotations":
-        overlap = interval_overlap(
-            intervals_annotations, intervals_predictions, mask_diagonal=False
-        )
-        for idx, (_, annotation) in enumerate(annotations.iterrows()):
-            overlap_idx = np.argwhere(overlap[idx]).ravel()
-            overlap_duration = overlap[idx, overlap_idx]
-            overlap_category = predictions.iloc[overlap_idx]["category"].tolist()
-            alternative_categories.append(overlap_category[np.argmax(overlap_duration)])
-        annotations["predicted_category"] = alternative_categories
-        return annotations
+    if predictions.empty and annotations.empty:
+        raise ValueError("No data to compare")
+    elif predictions.empty:
+        start, stop = annotations["start"].min(), annotations["stop"].max()
     else:
-        raise ValueError(
-            f"invalid 'on' argument {on}. specify either 'predictions' or 'annotations'"
-        )
+        start, stop = predictions["start"].min(), predictions["stop"].max()
+    start = min(predictions["start"].min(), annotations["start"].min())
+    stop = max(predictions["stop"].max(), annotations["stop"].max())
+    predictions = densify_observations(
+        predictions, time_range=(start, stop), background_category=background_category
+    )
+    annotations = densify_observations(
+        annotations, time_range=(start, stop), background_category=background_category
+    )
+    if on == "predictions":
+        target_df, source_df = predictions, annotations
+        new_col_name = "true_category"
+    else:
+        target_df, source_df = annotations, predictions
+        new_col_name = "predicted_category"
+    target_intervals = np.asarray(target_df[["start", "stop"]])
+    source_intervals = np.asarray(source_df[["start", "stop"]])
+    source_categories_array = np.asarray(source_df["category"])
+    overlap_matrix = interval_overlap(target_intervals, source_intervals)
+    unique_categories, integer_labels = np.unique(
+        source_categories_array, return_inverse=True
+    )
+    num_unique_categories = len(unique_categories)
+    one_hot_matrix = integer_labels[:, np.newaxis] == np.arange(num_unique_categories)
+    cumulative_overlap_matrix = overlap_matrix @ one_hot_matrix
+    best_category_indices = np.argmax(cumulative_overlap_matrix, axis=1)
+    matched_categories = unique_categories[best_category_indices]
+    validated_df = target_df.copy()
+    validated_df[new_col_name] = matched_categories
+    return validated_df
 
 
-def _filter_recipient_bouts(
+def filter_observations_by_recipient_bouts(
     observations: pd.DataFrame,
     *,
     priority_function: Callable[[pd.DataFrame], Iterable[float]],
     max_bout_gap: float,
-    max_allowed_bout_overlap: float,
+    max_bout_overlap: float,
+    background_category: str,
 ) -> pd.DataFrame:
-    observations = check_observations(
-        observations,
-        required_columns=["start", "stop", "actor", "recipient", "category"],
-        allow_overlapping=True,
-        allow_unsorted=True,
-    )
-    observations = observations[observations["category"] != "none"]  # type: ignore
-    observations = ensure_single_index(
-        observations, index_columns=("actor",), drop=False
-    )
-    bouts = []
-    for recipient, observations_recipient in observations.groupby("recipient"):
-        if len(observations_recipient) == 0:
-            continue
-        bouts.append(
-            aggregate_bouts(
-                observations_recipient,
-                max_bout_gap=max_bout_gap,
-                index_columns=(),
-            )
+    bout_offset = 0
+    bouts_by_recipient: list[pd.DataFrame] = []
+    observations_by_recipient: list[pd.DataFrame] = []
+    for recipient in observations["recipient"].unique():
+        bouts_recipient, observations_recipient = aggregate_observations_as_bouts(
+            observations.loc[observations["recipient"] == recipient, :],
+            max_bout_gap=max_bout_gap,
+            index_columns=("actor",),
+            background_category=background_category,
         )
-    if len(bouts) == 0:
+        bouts_recipient["bout"] += bout_offset
+        observations_recipient["bout"] += bout_offset
+        bout_offset += len(bouts_recipient)
+        bouts_by_recipient.append(bouts_recipient)
+        observations_by_recipient.append(observations_recipient)
+    if len(bouts_by_recipient) <= 1:
         return observations
-    bouts = remove_overlapping_observations(
-        pd.concat(bouts, ignore_index=True),
+    non_overlapping_bouts = remove_overlapping_observations(
+        pd.concat(bouts_by_recipient, ignore_index=True),
         index_columns=(),
         priority_function=priority_function,
-        max_allowed_overlap=max_allowed_bout_overlap,
-    ).sort_values("start", ignore_index=True, inplace=False)
-    same_recipient = np.asarray(observations["recipient"])[:, np.newaxis] == np.asarray(
-        bouts["recipient"]
+        max_overlap=max_bout_overlap,
     )
-    contained_in_bout = np.sum(
-        same_recipient
-        & interval_contained(
-            observations[["start", "stop"]].to_numpy(),
-            bouts[["start", "stop"]].to_numpy(),
-        ),
-        axis=1,
-    )
-    assert np.isin(contained_in_bout, [0, 1]).all()
-    idx = np.argwhere(contained_in_bout).ravel()
-    indices = observations.index[idx]
-    observations["in_bout"] = False
-    observations.loc[indices, "in_bout"] = True
-    observations = observations[observations["in_bout"]]
-    observations = observations.drop(columns=["in_bout"], inplace=False).sort_values(
-        "start", ignore_index=True, inplace=False
-    )
-    return observations
+    observations = pd.concat(observations_by_recipient, ignore_index=True)
+    observations = observations.loc[
+        np.isin(observations["bout"], non_overlapping_bouts["bout"]), :
+    ]
+    return observations.drop(columns=["bout"]).sort_values("start", ignore_index=True)

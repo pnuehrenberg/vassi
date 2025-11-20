@@ -60,7 +60,7 @@ def _create_log_in_subprocess(
     options: dict[str, Any],
     level: int,
     *,
-    sink=None,
+    sink=None,  # pyright: ignore[reportUnknownParameterType, reportMissingParameterType]
     format: str | Callable[..., str] = _formatter,
     enqueue: bool = True,
 ) -> loguru.Logger:
@@ -69,14 +69,14 @@ def _create_log_in_subprocess(
     return log
 
 
-def _prepare_log_for_subprocess(log: loguru.Logger) -> tuple[dict[str, Any], int]:
-    return deepcopy(log._options), log._core.min_level  # type: ignore
+def _prepare_log_for_subprocess(log: loguru.Logger) -> tuple[dict[str, Any], int]:  # pyright: ignore[reportExplicitAny]
+    return deepcopy(log._options), log._core.min_level  # pyright: ignore[reportAttributeAccessIssue, reportUnknownMemberType, reportUnknownVariableType, reportUnknownArgumentType]
 
 
 def set_logging_level(
     level: LOG_LEVEL | int = "warning",
     *,
-    sink=None,
+    sink=None,  # pyright: ignore[reportUnknownParameterType, reportMissingParameterType]
     format: str | Callable[..., str] = _formatter,
     enqueue: bool = True,
 ) -> loguru.Logger:
@@ -96,8 +96,8 @@ def set_logging_level(
     if sink is None:
         sink = sys.stdout
     logger.remove()
-    logger.add(
-        sink=sink,
+    _ = logger.add(
+        sink=sink,  # pyright: ignore[reportUnknownArgumentType]
         level=level.upper() if isinstance(level, str) else level,
         format=format,
         enqueue=enqueue,

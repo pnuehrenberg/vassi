@@ -28,6 +28,8 @@ dependencies = [
     "fastparquet>=2024.11.0",
     "pip>=25.2",
     "ipympl>=0.9.7",
+    "transformations",
+    "joblib-stubs>=1.5.2.0.20250831",
 ]
 requires-python = ">=3.12"
 
@@ -42,8 +44,12 @@ docs = [
 ]
 
 [tool.pyright]
-venvPath = "/home/paul/miniforge3/envs"
-venv = "vassi"
+venvPath = "."
+venv = ".venv"
+# This will disable the 'reportAny' check project-wide
+reportAny = "none"
+reportUnreachable = "none"
+reportMissingTypeStubs = "none"
 
 [tool.ruff]
 extend-exclude = ["*.ipynb"]
@@ -56,3 +62,11 @@ convention = "numpy" # Accepts: "google", "numpy", or "pep257".
 
 [tool.ruff.format]
 docstring-code-format = true
+
+[tool.uv.sources]
+transformations = { path = "../transformations" }
+
+[dependency-groups]
+dev = [
+    "ruff>=0.14.4",
+]

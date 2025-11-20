@@ -17,27 +17,6 @@ individual:
         - 0
         - 1
         - 2
-  - - speed
-    - step: 5
-      keypoints:
-        - 0
-        - 1
-        - 2
-      reversed_dyad: true
-  - - speed
-    - step: 15
-      keypoints:
-        - 0
-        - 1
-        - 2
-      reversed_dyad: true
-  - - speed
-    - step: 30
-      keypoints:
-        - 0
-        - 1
-        - 2
-      reversed_dyad: true
   - - projected_velocity
     - step: 5
       keypoints_1:
@@ -133,7 +112,28 @@ individual:
         - - 1
           - 0
       element_wise: true
-dyadic:
+dyad:
+  - - speed
+    - step: 5
+      keypoints:
+        - 0
+        - 1
+        - 2
+      reversed_dyad: true
+  - - speed
+    - step: 15
+      keypoints:
+        - 0
+        - 1
+        - 2
+      reversed_dyad: true
+  - - speed
+    - step: 30
+      keypoints:
+        - 0
+        - 1
+        - 2
+      reversed_dyad: true
   - - target_velocity
     - step: 5
       keypoints_1:

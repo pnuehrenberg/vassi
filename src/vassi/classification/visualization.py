@@ -5,10 +5,8 @@ from typing import (
     Callable,
     Generic,
     Literal,
-    Optional,
     Self,
     TypeVar,
-    Union,
 )
 
 import matplotlib.patches as patches
@@ -25,20 +23,20 @@ DType = TypeVar("DType")
 
 
 class _Array(np.ndarray, Generic[DType]):
-    def __getitem__(self, key) -> DType:  # type: ignore
-        return super().__getitem__(key)  # type: ignore
+    def __getitem__(self, key) -> DType:  # pyright: ignore[reportIncompatibleMethodOverride]
+        return super().__getitem__(key)  # pyright: ignore[reportReturnType]
 
     def ravel(self, *args, **kwargs) -> Self: ...
 
 
 def _matshow_patches(
     ax: Axes,
-    X: np.ndarray,
-    cmap: Optional[Union[str, Colormap]] = None,
-    norm: Optional[Normalize] = None,
-    aspect: Union[Literal["equal"], float] = "equal",
-    vmin: Optional[float] = None,
-    vmax: Optional[float] = None,
+    mat: np.ndarray,
+    cmap: str | Colormap | None = None,
+    norm: Normalize | None = None,
+    aspect: Literal["equal"] | float = "equal",
+    vmin: float | None = None,
+    vmax: float | None = None,
     line_width: float = 0.5,
     **kwargs: Any,
 ) -> plt.cm.ScalarMappable:
@@ -47,7 +45,7 @@ def _matshow_patches(
     mimicking plt.matshow for confusion matrices with explicit pixel rendering.
 
     Parameters:
-        X: The matrix to be plotted.
+        mat: The matrix to be plotted.
         cmap: A Colormap instance or registered colormap name. If :code:`None`, defaults
             to Matplotlib's default.
         norm: A Normalize instance is used to map the data values to the 0-1 range
@@ -68,8 +66,8 @@ def _matshow_patches(
         for external colorbar creation.
     """
 
-    X = np.asarray(X)
-    rows, cols = X.shape
+    mat = np.asarray(mat)
+    rows, cols = mat.shape
 
     if cmap is None:
         cmap = plt.rcParams["image.cmap"]
@@ -77,13 +75,13 @@ def _matshow_patches(
 
     if norm is None:
         norm = Normalize(
-            vmin=vmin if vmin is not None else np.min(X),
-            vmax=vmax if vmax is not None else np.max(X),
+            vmin=vmin if vmin is not None else np.min(mat),
+            vmax=vmax if vmax is not None else np.max(mat),
         )
 
     for i in range(rows):
         for j in range(cols):
-            color = colormap(norm(X[i, j]))
+            color = colormap(norm(mat[i, j]))
             rect = patches.Rectangle(
                 (j - 0.5, i - 0.5),  # Position of the patch
                 1,
@@ -117,10 +115,10 @@ def plot_confusion_matrix(
     y_true: np.ndarray | Iterable[np.ndarray],
     y_pred: np.ndarray | Iterable[np.ndarray],
     *,
-    ax: Optional[Axes] = None,
+    ax: Axes | None = None,
     figsize: tuple[float, float] = (3, 3),
     dpi: float = 100,
-    category_labels: Optional[Sequence[str]] = None,
+    category_labels: Sequence[str] | None = None,
     show_colorbar: bool = True,
 ):
     """
@@ -214,21 +212,21 @@ def plot_confusion_matrix(
 
 def plot_classification_timeline(
     predictions: pd.DataFrame,
-    categories: Iterable[str],
+    categories: Sequence[str],
     *,
-    annotations: Optional[pd.DataFrame] = None,
-    timestamps: Optional[np.ndarray] = None,
-    y_proba: Optional[np.ndarray] = None,
-    y_proba_smoothed: Optional[np.ndarray] = None,
-    axes: Optional[_Array[Axes]] = None,
+    annotations: pd.DataFrame | None = None,
+    timestamps: np.ndarray | None = None,
+    y_proba: np.ndarray | None = None,
+    y_proba_smoothed: np.ndarray | None = None,
+    axes: _Array[Axes] | None = None,
     figsize: tuple[float, float] = (10, 3),
     dpi: float = 100,
-    category_labels: Optional[Iterable[str]] = None,
-    interval: Optional[tuple[float, float]] = None,
+    category_labels: Sequence[str] | None = None,
+    interval: tuple[float, float] | None = None,
     limit_interval: bool = True,
-    x_tick_step: Optional[float] = None,
-    x_tick_conversion: Optional[Callable[[Sequence[float]], Sequence[str]]] = None,
-    x_label: Optional[str] = None,
+    x_tick_step: float | None = None,
+    x_tick_conversion: Callable[[Sequence[float]], Sequence[str]] | None = None,
+    x_label: str | None = None,
 ):
     """
     Plot a timeline of predictions and annotations.
@@ -261,13 +259,16 @@ def plot_classification_timeline(
         try:
             intervals = (
                 observations.set_index("category")
-                .loc[[categories[idx]], ["start", "duration"]]
+                .loc[[categories[idx]], ["start", "stop"]]
                 .to_numpy()
             )
         except KeyError:
             return
         ax.broken_barh(
-            [(float(start), float(stop)) for start, stop in intervals],
+            [
+                (float(start), float(stop) - float(start) + 1)
+                for start, stop in intervals
+            ],
             yrange=y_range,
             lw=0,
             color=color,

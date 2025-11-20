@@ -1,0 +1,951 @@
+from __future__ import annotations
+
+from abc import ABC, abstractmethod
+from collections.abc import Callable, Hashable, Iterable, Iterator, Mapping, Sequence
+from copy import copy as shallow_copy
+from typing import Any, Literal, Self, override
+
+import numpy as np
+import pandas as pd
+from joblib import Parallel, delayed, parallel_config
+from sklearn.metrics import f1_score  # pyright: ignore[reportUnknownVariableType]
+
+from ..dataset import densify_observations, remove_overlapping_observations
+from ..dataset.types import WithCategories, get_validators
+from ..type_guards import is_tuple_of
+from ..utils import SmoothingFunction, available_resources
+from ..warnings import warn
+from .utils import (
+    filter_observations_by_recipient_bouts,
+    to_predictions,
+    validate_predictions,
+)
+
+# if vassi is bumped to Python 3.13:
+# copy.replace could be used instead of shallow copy
+# and subsequent assignment of attributes
+
+
+def _discretize(
+    classification: Classification, decision_thresholds: Mapping[str, float] | None
+):
+    return classification.discretize(decision_thresholds)
+
+
+def _smooth(
+    classification: Classification,
+    smoothing_function: SmoothingFunction,
+    decision_thresholds: Mapping[str, float] | None,
+):
+    return classification.smooth(
+        smoothing_function, decision_thresholds=decision_thresholds
+    )
+
+
+class BaseClassification(WithCategories, ABC):
+    y_proba: np.ndarray
+    y: np.ndarray
+    predictions: pd.DataFrame
+    _discretized: bool = False
+
+    @property
+    def discretized(self) -> bool:
+        return self._discretized
+
+    def _update_from(self, other: Self) -> None:
+        # this should only be used in __init__
+        self.__dict__.update(other.__dict__)
+
+    @abstractmethod
+    def update_predictions(self) -> Self: ...
+
+    @abstractmethod
+    def discretize(
+        self,
+        decision_thresholds: Mapping[str, float] | None = None,
+    ) -> Self: ...
+
+    @abstractmethod
+    def smooth(
+        self,
+        smoothing_func: SmoothingFunction,
+        *,
+        decision_thresholds: Mapping[str, float] | None = None,
+    ) -> Self: ...
+
+    @classmethod
+    def confirm_instance(cls, classification: object) -> Self:
+        assert isinstance(classification, cls), (
+            f"Expected classification to be an instance of {cls}, got {type(classification)}"
+        )
+        return classification
+
+    # @abstractmethod
+    # def to_h5(self, data_file: str | Path, data_path: str | Path) -> None: ...
+
+    # @classmethod
+    # @abstractmethod
+    # def from_h5(cls, data_file: str | Path, data_path: str | Path) -> Self: ...
+
+
+class RequiresBaseClassification:
+    _base: tuple[BaseClassification, type[BaseClassification]] | None = None
+
+    @property
+    def base(self) -> tuple[BaseClassification, type[BaseClassification]]:
+        if self._base is not None:
+            return self._base
+        invalid_type_message = f"invalid use of {type(self)}, this mixin class should only be used in subclasses of {BaseClassification}"
+        if not isinstance(self, BaseClassification):
+            raise TypeError(invalid_type_message)
+        base = None
+        for _base in type(self).__bases__:
+            if not issubclass(_base, BaseClassification):
+                continue
+            base = _base
+            break
+        if base is None:
+            raise TypeError(invalid_type_message)
+        self._base = self, base
+        return self._base
+
+
+class WithGroundTruth(RequiresBaseClassification, ABC):
+    # this class should be used in combination with some BaseClassifcation,
+    # so that categories and background_category are available
+
+    _y_gt: np.ndarray | None = None
+    _annotations: pd.DataFrame | None = None
+
+    def with_ground_truth(
+        self,
+        y_gt: np.ndarray,
+        annotations: pd.DataFrame,
+    ):
+        self._y_gt = y_gt
+        self._annotations = annotations
+
+    @property
+    def y_gt(self) -> np.ndarray:
+        if self._y_gt is None:
+            raise ValueError(f"y_gt not set, call with_ground_truth on {type(self)}")
+        return self._y_gt
+
+    @property
+    def annotations(self) -> pd.DataFrame:
+        if self._annotations is None:
+            raise ValueError(
+                f"Annotations are not set, call with_ground_truth on {type(self)}"
+            )
+        return self._annotations
+
+    def f1_score(
+        self,
+        on: Literal["timestamp", "annotation", "prediction"],
+    ) -> pd.Series:
+        base, _ = self.base
+        if not base.discretized:
+            raise ValueError(
+                "f1_score is only available for discretized classifications"
+            )
+        if on == "timestamp":
+            y_true = self.y_gt
+            y_pred = base.y
+        elif on == "annotation":
+            annotations: pd.DataFrame = self.annotations
+            y_true = base.encode(np.asarray(annotations["category"]))
+            y_pred = base.encode(np.asarray(annotations["predicted_category"]))
+        elif on == "prediction":
+            predictions: pd.DataFrame = base.predictions
+            y_true = base.encode(np.asarray(predictions["true_category"]))
+            y_pred = base.encode(np.asarray(predictions["category"]))
+        else:
+            raise ValueError(
+                f"'on' should be one of 'timestamp', 'annotation', 'prediction' and not '{on}'"
+            )
+        scores = f1_score(
+            y_true,
+            y_pred,
+            labels=range(
+                len(base.categories)
+            ),  # does not include -1 if background category is not included in categories
+            average=None,  # pyright: ignore[reportArgumentType]
+            zero_division=1.0,  # pyright: ignore[reportArgumentType]
+        )
+        return pd.Series(scores, index=sorted(base.categories), name=on)
+
+    def score(self) -> pd.DataFrame:
+        levels = ("timestamp", "annotation", "prediction")
+        return pd.DataFrame([self.f1_score(level) for level in levels])
+
+    @abstractmethod
+    def validate(self) -> Self: ...
+
+
+class ClassificationCollection[
+    I: Hashable,
+    E: BaseClassification,
+](BaseClassification, ABC):
+    classifications: dict[I, E]
+    identifier_validator: Callable[..., I]
+    classification_validator: Callable[..., E]
+    _level: tuple[str, ...]
+
+    def __init__(
+        self,
+        classifications: Mapping[Any, Any],  # pyright: ignore[reportExplicitAny]
+        *,
+        categories: set[str],
+        background_category: str,
+        identifier_validator: Callable[[object], I],
+        classification_validator: Callable[[object], E],
+    ):
+        self.with_categories(categories, background_category=background_category)
+        self.identifier_validator = identifier_validator
+        self.classification_validator = classification_validator
+        self.classifications = {
+            self.identifier_validator(identifier): self.classification_validator(
+                classification
+            )
+            for identifier, classification in classifications.items()
+        }
+        self._discretized: bool = self._all_discretized
+        if self.discretized:
+            self.y_proba: np.ndarray = self._concatenate_numpy_attribute("y_proba")
+            self.y: np.ndarray = self._concatenate_numpy_attribute("y")
+            self.predictions: pd.DataFrame = self._concatenate_pandas_attribute(
+                "predictions"
+            )
+
+    @property
+    def _all_discretized(self) -> bool:
+        return all(
+            classification.discretized
+            for classification in self._flat_classifications()
+        )
+
+    def __getitem__(self, identifier: I) -> E:
+        return self.classifications[identifier]
+
+    def __iter__(self) -> Iterator[tuple[I, E]]:
+        return iter(self.classifications.items())
+
+    def __len__(self) -> int:
+        return len(self.classifications)
+
+    def identifiers(self) -> list[I]:
+        return list(self.classifications.keys())
+
+    def _concatenate_numpy_attribute(self, attribute: str) -> np.ndarray:
+        values: list[np.ndarray] = []
+        for classification in self._flat_classifications():
+            value = getattr(classification, attribute)
+            if not isinstance(value, np.ndarray):
+                raise ValueError(f"Attribute '{attribute}' is not a numpy array")
+            values.append(value)
+        return np.concatenate(values, axis=0)
+
+    def _concatenate_pandas_attribute(self, attribute: str) -> pd.DataFrame:
+        all_values: list[pd.DataFrame] = []
+        for _, classification in self:
+            if isinstance(classification, ClassificationCollection):
+                value = classification._concatenate_pandas_attribute(attribute)
+            else:
+                value = getattr(classification, attribute)
+                if not isinstance(value, pd.DataFrame):
+                    raise ValueError(
+                        f"Attribute '{attribute}' is not a pandas DataFrame"
+                    )
+            all_values.append(value)
+        identifiers = np.repeat(
+            np.asarray(self.identifiers()).reshape(len(all_values), -1),
+            [len(value) for value in all_values],
+            axis=0,
+        )
+        values = pd.concat(all_values, axis=0, ignore_index=True)
+        values[list(self._level)] = identifiers
+        return values
+
+    @property
+    def _num_flat_classifications(self) -> int:
+        num_flat = 0
+        for _, classification in self:
+            if isinstance(classification, ClassificationCollection):
+                num_flat += classification._num_flat_classifications
+            else:
+                num_flat += 1
+        return num_flat
+
+    def _flat_classifications(self) -> list[Classification]:
+        classifications: list[Classification] = []
+        for _, classification in self:
+            if isinstance(classification, ClassificationCollection):
+                classifications.extend(classification._flat_classifications())
+                continue
+            if not isinstance(classification, Classification):
+                raise TypeError(f"Expected Classification, got {type(classification)}")
+            classifications.append(classification)
+        return classifications
+
+    @abstractmethod
+    def update_from_flat_classifications(
+        self, classifications: Sequence[Classification]
+    ) -> Self: ...
+
+    @override
+    def update_predictions(self) -> Self:
+        classifications = [
+            classification.update_predictions()
+            for classification in self._flat_classifications()
+        ]
+        return self.update_from_flat_classifications(classifications)
+
+    @override
+    def discretize(
+        self,
+        decision_thresholds: Mapping[str, float] | None = None,
+    ) -> Self:
+        num_jobs, num_inner_threads = available_resources()
+        with parallel_config(backend="loky", inner_max_num_threads=num_inner_threads):
+            classifications = Parallel(n_jobs=num_jobs)(
+                delayed(_discretize)(
+                    classification,
+                    decision_thresholds,
+                )
+                for classification in self._flat_classifications()
+            )
+        return self.update_from_flat_classifications(classifications)
+
+    @override
+    def smooth(
+        self,
+        smoothing_func: SmoothingFunction,
+        *,
+        decision_thresholds: Mapping[str, float] | None = None,
+    ) -> Self:
+        num_jobs, num_inner_threads = available_resources()
+        with parallel_config(backend="loky", inner_max_num_threads=num_inner_threads):
+            classifications = Parallel(n_jobs=num_jobs)(
+                delayed(_smooth)(
+                    classification,
+                    smoothing_func,
+                    decision_thresholds=decision_thresholds,
+                )
+                for classification in self._flat_classifications()
+            )
+        return self.update_from_flat_classifications(classifications)
+
+    @abstractmethod
+    def remove_overlapping_predictions(
+        self,
+        priority_function: Callable[[pd.DataFrame], Iterable[float]],
+        *,
+        filter_bouts_by_recipients: bool,
+        max_bout_gap: float | None = None,
+        max_bout_overlap: float | None = None,
+    ) -> Self: ...
+
+    @classmethod
+    @abstractmethod
+    def combine(cls, *classifications: Self) -> Self: ...
+
+
+class Classification(BaseClassification):
+    timestamps: np.ndarray
+
+    def __init__(
+        self,
+        y_proba: np.ndarray,
+        *,
+        timestamps: np.ndarray,
+        categories: set[str],
+        background_category: str,
+        discretize_on_init: bool,
+    ):
+        self.with_categories(categories, background_category=background_category)
+        self.timestamps = timestamps
+        self.y_proba: np.ndarray = y_proba
+        if discretize_on_init:
+            self._update_from(self.discretize())
+
+    @override
+    def update_predictions(self) -> Self:
+        if not self.discretized:
+            raise ValueError("Classification results are not discretized.")
+        new = shallow_copy(self)
+        new.predictions = to_predictions(
+            new.y,
+            new.y_proba,
+            new.timestamps,
+            set(new.categories),
+        )
+        return new
+
+    @override
+    def discretize(
+        self,
+        decision_thresholds: Mapping[str, float] | None = None,
+    ) -> Self:
+        new = shallow_copy(self)
+        new._discretized = True
+        try:
+            default_decision_idx = sorted(new.categories).index(new.background_category)
+        except ValueError:
+            default_decision_idx = None
+        if decision_thresholds is None:
+            new.y = np.argmax(new.y_proba, axis=1)
+            return new.update_predictions()
+        y_proba_thresh = new.y_proba.copy()
+        for category, threshold in decision_thresholds.items():
+            try:
+                category_idx = sorted(new.categories).index(category)
+            except ValueError:
+                raise ValueError(f"Can not threshold undefined category '{category}'")
+            y_proba_thresh[:, category_idx] = np.where(
+                new.y_proba[:, category_idx] > threshold,
+                new.y_proba[:, category_idx],
+                0,
+            )
+        y_proba_thresh[y_proba_thresh.sum(axis=1) == 0, default_decision_idx] = (
+            1 if default_decision_idx is not None else 0
+        )
+        y = np.argmax(y_proba_thresh, axis=1)  # this is only true for non-all-zero rows
+        y[
+            (y_proba_thresh == 0).all(axis=1)
+        ] = -1  # use -1 if background category is not included in categories
+        new.y = y
+        return new.update_predictions()
+
+    @override
+    def smooth(
+        self,
+        smoothing_func: SmoothingFunction,
+        *,
+        decision_thresholds: Mapping[str, float] | None = None,
+    ) -> Self:
+        new = shallow_copy(self)
+        new.y_proba = smoothing_func(array=new.y_proba)
+        return new.discretize(decision_thresholds)
+
+
+class AnnotatedClassification(WithGroundTruth, Classification):
+    def __init__(
+        self,
+        y_proba: np.ndarray,
+        *,
+        timestamps: np.ndarray,
+        categories: set[str],
+        background_category: str,
+        annotations: pd.DataFrame,
+        y_gt: np.ndarray | None,
+        discretize_on_init: bool,
+    ):
+        self.with_categories(categories, background_category=background_category)
+
+        if y_gt is None:
+            annotations = densify_observations(
+                annotations,
+                time_range=tuple(timestamps[[0, -1]]),
+                background_category=self.background_category,
+            )
+            start = np.asarray(annotations["start"])
+            stop = np.asarray(annotations["stop"])
+            category = self.encode(np.asarray(annotations["category"]))
+            y_gt = np.repeat(category, stop - start + 1)
+
+        self.with_ground_truth(y_gt, annotations)
+
+        super().__init__(
+            y_proba,
+            timestamps=timestamps,
+            categories=categories,
+            background_category=background_category,
+            discretize_on_init=discretize_on_init,
+        )
+
+    @override
+    def validate(self) -> Self:
+        new = shallow_copy(self)
+        new.predictions = validate_predictions(
+            new.predictions,
+            new.annotations,
+            on="predictions",
+            background_category=new.background_category,
+        )
+        new._annotations = validate_predictions(
+            new.predictions,
+            new.annotations,
+            on="annotations",
+            background_category=new.background_category,
+        )
+        return new
+
+    @override
+    def update_predictions(self) -> Self:
+        return super().update_predictions().validate()
+
+
+class GroupClassification(ClassificationCollection[Hashable, Classification]):
+    _target: Literal["individual", "dyad"]
+    _level: tuple[str, ...]
+
+    def __init__(
+        self,
+        classifications: Mapping[Hashable, Classification],
+        *,
+        categories: set[str],
+        background_category: str,
+        target: Literal["individual", "dyad"],
+        identifier_validator: Callable[[object], Hashable] | None = None,
+        classification_validator: Callable[[object], Classification] | None = None,
+    ):
+        if target == "individual":
+            self._level = ("actor",)
+        elif target == "dyad":
+            self._level = ("actor", "recipient")
+        else:
+            raise ValueError(f"Invalid target: {target}")
+        self._target = target
+        if identifier_validator is None or classification_validator is None:
+            identifier_validator, classification_validator = get_validators(
+                classifications,
+                minimal_value_type=Classification,
+            )
+        super().__init__(
+            classifications,
+            categories=categories,
+            background_category=background_category,
+            identifier_validator=identifier_validator,
+            classification_validator=classification_validator,
+        )
+        self.actors: frozenset[Hashable] = frozenset(
+            identifier[0] if is_tuple_of(identifier, Hashable) else identifier
+            for identifier in self.identifiers()
+        )
+
+    @override
+    def update_from_flat_classifications(
+        self, classifications: Sequence[Classification]
+    ) -> Self:
+        if len(classifications) != len(self):
+            raise ValueError("Number of classifications does not match")
+        return type(self)(
+            {
+                identifier: classification
+                for (identifier, _), classification in zip(self, classifications)
+            },
+            categories=set(self.categories),
+            background_category=self.background_category,
+            target=self._target,
+            identifier_validator=self.identifier_validator,
+            classification_validator=self.classification_validator,
+        )
+
+    @override
+    def remove_overlapping_predictions(
+        self,
+        priority_function: Callable[[pd.DataFrame], Iterable[float]],
+        *,
+        filter_bouts_by_recipients: bool,
+        max_bout_gap: float | None = None,
+        max_bout_overlap: float | None = None,
+    ) -> Self:
+        if self._target != "dyad":
+            warn(
+                "Only nested, dyadic classifications can contain overlapping predictions, returning unchanged predictions"
+            )
+            return shallow_copy(self)
+        predictions = self.predictions
+        predictions = predictions[predictions["category"] != "none"]
+        classifications: dict[Hashable, Classification] = {}
+        for actor in self.actors:
+            predictions_actor = predictions.loc[
+                predictions["actor"] == actor
+            ].reset_index(drop=True)
+            if filter_bouts_by_recipients:
+                if max_bout_gap is None or max_bout_overlap is None:
+                    raise ValueError(
+                        "max_bout_gap and max_bout_overlap must be specified when prefiltering recipient bouts"
+                    )
+                predictions_actor = filter_observations_by_recipient_bouts(
+                    predictions_actor,
+                    priority_function=priority_function,
+                    max_bout_gap=max_bout_gap,
+                    max_bout_overlap=max_bout_overlap,
+                    background_category=self.background_category,
+                )
+            predictions_actor = remove_overlapping_observations(
+                predictions_actor,
+                priority_function=priority_function,
+                max_overlap=0,
+                index_columns=(),
+            )
+            for dyad, classification in self:
+                if is_tuple_of(dyad, Hashable):
+                    _actor, recipient = dyad
+                else:
+                    raise ValueError(f"Invalid dyad identifier: {dyad}")
+                if actor != _actor:
+                    continue
+                predictions_dyad = predictions_actor[
+                    predictions_actor["recipient"] == recipient
+                ].reset_index(drop=True)
+                predictions_dyad = densify_observations(
+                    predictions_dyad,
+                    time_range=tuple(classification.timestamps[[0, -1]]),
+                    background_category=self.background_category,
+                )
+                try:
+                    predictions_dyad.loc[:, "mean_probability"] = predictions_dyad[
+                        "mean_probability"
+                    ].fillna(value=0)
+                except KeyError:
+                    predictions_dyad["mean_probability"] = 0
+                try:
+                    predictions_dyad.loc[:, "max_probability"] = predictions_dyad[
+                        "max_probability"
+                    ].fillna(value=0)
+                except KeyError:
+                    predictions_dyad["max_probability"] = 0
+                drop = [
+                    column
+                    for column in ["actor", "recipient"]
+                    if column in predictions_dyad.columns
+                ]
+                if len(drop) > 0:
+                    predictions_dyad = predictions_dyad.drop(columns=drop)
+                new = shallow_copy(classification)
+                new.predictions = predictions_dyad
+                classifications[dyad] = new
+        return self.__class__(
+            classifications,
+            categories=set(self.categories),
+            background_category=self.background_category,
+            target=self._target,
+        )
+
+    @override
+    @classmethod
+    def combine(
+        cls, *classifications: ClassificationCollection[Hashable, Classification]
+    ) -> Self:
+        confirmed_classifications = [
+            cls.confirm_instance(classification) for classification in classifications
+        ]
+        if len(confirmed_classifications) == 0:
+            raise ValueError("No classifications provided")
+        first = confirmed_classifications[0]
+        target = first._target
+        categories = first.categories
+        background_category = first.background_category
+        if len(confirmed_classifications) == 1:
+            return cls(
+                first.classifications,
+                categories=set(first.categories),
+                background_category=first.background_category,
+                target=first._target,
+                identifier_validator=first.identifier_validator,
+                classification_validator=first.classification_validator,
+            )
+        combined_classifications: dict[Hashable, Classification] = {}
+        for group_classification in confirmed_classifications:
+            if group_classification._target != target:
+                raise ValueError("Classifications with inconsistent target")
+            if group_classification.categories != categories:
+                raise ValueError("Classifications with inconsistent categories")
+            if group_classification.background_category != background_category:
+                raise ValueError(
+                    "Classifications with inconsistent background category"
+                )
+            for identifier, classification in group_classification:
+                if identifier in combined_classifications:
+                    raise ValueError(f"Duplicate classification: {identifier}")
+                combined_classifications[identifier] = classification
+        return cls(
+            combined_classifications,
+            categories=set(categories),
+            background_category=background_category,
+            target=target,
+            identifier_validator=first.identifier_validator,
+            classification_validator=first.classification_validator,
+        )
+
+
+class AnnotatedGroupClassification(WithGroundTruth, GroupClassification):
+    def __init__(
+        self,
+        classifications: Mapping[Hashable, AnnotatedClassification],
+        *,
+        target: Literal["individual", "dyad"],
+        categories: set[str],
+        background_category: str,
+        identifier_validator: Callable[[object], Hashable] | None = None,
+        classification_validator: Callable[[object], AnnotatedClassification]
+        | None = None,
+    ):
+        if identifier_validator is None or classification_validator is None:
+            identifier_validator, classification_validator = get_validators(
+                classifications,
+                minimal_value_type=AnnotatedClassification,
+            )
+        super().__init__(
+            classifications,
+            categories=categories,
+            background_category=background_category,
+            target=target,
+            identifier_validator=identifier_validator,
+            classification_validator=classification_validator,
+        )
+        self.with_ground_truth(
+            y_gt=self._concatenate_numpy_attribute("y_gt"),
+            annotations=self._concatenate_pandas_attribute("annotations"),
+        )
+
+    @override
+    def update_from_flat_classifications(
+        self, classifications: Sequence[Classification]
+    ) -> Self:
+        classifications = [
+            AnnotatedClassification.confirm_instance(classification)
+            for classification in classifications
+        ]
+        new = super().update_from_flat_classifications(classifications)
+        new.with_ground_truth(
+            y_gt=new._concatenate_numpy_attribute("y_gt"),
+            annotations=new._concatenate_pandas_attribute("annotations"),
+        )
+        return new
+
+    @override
+    def validate(self) -> Self:
+        return type(self)(
+            {
+                identifier: AnnotatedClassification.confirm_instance(
+                    classification
+                ).validate()
+                for identifier, classification in self
+            },
+            categories=set(self.categories),
+            background_category=self.background_category,
+            target=self._target,
+        )
+
+    @override
+    def remove_overlapping_predictions(
+        self,
+        priority_function: Callable[[pd.DataFrame], Iterable[float]],
+        *,
+        filter_bouts_by_recipients: bool,
+        max_bout_gap: float | None = None,
+        max_bout_overlap: float | None = None,
+    ) -> Self:
+        return (
+            super()
+            .remove_overlapping_predictions(
+                priority_function=priority_function,
+                filter_bouts_by_recipients=filter_bouts_by_recipients,
+                max_bout_gap=max_bout_gap,
+                max_bout_overlap=max_bout_overlap,
+            )
+            .validate()
+        )
+
+
+class DatasetClassification(ClassificationCollection[Hashable, GroupClassification]):
+    _level: tuple[str, ...]
+
+    def __init__(
+        self,
+        classifications: Mapping[Hashable, GroupClassification],
+        *,
+        categories: set[str],
+        background_category: str,
+        identifier_validator: Callable[[object], Hashable] | None = None,
+        classification_validator: Callable[[object], GroupClassification] | None = None,
+    ):
+        self._level = ("group",)
+        if identifier_validator is None or classification_validator is None:
+            identifier_validator, classification_validator = get_validators(
+                classifications, minimal_value_type=GroupClassification
+            )
+        super().__init__(
+            classifications,
+            categories=categories,
+            background_category=background_category,
+            identifier_validator=identifier_validator,
+            classification_validator=classification_validator,
+        )
+
+    @override
+    def update_from_flat_classifications(
+        self, classifications: Sequence[Classification]
+    ) -> Self:
+        if len(classifications) != self._num_flat_classifications:
+            raise ValueError("Number of classifications does not match")
+        structured_classifications: dict[Hashable, GroupClassification] = {}
+        for identifier, classification in self:
+            n = classification._num_flat_classifications
+            structured_classifications[identifier] = (
+                classification.update_from_flat_classifications(classifications[:n])
+            )
+            classifications = classifications[n:]
+        return type(self)(
+            structured_classifications,
+            categories=set(self.categories),
+            background_category=self.background_category,
+            identifier_validator=self.identifier_validator,
+            classification_validator=self.classification_validator,
+        )
+
+    @override
+    def remove_overlapping_predictions(
+        self,
+        priority_function: Callable[[pd.DataFrame], Iterable[float]],
+        *,
+        filter_bouts_by_recipients: bool,
+        max_bout_gap: float | None = None,
+        max_bout_overlap: float | None = None,
+    ) -> Self:
+        return type(self)(
+            {
+                identifier: classification.remove_overlapping_predictions(
+                    priority_function,
+                    filter_bouts_by_recipients=filter_bouts_by_recipients,
+                    max_bout_gap=max_bout_gap,
+                    max_bout_overlap=max_bout_overlap,
+                )
+                # could be parallelized
+                for identifier, classification in self
+            },
+            categories=set(self.categories),
+            background_category=self.background_category,
+            identifier_validator=self.identifier_validator,
+            classification_validator=self.classification_validator,
+        )
+
+    @override
+    @classmethod
+    def combine(
+        cls, *classifications: ClassificationCollection[Hashable, GroupClassification]
+    ) -> Self:
+        confirmed_classifications = [
+            cls.confirm_instance(classification) for classification in classifications
+        ]
+        if len(confirmed_classifications) == 0:
+            raise ValueError("No classifications provided")
+        first = confirmed_classifications[0]
+        categories = first.categories
+        background_category = first.background_category
+        if len(confirmed_classifications) == 1:
+            return cls(
+                first.classifications,
+                categories=set(first.categories),
+                background_category=first.background_category,
+                identifier_validator=first.identifier_validator,
+                classification_validator=first.classification_validator,
+            )
+        classifications_by_identifier: dict[Hashable, list[GroupClassification]] = {}
+        for dataset_classification in confirmed_classifications:
+            if dataset_classification.categories != categories:
+                raise ValueError("Classifications with inconsistent categories")
+            if dataset_classification.background_category != background_category:
+                raise ValueError(
+                    "Classifications with inconsistent background category"
+                )
+            for identifier, group_classification in dataset_classification:
+                if identifier not in classifications_by_identifier:
+                    classifications_by_identifier[identifier] = [group_classification]
+                    continue
+                classifications_by_identifier[identifier].append(group_classification)
+        combined_classifications: dict[Hashable, GroupClassification] = {}
+        for identifier, group_classifications in classifications_by_identifier.items():
+            if len(group_classifications) == 1:
+                combined_classifications[identifier] = group_classifications[0]
+                continue
+            combined_classifications[identifier] = type(
+                group_classifications[0]
+            ).combine(*group_classifications)
+        return cls(
+            combined_classifications,
+            categories=set(categories),
+            background_category=background_category,
+            identifier_validator=first.identifier_validator,
+            classification_validator=first.classification_validator,
+        )
+
+
+class AnnotatedDatasetClassification(WithGroundTruth, DatasetClassification):
+    def __init__(
+        self,
+        classifications: Mapping[Hashable, AnnotatedGroupClassification],
+        *,
+        categories: set[str],
+        background_category: str,
+        identifier_validator: Callable[[object], Hashable] | None = None,
+        classification_validator: Callable[[object], AnnotatedGroupClassification]
+        | None = None,
+    ):
+        if identifier_validator is None or classification_validator is None:
+            identifier_validator, classification_validator = get_validators(
+                classifications,
+                minimal_value_type=AnnotatedGroupClassification,
+            )
+        super().__init__(
+            classifications,
+            categories=categories,
+            background_category=background_category,
+            identifier_validator=identifier_validator,
+            classification_validator=classification_validator,
+        )
+        self.with_ground_truth(
+            y_gt=self._concatenate_numpy_attribute("y_gt"),
+            annotations=self._concatenate_pandas_attribute("annotations"),
+        )
+
+    @override
+    def update_from_flat_classifications(
+        self, classifications: Sequence[Classification]
+    ) -> Self:
+        classifications = [
+            AnnotatedClassification.confirm_instance(classification)
+            for classification in classifications
+        ]
+        new = super().update_from_flat_classifications(classifications)
+        new.with_ground_truth(
+            y_gt=new._concatenate_numpy_attribute("y_gt"),
+            annotations=new._concatenate_pandas_attribute("annotations"),
+        )
+        return new
+
+    @override
+    def validate(self) -> Self:
+        return type(self)(
+            {
+                identifier: AnnotatedGroupClassification.confirm_instance(
+                    classification
+                ).validate()
+                for identifier, classification in self
+            },
+            categories=set(self.categories),
+            background_category=self.background_category,
+        )
+
+    @override
+    def remove_overlapping_predictions(
+        self,
+        priority_function: Callable[[pd.DataFrame], Iterable[float]],
+        *,
+        filter_bouts_by_recipients: bool,
+        max_bout_gap: float | None = None,
+        max_bout_overlap: float | None = None,
+    ) -> Self:
+        return (
+            super()
+            .remove_overlapping_predictions(
+                priority_function=priority_function,
+                filter_bouts_by_recipients=filter_bouts_by_recipients,
+                max_bout_gap=max_bout_gap,
+                max_bout_overlap=max_bout_overlap,
+            )
+            .validate()
+        )

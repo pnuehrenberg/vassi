@@ -3,7 +3,7 @@ from sklearn.impute import KNNImputer
 from sklearn.pipeline import Pipeline
 
 from vassi.config import cfg
-from vassi.features import DataFrameFeatureExtractor
+from vassi.features import DataFrameExtractor
 from vassi.io import load_dataset
 from vassi.sliding_metrics import (
     SlidingWindowAggregator,
@@ -42,7 +42,7 @@ if __name__ == "__main__":
         [("impute", KNNImputer()), ("aggregate", aggregator)]
     ).set_output(transform="pandas")
 
-    extractor = DataFrameFeatureExtractor(
+    extractor = DataFrameExtractor(
         cache_directory="../cichlids_cache",
         pipeline=pipeline,
     ).read_yaml("../config_file-cichlids.yaml")
