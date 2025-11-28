@@ -46,5 +46,5 @@ def check_memory_for_array(
 
     if required_memory > available_memory:
         raise MemoryError(
-            f"Required memory for array ({required_memory / 1e9:.2f} GB) exceeds available memory ({available_memory / 1e9:.2f} GB)."
+            f"Required memory for array ({required_memory / (1024**3):.2f} GB) exceeds available memory ({available_memory / (1024**3):.2f} GB)."
         )

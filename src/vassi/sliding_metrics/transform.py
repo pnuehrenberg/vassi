@@ -19,6 +19,7 @@ def apply_multiple_to_sliding_windows(
     funcs: Iterable[Callable[..., np.ndarray] | tuple[Callable[..., np.ndarray], int]],
     slices: slice | Iterable[slice] | None = None,
     *,
+    indices: np.ndarray | None = None,
     out: np.ndarray | None = None,
 ) -> np.ndarray:
     """
@@ -53,6 +54,8 @@ def apply_multiple_to_sliding_windows(
             num_features = 1
         func = partial(func, window_size=window_size, window_slice=slices)
         result = func(array)
+        if indices is not None:
+            result = result[indices]
         if slices is None:
             out[..., feature_idx : feature_idx + num_features] = result
         else:
@@ -194,7 +197,11 @@ class SlidingWindowAggregator(BaseEstimator, TransformerMixin):
         )
 
     def transform(
-        self, X: np.ndarray | pd.DataFrame, *, out: np.ndarray | None = None
+        self,
+        X: np.ndarray | pd.DataFrame,
+        *,
+        indices: np.ndarray | None = None,
+        out: np.ndarray | None = None,
     ) -> np.ndarray:
         """
         Transform the input data by applying the metric functions to sliding windows.
@@ -206,6 +213,13 @@ class SlidingWindowAggregator(BaseEstimator, TransformerMixin):
         Returns:
             Transformed data as a 2D array.
         """
+        if isinstance(indices, np.ndarray):
+            if indices.ndim != 1:
+                raise ValueError("Indices must be a 1D array")
+            if np.isdtype(indices.dtype, "bool"):
+                indices = np.argwhere(indices).ravel()
+            elif not np.issubdtype(indices.dtype, np.integer):
+                raise ValueError("Indices must be of type int64")
         # scikit-learn is not fully typed
         X_validated = np.asarray(
             sklearn_validation.validate_data(  # pyright: ignore[reportUnknownMemberType]
@@ -218,7 +232,10 @@ class SlidingWindowAggregator(BaseEstimator, TransformerMixin):
         window_slices = self.window_slices
         if window_slices is not None:
             window_slices = list(window_slices)
-        shape = (num_samples, self.get_num_features_out(num_features_in))
+        shape = (
+            num_samples if indices is None else len(indices),
+            self.get_num_features_out(num_features_in),
+        )
         if out is None:
             out = np.zeros(shape)
         elif out.shape != shape:
@@ -230,8 +247,10 @@ class SlidingWindowAggregator(BaseEstimator, TransformerMixin):
             self.window_size,
             self.metric_funcs,
             slices=window_slices,
+            indices=indices,
             out=(out[:, num_features_in:] if self.keep_original else out).reshape(
-                *X_validated.shape,
+                out.shape[0],
+                X_validated.shape[1],
                 self.num_transformations,
                 1 if window_slices is None else len(window_slices),
             ),
@@ -242,10 +261,10 @@ class SlidingWindowAggregator(BaseEstimator, TransformerMixin):
         self, func_name: str, feature_name: str, selection_slice: slice | None
     ) -> str:
         if selection_slice is None:
-            return f"{func_name}({self.window_size})-{feature_name}"
+            return f"{func_name}(w={self.window_size})-{feature_name}"
         start = selection_slice.start
         stop = selection_slice.stop
-        return f"{func_name}({self.window_size}|{start if start is not None else ''}:{stop if stop is not None else ''})-{feature_name}"
+        return f"{func_name}(w={self.window_size}|{start if start is not None else ''}:{stop if stop is not None else ''})-{feature_name}"
 
     def _feature_names_out(self, input_features: Iterable[str]) -> np.ndarray:
         feature_names: list[str] = []

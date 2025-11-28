@@ -79,9 +79,9 @@ def to_cache(
         arr = np.asarray(obj)
         with h5py.File(cache_file, "w") as cached:
             # lossless compression does not help much, but takes quite long
-            cached.create_dataset("cache", data=arr)
+            _ = cached.create_dataset("cache", data=arr)
             if columns is not None:
-                cached.create_dataset("columns", data=columns)
+                _ = cached.create_dataset("columns", data=columns)
     else:
         raise ValueError(f"Unsupported file type: {file_type}")
     return str(cache_file)

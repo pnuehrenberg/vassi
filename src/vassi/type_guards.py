@@ -1,5 +1,8 @@
 from collections.abc import Iterable, Mapping
-from typing import Literal, TypeGuard
+from typing import Literal, TypedDict, TypeGuard
+
+import numpy as np
+import pandas as pd
 
 
 def is_iterable_of[T](obj: object, t: type[T]) -> TypeGuard[Iterable[T]]:
@@ -52,6 +55,50 @@ def is_valid_features_config(
             if not all(isinstance(key, str) for key in config.keys()):  # pyright: ignore[reportUnknownVariableType]
                 return False
 
+    return True
+
+
+class ClassificationData(TypedDict):
+    categories: set[str]
+    background_category: str
+    timestamps: np.ndarray
+    y_proba: np.ndarray
+    y: np.ndarray
+    y_gt: np.ndarray | None
+    annotations: pd.DataFrame | None
+
+
+def is_valid_classification_data(obj: object) -> TypeGuard[ClassificationData]:
+    if not isinstance(obj, Mapping):
+        print("not a mapping")
+        return False
+    required_keys = {
+        "categories",
+        "background_category",
+        "timestamps",
+        "y_proba",
+        "y",
+        "y_gt",
+        "annotations",
+    }
+    if not required_keys.issubset(obj.keys()):  # pyright: ignore[reportUnknownArgumentType]
+        return False
+    categories = obj.get("categories")  # pyright: ignore[reportUnknownMemberType]
+    if not isinstance(categories, set):
+        return False
+    if not all(isinstance(category, str) for category in categories):  # pyright: ignore[reportUnknownVariableType]
+        return False
+    if not isinstance(obj.get("background_category"), str):  # pyright: ignore[reportUnknownMemberType]
+        return False
+    for key in ["timestamps", "y_proba", "y"]:
+        if not isinstance(obj.get(key), np.ndarray):  # pyright: ignore[reportUnknownMemberType]
+            return False
+    y_gt = obj.get("y_gt", None)  # pyright: ignore[reportUnknownMemberType]
+    if y_gt is not None and not isinstance(y_gt, np.ndarray):
+        return False
+    annotations = obj.get("annotations", None)  # pyright: ignore[reportUnknownMemberType]
+    if annotations is not None and not isinstance(annotations, pd.DataFrame):
+        return False
     return True
 
 

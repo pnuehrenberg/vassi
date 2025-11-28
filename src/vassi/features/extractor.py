@@ -350,7 +350,7 @@ class BaseExtractor[F: Shaped](ABC):
                 f"Output array has incorrect shape, expected {(num_samples, self.num_features)} and not {out.shape}"
             )
         if self.cache_mode and cache_file is not None and cache_file.exists():
-            with h5py.File(cache_file, "r") as h5_file:
+            with h5py.File(str(cache_file), "r") as h5_file:
                 if "features" not in h5_file:
                     raise ValueError("Cache file does not contain features.")
                 cached = h5_file["features"]
@@ -389,6 +389,14 @@ class BaseExtractor[F: Shaped](ABC):
                     feature_idx += num_current_features
             assert feature_idx == self.num_features
         else:
+            if (
+                self.cache_mode
+                and indices is not None
+                and indices != np.arange(len(trajectory))
+            ):
+                raise ValueError(
+                    f"Indices must be None or np.arange(len(trajectory)) with cache_mode={self.cache_mode}."
+                )
             intermediate = np.zeros((len(trajectory), self._num_original_features))
             # here, it is more efficient to write results to intermediate, which is then transformed once
             for target in self._feature_funcs:
@@ -410,14 +418,15 @@ class BaseExtractor[F: Shaped](ABC):
                     ] = features
                     feature_idx += num_current_features
             assert feature_idx == self._num_original_features
-            _ = self.aggregator.transform(intermediate, out=out)
+            _ = self.aggregator.transform(intermediate, indices=indices, out=out)
             if self.cache_mode:
+                # the check above ensures that this includes all samples, so we can safely cache the result
                 cached = out
         if self.cache_mode:
             assert cached is not None
             assert cache_file is not None
-            with h5py.File(cache_file, "w") as h5_file:
-                _ = h5_file.create_dataset("features", data=cached)  # pyright: ignore[reportUnknownMemberType]
+            with h5py.File(str(cache_file), "w") as h5_file:
+                _ = h5_file.create_dataset("features", data=cached)
         return self.finalize(out)
 
 

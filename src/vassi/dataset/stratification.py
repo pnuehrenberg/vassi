@@ -13,17 +13,12 @@ def stratified_subsample(
     population_size = len(strata_labels)
     if size < 0:
         raise ValueError("size cannot be negative.")
-
-    if population_size == 0:
-        raise ValueError("Cannot sample from an empty population (N=0).")
-
-    if size == 0:
-        return np.array([], dtype=int)
-
     if size > population_size:
         raise ValueError(
             f"Cannot request size={size} which is larger than the total population size N={population_size}."
         )
+    if size == 0:
+        return np.array([], dtype=int)
     if size == population_size:
         return np.arange(population_size)
 
@@ -96,21 +91,16 @@ def biased_stratified_subsample(
     down-samples the floor allocation to fit the `size` budget.
     """
     population_size = len(strata_labels)
-    if size < 0:
-        raise ValueError("size cannot be negative.")
     if min_samples_per_stratum < 0:
         raise ValueError("min_samples_per_stratum cannot be negative.")
-
-    if population_size == 0:
-        raise ValueError("Cannot sample from an empty population (N=0).")
-
-    if size == 0:
-        return np.array([], dtype=int)
-
+    if size < 0:
+        raise ValueError("size cannot be negative.")
     if size > population_size:
         raise ValueError(
             f"Cannot request size={size} which is larger than the total population size N={population_size}."
         )
+    if size == 0:
+        return np.array([], dtype=int)
     if size == population_size:
         return np.arange(population_size)
 

@@ -140,7 +140,7 @@ def _feature_names[**P](
             f"dyad{'(r)' if reversed else ''}-{func_name.replace('REVERSED', '')}"
         )
     if isinstance(step := kwargs.get("step"), int):
-        func_name = f"{func_name}({step})"
+        func_name = f"{func_name}(dt={step})"
     elif step is not None:
         raise ValueError("step must be an integer")
     if relational:

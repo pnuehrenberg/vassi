@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from collections.abc import Callable, Hashable, Iterable, Iterator, Mapping, Sequence
+from functools import partial
 from itertools import permutations
 from typing import (
     Literal,
@@ -42,38 +43,36 @@ def _stratified_subsample[F: Shaped](
     reset: bool,
     exclude_previously_sampled: bool,
     store_indices: bool,
+    ensure_sampling_at: np.ndarray | None,
     out: np.ndarray | None,
 ) -> tuple[F, np.ndarray | None]:
-    if size == 0:
-        return element.sample(
-            extractor,
-            indices=np.array([], dtype=int),
-            store_indices=store_indices,
-            out=out,
-        )
     random_state = np.random.default_rng(random_state)
     available_indices, interval_levels, _ = element.describe_available_samples(
         reset=reset,
         exclude_previously_sampled=exclude_previously_sampled,
     )
     num_available_samples = len(available_indices)
-    size = get_num_samples(size, num_available_samples)
-    if size == num_available_samples:
-        return element.sample(
-            extractor,
-            indices=None,
-            store_indices=store_indices,
-            out=out,
-        )
+    num_samples = get_num_samples(size, num_available_samples)
+    if ensure_sampling_at is not None:
+        num_samples -= len(ensure_sampling_at)
+        if num_samples < 0:
+            raise ValueError(
+                f"Cannot ensure sampling of {len(ensure_sampling_at)} indices from {num_available_samples} available indices with size={size}"
+            )
+        mask = ~np.isin(available_indices, ensure_sampling_at)
+        available_indices = available_indices[mask]
+        interval_levels = interval_levels[mask]
     _, strata_labels = np.unique(interval_levels, axis=0, return_inverse=True)
     subsampled_indices = available_indices[
         biased_stratified_subsample(
             strata_labels,
-            size=size,
+            size=num_samples,
             min_samples_per_stratum=min_samples_per_stratum,
             random_state=random_state,
         )
     ]
+    if ensure_sampling_at is not None:
+        subsampled_indices = np.concatenate([subsampled_indices, ensure_sampling_at])
     return element.sample(
         extractor,
         indices=np.sort(subsampled_indices),
@@ -92,6 +91,7 @@ def _stratified_subsample_by_categories[F: Shaped](
     reset: bool,
     exclude_previously_sampled: bool,
     store_indices: bool,
+    ensure_sampling_at: np.ndarray | None,
     out: np.ndarray | None,
 ) -> tuple[F, np.ndarray]:
     random_state = np.random.default_rng(random_state)
@@ -123,20 +123,41 @@ def _stratified_subsample_by_categories[F: Shaped](
         reset=reset,
         exclude_previously_sampled=exclude_previously_sampled,
     )
-    y = element.sample_y(indices=available_indices)
+    _y = element.sample_y(indices=None)
+    if ensure_sampling_at is not None:
+        mask = ~np.isin(available_indices, ensure_sampling_at)
+        categories = sorted(element.categories)
+        for idx, count in zip(*np.unique(_y[~mask], return_counts=True)):
+            if categories[idx] not in subsampling_categories:
+                raise ValueError(
+                    f"Cannot ensure sampling of {count} indices for category {categories[idx]} when category is not included in size"
+                )
+        available_indices = available_indices[mask]
+        interval_levels = interval_levels[mask]
+    y = _y[available_indices]
     subsampled_indices: list[np.ndarray] = []
     for _condition, subsampling_size in size.items():
         if isinstance(_condition, str):
             condition = [_condition]
         else:
             condition = list(_condition)
-        mask = np.isin(y, element.encode(np.asarray(condition)))
+        num_available_samples = np.isin(_y, element.encode(np.asarray(condition))).sum()
         try:
-            subsampling_size = get_num_samples(subsampling_size, mask.sum())
+            num_samples = get_num_samples(subsampling_size, num_available_samples)
         except ValueError as e:
             raise ValueError(
                 f"Invalid subsampling size for condition: {_condition}"
             ) from e
+        if ensure_sampling_at is not None:
+            num_ensured_for_condition: int = np.isin(
+                _y[ensure_sampling_at], element.encode(np.asarray(condition))
+            ).sum()
+            num_samples -= num_ensured_for_condition
+            if num_samples < 0:
+                raise ValueError(
+                    f"Cannot ensure sampling of {num_ensured_for_condition} indices for {_condition} from {num_available_samples} available indices with size={subsampling_size}"
+                )
+        mask = np.isin(y, element.encode(np.asarray(condition)))
         _, strata_labels = np.unique(
             np.concatenate([y[mask].reshape(-1, 1), interval_levels[mask]], axis=1),
             axis=0,
@@ -145,12 +166,14 @@ def _stratified_subsample_by_categories[F: Shaped](
         _subsampled_indices = available_indices[mask][
             biased_stratified_subsample(
                 strata_labels,
-                size=subsampling_size,
+                size=num_samples,
                 min_samples_per_stratum=min_samples_per_stratum,
                 random_state=random_state,
             )
         ]
         subsampled_indices.append(_subsampled_indices)
+    if ensure_sampling_at is not None:
+        subsampled_indices.append(ensure_sampling_at)
     return element.sample(
         extractor,
         indices=np.sort(np.concatenate(subsampled_indices)),
@@ -270,6 +293,7 @@ class Base(ABC):
         reset: bool,
         exclude_previously_sampled: bool,
         store_indices: bool,
+        ensure_sampling_at: np.ndarray | None,
         out: np.ndarray | None,
     ) -> tuple[F, np.ndarray | None]:
         return _stratified_subsample(
@@ -281,6 +305,7 @@ class Base(ABC):
             reset=reset,
             exclude_previously_sampled=exclude_previously_sampled,
             store_indices=store_indices,
+            ensure_sampling_at=ensure_sampling_at,
             out=out,
         )
 
@@ -399,17 +424,20 @@ class WithAnnotations(RequiresBase, WithCategories, ABC):
     @property
     def category_counts(self) -> dict[str, int]:
         """Counts of each category in the sampleable."""
-        observations = self.observations.set_index("category")
-        return {
-            category: int(
+        counts: dict[str, int] = {}
+        for category in sorted(self.categories):
+            mask = self.observations["category"] == category
+            if not mask.any():
+                counts[category] = 0
+                continue
+            counts[category] = int(
                 np.sum(
                     1
-                    + np.asarray(observations.loc[category, "stop"])
-                    - np.asarray(observations.loc[category, "start"])
+                    + np.asarray(self.observations.loc[mask, "stop"])
+                    - np.asarray(self.observations.loc[mask, "start"])
                 )
             )
-            for category in sorted(self.categories)
-        }
+        return counts
 
     def subsample[F: Shaped](
         self,
@@ -421,6 +449,7 @@ class WithAnnotations(RequiresBase, WithCategories, ABC):
         reset: bool,
         exclude_previously_sampled: bool,
         store_indices: bool,
+        ensure_sampling_at: np.ndarray | None,
         out: np.ndarray | None,
     ) -> tuple[F, np.ndarray | None]:
         if isinstance(size, int | float):
@@ -434,6 +463,7 @@ class WithAnnotations(RequiresBase, WithCategories, ABC):
                 reset=reset,
                 exclude_previously_sampled=exclude_previously_sampled,
                 store_indices=store_indices,
+                ensure_sampling_at=ensure_sampling_at,
                 out=out,
             )
         return _stratified_subsample_by_categories(
@@ -445,6 +475,7 @@ class WithAnnotations(RequiresBase, WithCategories, ABC):
             reset=reset,
             exclude_previously_sampled=exclude_previously_sampled,
             store_indices=store_indices,
+            ensure_sampling_at=ensure_sampling_at,
             out=out,
         )
 
@@ -949,6 +980,26 @@ class ElementCollection[I: Hashable, E: Base](Base, ABC):
         return self.sample_X(extractor, indices=indices, out=out), None
 
 
+def _value_validator[VT](value_type: type[VT], value: object) -> VT:
+    if not isinstance(value, value_type):
+        raise ValueError(f"value must be of type {value_type} according to first item")
+    return value
+
+
+def _key_validator[KT: Hashable](key_type: type[KT], key: object) -> KT:
+    if not isinstance(key, key_type):
+        raise ValueError(f"key must be of type {key_type} according to first item")
+    return key
+
+
+def _tuple_key_validator[KT: Hashable](
+    key_type: type[KT], key: object
+) -> tuple[KT, KT]:
+    if not is_tuple_of(key, key_type):
+        raise ValueError(f"key must be of type {key_type} according to first item")
+    return key
+
+
 def get_validators[KT: Hashable, VT, K, V](
     elements: Mapping[K, V],
     *,
@@ -956,46 +1007,20 @@ def get_validators[KT: Hashable, VT, K, V](
 ) -> tuple[Callable[[object], Hashable], Callable[[object], VT]]:
     if len(elements) == 0:
         raise ValueError("elements must not be empty")
-    _key, _value = next(iter(elements.items()))
-    if not isinstance(_value, minimal_value_type):
+    key, value = next(iter(elements.items()))
+    if not isinstance(value, minimal_value_type):
         raise ValueError(f"element values must be instances of {minimal_value_type}")
-    value_type = type(_value)
-
-    def value_validator(value: object) -> VT:
-        if not isinstance(value, value_type):
-            raise ValueError(
-                f"value must be of type {value_type} according to first item"
-            )
-        return value
-
-    if not isinstance(_key, tuple) and isinstance(_key, Hashable):
-        key_type = type(_key)
-
-        def key_validator(key: object) -> Hashable:
-            if not isinstance(key, key_type):
-                raise ValueError(
-                    f"key must be of type {key_type} according to first item"
-                )
-            return key
-
+    value_validator = partial(_value_validator, type(value))
+    if not isinstance(key, tuple):
+        if not isinstance(key, Hashable):
+            raise ValueError(f"key must be instance of {Hashable}")
+        key_validator = partial(_key_validator, type(key))
         return key_validator, value_validator
-
-    elif isinstance(_key, tuple):
-        _key_type = tuple(type(identifier) for identifier in _key)  # pyright: ignore[reportUnknownVariableType, reportUnknownArgumentType]
-
-        def key_validator(key: object) -> Hashable:
-            if not isinstance(key, tuple):
-                raise ValueError(f"key must be of type {tuple} according to first item")
-            for identifier, identifier_type in zip(key, _key_type):  # pyright: ignore[reportUnknownVariableType, reportUnknownArgumentType]
-                if not isinstance(identifier, identifier_type):
-                    raise ValueError(
-                        f"key must be of type {_key_type} according to first item"
-                    )
-            return key  # pyright: ignore[reportUnknownVariableType]
-
-        return key_validator, value_validator
-
-    raise ValueError(f"keys must be of type {Hashable} or {tuple[Hashable, ...]}")
+    key_item = key[0]  # pyright: ignore[reportUnknownVariableType]
+    if not isinstance(key_item, Hashable):
+        raise ValueError(f"key must be a tuple of {Hashable}")
+    key_validator = partial(_tuple_key_validator, type(key_item))
+    return key_validator, value_validator
 
 
 def actor_if_dyad(identifier: Hashable) -> Hashable:

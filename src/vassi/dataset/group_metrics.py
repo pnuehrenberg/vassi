@@ -1,4 +1,4 @@
-from collections.abc import Hashable, Mapping
+from collections.abc import Hashable, Iterable, Mapping
 from typing import TypedDict, overload
 
 import numpy as np
@@ -220,7 +220,7 @@ def actor_activity_timeline(
     actor: Hashable,
     *,
     trajectories: Mapping[Hashable, Trajectory],
-    category: str | set[str],
+    category: str | Iterable[str],
 ) -> np.ndarray:
     """
     Computes a boolean timeline for a single actor.

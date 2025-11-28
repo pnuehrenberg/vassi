@@ -3,8 +3,10 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from collections.abc import Callable, Hashable, Iterable, Iterator, Mapping, Sequence
 from copy import copy as shallow_copy
-from typing import Any, Literal, Self, override
+from pathlib import Path, PurePosixPath
+from typing import Literal, Self, override
 
+import h5py
 import numpy as np
 import pandas as pd
 from joblib import Parallel, delayed, parallel_config
@@ -12,7 +14,7 @@ from sklearn.metrics import f1_score  # pyright: ignore[reportUnknownVariableTyp
 
 from ..dataset import densify_observations, remove_overlapping_observations
 from ..dataset.types import WithCategories, get_validators
-from ..type_guards import is_tuple_of
+from ..type_guards import is_tuple_of, is_valid_classification_data
 from ..utils import SmoothingFunction, available_resources
 from ..warnings import warn
 from .utils import (
@@ -24,6 +26,130 @@ from .utils import (
 # if vassi is bumped to Python 3.13:
 # copy.replace could be used instead of shallow copy
 # and subsequent assignment of attributes
+
+
+def _write_h5_array(
+    data_file: str | Path, *, array: np.ndarray, data_path: str, **attrs: object
+) -> None:
+    data_file = Path(data_file)
+    with h5py.File(str(data_file), "a") as h5_file:
+        if data_path in h5_file:
+            h5_data = h5_file[data_path]
+            if not isinstance(h5_data, h5py.Dataset):
+                raise ValueError("cannot overwrite non-dataset element with array")
+            if h5_data.shape != array.shape:
+                raise ValueError(
+                    "cannot overwrite dataset with array of different shape"
+                )
+            h5_data[:] = array
+        else:
+            if np.issubdtype(array.dtype, np.str_):
+                dtype = np.dtype("T")
+                array = array.astype(dtype)
+            h5_data = h5_file.create_dataset(
+                data_path,
+                data=array,
+            )
+        for key, attr in attrs.items():
+            h5_data.attrs[key] = attr
+
+
+def _write_h5_attrs(data_file: str | Path, *, data_path: str, **attrs: object) -> None:
+    data_file = Path(data_file)
+    if not data_file.exists():
+        raise FileNotFoundError(f"file {data_file} does not exist")
+    with h5py.File(str(data_file), "a") as h5_file:
+        if data_path not in h5_file:
+            raise ValueError(
+                f"cannot write attributes to non-existent path '{data_path}'"
+            )
+        h5_data = h5_file[data_path]
+        for key, attr in attrs.items():
+            h5_data.attrs[key] = attr
+
+
+def _read_h5_attrs(data_file: str | Path, *, data_path: str) -> dict[str, object]:
+    data_file = Path(data_file)
+    if not data_file.exists():
+        raise FileNotFoundError(f"file {data_file} does not exist")
+    with h5py.File(str(data_file), "r") as h5_file:
+        if data_path not in h5_file:
+            raise ValueError(
+                f"cannot read attributes from non-existent path '{data_path}'"
+            )
+        h5_data = h5_file[data_path]
+        return dict(h5_data.attrs.items())
+
+
+def _write_h5_data(
+    data_file: str | Path,
+    *,
+    data: Mapping[str, np.ndarray],
+    data_path: str | None,
+    **attrs: object,
+) -> None:
+    if data_path is None:
+        data_path = ""
+    posix_data_path = PurePosixPath(data_path)
+    for key, array in data.items():
+        _write_h5_array(
+            data_file, array=array, data_path=str(posix_data_path / str(key)), key=key
+        )
+    _write_h5_attrs(data_file, data_path=data_path, **attrs)
+
+
+def _read_h5_array(
+    data_file: str | Path, *, data_path: str
+) -> tuple[None | object, np.ndarray]:
+    data_file = Path(data_file)
+    if not data_file.exists():
+        raise FileNotFoundError(f"file {data_file} does not exist")
+    with h5py.File(str(data_file), "r") as h5_file:
+        if data_path not in h5_file:
+            raise KeyError(f"dataset {data_path} not found in file {data_file}")
+        h5_data = h5_file[data_path]
+        if not isinstance(h5_data, h5py.Dataset):
+            raise ValueError(
+                f"element {data_path} in file {data_file} is not a dataset"
+            )
+        key = None
+        if "key" in h5_data.attrs:
+            key = h5_data.attrs["key"]
+        return key, h5_data[:]
+
+
+def _get_keys(data_file: str | Path, *, data_path: str | None) -> list[str]:
+    data_file = Path(data_file)
+    if not data_file.exists():
+        raise FileNotFoundError(f"file {data_file} does not exist")
+    with h5py.File(str(data_file), "r") as h5_file:
+        if data_path is None:
+            return list(h5_file.keys())
+        posix_data_path = PurePosixPath(data_path)
+        h5_data = h5_file[data_path]
+        if not isinstance(h5_data, h5py.Group):
+            raise ValueError(f"element {data_path} in file {data_file} is not a group")
+        return [
+            str((posix_data_path / key).relative_to(posix_data_path))
+            for key in h5_data.keys()
+        ]
+
+
+def _read_h5_data(
+    data_file: str | Path, *, data_path: str | None
+) -> dict[object, np.ndarray]:
+    if data_path is None:
+        data_path = ""
+    posix_data_path = PurePosixPath(data_path)
+    keys = _get_keys(data_file, data_path=data_path)
+    data = [
+        _read_h5_array(data_file, data_path=str(posix_data_path / str(key)))
+        for key in keys
+    ]
+    data_dict = dict(data)
+    if len(data_dict) != len(data):
+        raise ValueError("can only read data from h5 with unique key attributes")
+    return data_dict
 
 
 def _discretize(
@@ -80,12 +206,16 @@ class BaseClassification(WithCategories, ABC):
         )
         return classification
 
-    # @abstractmethod
-    # def to_h5(self, data_file: str | Path, data_path: str | Path) -> None: ...
+    @abstractmethod
+    def to_h5(
+        self, data_file: str | Path, *, data_path: str = ".", **attrs: object
+    ) -> None: ...
 
-    # @classmethod
-    # @abstractmethod
-    # def from_h5(cls, data_file: str | Path, data_path: str | Path) -> Self: ...
+    @classmethod
+    @abstractmethod
+    def from_h5(
+        cls, data_file: str | Path, *, data_path: str = "."
+    ) -> tuple[Hashable, Self]: ...
 
 
 class RequiresBaseClassification:
@@ -183,21 +313,21 @@ class WithGroundTruth(RequiresBaseClassification, ABC):
 
 
 class ClassificationCollection[
-    I: Hashable,
     E: BaseClassification,
 ](BaseClassification, ABC):
-    classifications: dict[I, E]
-    identifier_validator: Callable[..., I]
+    classifications: dict[Hashable, E]
+    identifier_validator: Callable[..., Hashable]
     classification_validator: Callable[..., E]
     _level: tuple[str, ...]
+    _minimal_classification_type: type[E]
 
     def __init__(
         self,
-        classifications: Mapping[Any, Any],  # pyright: ignore[reportExplicitAny]
+        classifications: Mapping[Hashable, BaseClassification],
         *,
         categories: set[str],
         background_category: str,
-        identifier_validator: Callable[[object], I],
+        identifier_validator: Callable[[object], Hashable],
         classification_validator: Callable[[object], E],
     ):
         self.with_categories(categories, background_category=background_category)
@@ -224,16 +354,16 @@ class ClassificationCollection[
             for classification in self._flat_classifications()
         )
 
-    def __getitem__(self, identifier: I) -> E:
+    def __getitem__(self, identifier: Hashable) -> E:
         return self.classifications[identifier]
 
-    def __iter__(self) -> Iterator[tuple[I, E]]:
+    def __iter__(self) -> Iterator[tuple[Hashable, E]]:
         return iter(self.classifications.items())
 
     def __len__(self) -> int:
         return len(self.classifications)
 
-    def identifiers(self) -> list[I]:
+    def identifiers(self) -> list[Hashable]:
         return list(self.classifications.keys())
 
     def _concatenate_numpy_attribute(self, attribute: str) -> np.ndarray:
@@ -349,6 +479,51 @@ class ClassificationCollection[
     @abstractmethod
     def combine(cls, *classifications: Self) -> Self: ...
 
+    @override
+    def to_h5(
+        self, data_file: str | Path, *, data_path: str = ".", **attrs: object
+    ) -> None:
+        for identifier, classification in self:
+            classification.to_h5(
+                data_file,
+                data_path=str(PurePosixPath(data_path) / str(identifier)),
+                identifier=identifier,
+            )
+        _write_h5_attrs(data_file, data_path=data_path, **attrs)
+
+    @override
+    @classmethod
+    def from_h5(
+        cls, data_file: str | Path, *, data_path: str = "."
+    ) -> tuple[Hashable, Self]:
+        attrs = _read_h5_attrs(data_file, data_path=data_path)
+        identifier = attrs.get("identifier", None)
+        classifications = [
+            cls._minimal_classification_type.from_h5(
+                data_file, data_path=str(PurePosixPath(data_path) / str(key))
+            )
+            for key in _get_keys(data_file, data_path=data_path)
+        ]
+        if len(classifications) == 0:
+            raise ValueError("Expected at least one classification")
+        _, first = classifications[0]
+        classifications_dict = dict(classifications)
+        if len(classifications_dict) != len(classifications):
+            raise ValueError(
+                "Could not load classifications with non-unique identifiers"
+            )
+        identifier_validator, classification_validator = get_validators(
+            classifications_dict, minimal_value_type=cls._minimal_classification_type
+        )
+        new = cls(
+            classifications_dict,
+            categories=set(first.categories),
+            background_category=first.background_category,
+            identifier_validator=identifier_validator,
+            classification_validator=classification_validator,
+        )
+        return identifier, new
+
 
 class Classification(BaseClassification):
     timestamps: np.ndarray
@@ -361,6 +536,7 @@ class Classification(BaseClassification):
         categories: set[str],
         background_category: str,
         discretize_on_init: bool,
+        **_: object,  # for compatibility with other classification types
     ):
         self.with_categories(categories, background_category=background_category)
         self.timestamps = timestamps
@@ -427,6 +603,74 @@ class Classification(BaseClassification):
         new.y_proba = smoothing_func(array=new.y_proba)
         return new.discretize(decision_thresholds)
 
+    @override
+    def to_h5(
+        self, data_file: str | Path, *, data_path: str = ".", **attrs: object
+    ) -> None:
+        _write_h5_data(
+            data_file,
+            data={
+                "categories": np.array(list(self.categories)),
+                "background_category": np.array([self.background_category]),
+                "timestamps": self.timestamps,
+                "y_proba": self.y_proba,
+                "y": self.y,
+            },
+            data_path=str(PurePosixPath(data_path) / "classification"),
+        )
+        self.predictions.to_hdf(
+            data_file, key=str(PurePosixPath(data_path) / "predictions")
+        )
+        _write_h5_attrs(data_file, data_path=data_path, **attrs)
+
+    @override
+    @classmethod
+    def from_h5(
+        cls, data_file: str | Path, *, data_path: str = "."
+    ) -> tuple[Hashable, Self]:
+        attrs = _read_h5_attrs(data_file, data_path=data_path)
+        identifier = attrs.get("identifier", None)
+        if not isinstance(identifier, str) and isinstance(identifier, Iterable):
+            identifier = tuple(identifier)
+        if not isinstance(identifier, Hashable):
+            raise ValueError(f"Invalid identifier {identifier}")
+        _data = _read_h5_data(
+            data_file, data_path=str(PurePosixPath(data_path) / "classification")
+        )
+        annotations = None
+        if "annotations" in _get_keys(data_file, data_path=data_path):
+            annotations = pd.read_hdf(
+                data_file, key=str(PurePosixPath(data_path) / "annotations")
+            )
+        data = {
+            **{str(key): value for key, value in _data.items()},
+            "categories": set(map(bytes.decode, _data["categories"].tolist())),
+            "background_category": bytes.decode(_data["background_category"][0]),
+            "y_gt": _data.get("y_gt", None),
+            "annotations": annotations,
+        }
+        if not is_valid_classification_data(data):
+            raise ValueError("Invalid classification data")
+
+        predictions = pd.read_hdf(
+            data_file, key=str(PurePosixPath(data_path) / "predictions")
+        )
+        if not isinstance(predictions, pd.DataFrame):
+            raise ValueError(
+                f"Expected predictions to be a DataFrame, got {type(predictions)}"
+            )
+        y = data.pop("y")
+        if not isinstance(y, np.ndarray):
+            raise ValueError(f"Expected y to be a numpy array, got {type(y)}")
+        new = cls(
+            **data,
+            discretize_on_init=False,
+        )
+        new._discretized = True
+        new.y = y
+        new.predictions = predictions
+        return identifier, new
+
 
 class AnnotatedClassification(WithGroundTruth, Classification):
     def __init__(
@@ -484,10 +728,26 @@ class AnnotatedClassification(WithGroundTruth, Classification):
     def update_predictions(self) -> Self:
         return super().update_predictions().validate()
 
+    @override
+    def to_h5(
+        self, data_file: str | Path, *, data_path: str = ".", **attrs: object
+    ) -> None:
+        super().to_h5(data_file, data_path=data_path, **attrs)
+        _write_h5_array(
+            data_file,
+            array=self.y_gt,
+            data_path=str(PurePosixPath(data_path) / "classification" / "y_gt"),
+            key="y_gt",
+        )
+        self.annotations.to_hdf(
+            data_file, key=str(PurePosixPath(data_path) / "annotations")
+        )
 
-class GroupClassification(ClassificationCollection[Hashable, Classification]):
+
+class GroupClassification(ClassificationCollection[Classification]):
     _target: Literal["individual", "dyad"]
     _level: tuple[str, ...]
+    _minimal_classification_type: type[Classification] = Classification
 
     def __init__(
         self,
@@ -495,22 +755,24 @@ class GroupClassification(ClassificationCollection[Hashable, Classification]):
         *,
         categories: set[str],
         background_category: str,
-        target: Literal["individual", "dyad"],
         identifier_validator: Callable[[object], Hashable] | None = None,
         classification_validator: Callable[[object], Classification] | None = None,
     ):
-        if target == "individual":
-            self._level = ("actor",)
-        elif target == "dyad":
-            self._level = ("actor", "recipient")
-        else:
-            raise ValueError(f"Invalid target: {target}")
-        self._target = target
         if identifier_validator is None or classification_validator is None:
             identifier_validator, classification_validator = get_validators(
                 classifications,
                 minimal_value_type=Classification,
             )
+        self._target = (
+            "individual"
+            if isinstance(first_key := next(iter(classifications.keys())), str)
+            or not isinstance(first_key, Iterable)
+            else "dyad"
+        )
+        if self._target == "individual":
+            self._level = ("actor",)
+        else:
+            self._level = ("actor", "recipient")
         super().__init__(
             classifications,
             categories=categories,
@@ -536,7 +798,6 @@ class GroupClassification(ClassificationCollection[Hashable, Classification]):
             },
             categories=set(self.categories),
             background_category=self.background_category,
-            target=self._target,
             identifier_validator=self.identifier_validator,
             classification_validator=self.classification_validator,
         )
@@ -617,17 +878,16 @@ class GroupClassification(ClassificationCollection[Hashable, Classification]):
                 new = shallow_copy(classification)
                 new.predictions = predictions_dyad
                 classifications[dyad] = new
-        return self.__class__(
+        return type(self)(
             classifications,
             categories=set(self.categories),
             background_category=self.background_category,
-            target=self._target,
         )
 
     @override
     @classmethod
     def combine(
-        cls, *classifications: ClassificationCollection[Hashable, Classification]
+        cls, *classifications: ClassificationCollection[Classification]
     ) -> Self:
         confirmed_classifications = [
             cls.confirm_instance(classification) for classification in classifications
@@ -643,12 +903,12 @@ class GroupClassification(ClassificationCollection[Hashable, Classification]):
                 first.classifications,
                 categories=set(first.categories),
                 background_category=first.background_category,
-                target=first._target,
                 identifier_validator=first.identifier_validator,
                 classification_validator=first.classification_validator,
             )
         combined_classifications: dict[Hashable, Classification] = {}
         for group_classification in confirmed_classifications:
+            # TODO: this validation should happen in ClassificationCollection.__init__
             if group_classification._target != target:
                 raise ValueError("Classifications with inconsistent target")
             if group_classification.categories != categories:
@@ -665,18 +925,18 @@ class GroupClassification(ClassificationCollection[Hashable, Classification]):
             combined_classifications,
             categories=set(categories),
             background_category=background_category,
-            target=target,
             identifier_validator=first.identifier_validator,
             classification_validator=first.classification_validator,
         )
 
 
 class AnnotatedGroupClassification(WithGroundTruth, GroupClassification):
+    _minimal_classification_type: type[Classification] = AnnotatedClassification
+
     def __init__(
         self,
         classifications: Mapping[Hashable, AnnotatedClassification],
         *,
-        target: Literal["individual", "dyad"],
         categories: set[str],
         background_category: str,
         identifier_validator: Callable[[object], Hashable] | None = None,
@@ -692,7 +952,6 @@ class AnnotatedGroupClassification(WithGroundTruth, GroupClassification):
             classifications,
             categories=categories,
             background_category=background_category,
-            target=target,
             identifier_validator=identifier_validator,
             classification_validator=classification_validator,
         )
@@ -727,7 +986,6 @@ class AnnotatedGroupClassification(WithGroundTruth, GroupClassification):
             },
             categories=set(self.categories),
             background_category=self.background_category,
-            target=self._target,
         )
 
     @override
@@ -751,7 +1009,8 @@ class AnnotatedGroupClassification(WithGroundTruth, GroupClassification):
         )
 
 
-class DatasetClassification(ClassificationCollection[Hashable, GroupClassification]):
+class DatasetClassification(ClassificationCollection[GroupClassification]):
+    _minimal_classification_type: type[GroupClassification] = GroupClassification
     _level: tuple[str, ...]
 
     def __init__(
@@ -826,7 +1085,7 @@ class DatasetClassification(ClassificationCollection[Hashable, GroupClassificati
     @override
     @classmethod
     def combine(
-        cls, *classifications: ClassificationCollection[Hashable, GroupClassification]
+        cls, *classifications: ClassificationCollection[GroupClassification]
     ) -> Self:
         confirmed_classifications = [
             cls.confirm_instance(classification) for classification in classifications
@@ -875,6 +1134,10 @@ class DatasetClassification(ClassificationCollection[Hashable, GroupClassificati
 
 
 class AnnotatedDatasetClassification(WithGroundTruth, DatasetClassification):
+    _minimal_classification_type: type[GroupClassification] = (
+        AnnotatedGroupClassification
+    )
+
     def __init__(
         self,
         classifications: Mapping[Hashable, AnnotatedGroupClassification],

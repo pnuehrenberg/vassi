@@ -109,7 +109,6 @@ def _predict_group[F: Shaped](
         classifications,
         categories=categories,
         background_category=background_category,
-        target=sampleable.get_target(),
     )
 
 
@@ -135,7 +134,6 @@ def _predict_annotated_group[F: Shaped](
         classifications,
         categories=categories,
         background_category=background_category,
-        target=sampleable.get_target(),
     )
 
 
@@ -437,9 +435,7 @@ def k_fold_predict[F: Shaped](
     k: int,
     random_state: np.random.Generator | int | None = None,
     sampling_function: Callable[
-        Concatenate[
-            AnnotatedDataset, BaseExtractor[F], int | np.random.Generator | None, ...
-        ],
+        Concatenate[AnnotatedDataset, BaseExtractor[F], ...],
         tuple[F, np.ndarray],
     ],
     balance_sample_weights: bool = True,
@@ -472,7 +468,7 @@ def k_fold_predict[F: Shaped](
         X_train, y_train = sampling_function(
             dataset_fold_train,
             extractor,
-            random_state,
+            random_state=random_state,
             **sampling_function_kwargs,
         )
         sample_weight = None

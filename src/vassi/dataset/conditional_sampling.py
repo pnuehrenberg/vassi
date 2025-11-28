@@ -1,4 +1,4 @@
-from collections.abc import Hashable, Mapping
+from collections.abc import Hashable, Iterable, Mapping
 from typing import Literal, overload
 
 import numpy as np
@@ -32,7 +32,7 @@ def get_non_recipient_foreground_indices(
     element_collection: AnnotatedGroup,
     trajectories: Mapping[Hashable, Trajectory],
     *,
-    frequency_per_rank: Mapping[int | tuple[int, ...], float],
+    frequency_per_rank: Mapping[int | Iterable[int], float],
     min_samples_per_stratum: int,
     random_state: int | np.random.Generator | None = None,
 ) -> np.ndarray: ...
@@ -43,7 +43,7 @@ def get_non_recipient_foreground_indices(
     element_collection: AnnotatedDataset,
     trajectories: Mapping[Hashable, Mapping[Hashable, Trajectory]],
     *,
-    frequency_per_rank: Mapping[int | tuple[int, ...], float],
+    frequency_per_rank: Mapping[int | Iterable[int], float],
     min_samples_per_stratum: int,
     random_state: int | np.random.Generator | None = None,
 ) -> np.ndarray: ...
@@ -54,7 +54,7 @@ def get_non_recipient_foreground_indices(
     trajectories: Mapping[Hashable, Trajectory]
     | Mapping[Hashable, Mapping[Hashable, Trajectory]],
     *,
-    frequency_per_rank: Mapping[int | tuple[int, ...], float],
+    frequency_per_rank: Mapping[int | Iterable[int], float],
     min_samples_per_stratum: int,
     random_state: int | np.random.Generator | None = None,
 ) -> np.ndarray:
@@ -109,8 +109,8 @@ def get_indices_where(
     element_collection: Group,
     *,
     trajectories: Mapping[Hashable, Trajectory],
-    category: str | set[str],
-    rank: int | set[int] | None = None,
+    category: str | Iterable[str],
+    rank: int | Iterable[int] | None = None,
     broadcast_actor_y_across_dyads: Literal[True],
     exclude_recipient: bool = False,
 ) -> np.ndarray: ...
@@ -122,8 +122,8 @@ def get_indices_where(
     element_collection: Group,
     *,
     trajectories: Mapping[Hashable, Trajectory],
-    category: str | set[str] | None = None,
-    rank: int | set[int] | None = None,
+    category: str | Iterable[str] | None = None,
+    rank: int | Iterable[int] | None = None,
     broadcast_actor_y_across_dyads: Literal[False] = False,
     exclude_recipient: bool = False,
 ) -> np.ndarray: ...
@@ -135,8 +135,8 @@ def get_indices_where(
     element_collection: Dataset,
     *,
     trajectories: Mapping[Hashable, Mapping[Hashable, Trajectory]],
-    category: str | set[str],
-    rank: int | set[int] | None = None,
+    category: str | Iterable[str],
+    rank: int | Iterable[int] | None = None,
     broadcast_actor_y_across_dyads: Literal[True],
     exclude_recipient: bool = False,
 ) -> np.ndarray: ...
@@ -148,8 +148,8 @@ def get_indices_where(
     element_collection: Dataset,
     *,
     trajectories: Mapping[Hashable, Mapping[Hashable, Trajectory]],
-    category: str | set[str] | None = None,
-    rank: int | set[int] | None = None,
+    category: str | Iterable[str] | None = None,
+    rank: int | Iterable[int] | None = None,
     broadcast_actor_y_across_dyads: Literal[False] = False,
     exclude_recipient: bool = False,
 ) -> np.ndarray: ...
@@ -160,8 +160,8 @@ def get_indices_where(
     *,
     trajectories: Mapping[Hashable, Trajectory]
     | Mapping[Hashable, Mapping[Hashable, Trajectory]],
-    category: str | set[str] | None = None,
-    rank: int | set[int] | None = None,
+    category: str | Iterable[str] | None = None,
+    rank: int | Iterable[int] | None = None,
     broadcast_actor_y_across_dyads: bool = False,
     exclude_recipient: bool = False,
 ) -> np.ndarray:
@@ -203,8 +203,8 @@ def _get_group_indices_where(
     group: Group,
     *,
     trajectories: Mapping[Hashable, Trajectory],
-    category: str | set[str] | None,
-    rank: int | set[int] | None,
+    category: str | Iterable[str] | None,
+    rank: int | Iterable[int] | None,
     broadcast_actor_y_across_dyads: bool,
     exclude_recipient: bool,
 ) -> np.ndarray:
@@ -226,8 +226,8 @@ def _get_group_indices_where(
         assert isinstance(group, WithCategories), (
             f"Expected group to be of mixin type {WithCategories}, got {type(group)}"
         )
-        cats_list = [category] if isinstance(category, str) else sorted(category)
-        y_target = group.encode(np.asarray(cats_list))
+        categories = [category] if isinstance(category, str) else sorted(category)
+        y_target = group.encode(np.asarray(categories))
     if exclude_recipient:
         assert isinstance(group, WithCategories), (
             f"Expected group to be of mixin type {WithCategories}, got {type(group)}"
@@ -293,8 +293,8 @@ def _get_dataset_indices_where(
     dataset: Dataset,
     *,
     trajectories: Mapping[Hashable, Mapping[Hashable, Trajectory]],
-    category: str | set[str] | None,
-    rank: int | set[int] | None,
+    category: str | Iterable[str] | None,
+    rank: int | Iterable[int] | None,
     broadcast_actor_y_across_dyads: bool,
     exclude_recipient: bool,
 ) -> np.ndarray:
