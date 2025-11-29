@@ -1,14 +1,31 @@
-from collections.abc import Generator, Iterable
+from collections.abc import Iterable, Iterator, Mapping
 from contextlib import contextmanager
-from typing import Mapping, Optional, Self, overload
+from typing import Self, overload, override
 
 import numpy as np
 from numpy.dtypes import StringDType  # type: ignore
 
-from .. import config
-from . import _type_checking as type_checking
-from . import instance, utils
+from ..config import Config
+from ..config import cfg as CFG
+from ._type_checking import (
+    confirm_int_str,
+    confirm_int_str_iterable,
+    confirm_slice_str,
+    confirm_slice_str_iterable,
+    confirm_str_iterable,
+    confirm_value,
+    confirm_value_iterable,
+)
 from .base import ConfiguredData
+from .instance import Instance
+from .utils import (
+    MultipleValues,
+    Value,
+    validate_keys,
+    validate_timestamps,
+    validated_length,
+    writeable,
+)
 
 
 class InstanceCollection(ConfiguredData):
@@ -31,23 +48,23 @@ class InstanceCollection(ConfiguredData):
     def __init__(
         self,
         *,
-        data: Optional[Mapping[str, np.ndarray]] = None,
-        cfg: Optional[config.Config] = None,
+        data: Mapping[str, np.ndarray] | None = None,
+        cfg: Config | None = None,
         validate_on_init: bool = True,
     ) -> None:
         self._validate = True
         self._view_of = []
         self._views = []
         if cfg is None:
-            cfg = config.cfg.copy()
-        self._cfg = cfg
+            cfg = CFG.copy()
+        self._cfg: Config | None = cfg
         self._length = 0
         if data is not None:
             with self.validate(validate_on_init):
-                self.data = data
+                self.data = dict(data)
 
     @contextmanager
-    def validate(self, validate: bool) -> Generator:
+    def validate(self, validate: bool) -> Iterator[None]:
         """
         Yields a context where data validation is enabled or disabled.
 
@@ -67,25 +84,18 @@ class InstanceCollection(ConfiguredData):
     def length(self) -> int:
         """Returns the number of instances in the collection."""
         return self._length
-        # if self._data is None:
-        #     return 0
-        # if not self._validate:
-        #     return len(self[self.keys()[0]])
-        # length = utils.validated_length(*self.values(copy=False))
-        # assert length is not None
-        # return length
 
     def __len__(self) -> int:
         return self.length
 
     def validate_data(
         self,
-        data: Mapping[str, utils.Value],
+        data: Mapping[str, Value],
         *,
         allow_duplicated_timestamps: bool = True,
         allow_missing_keys: bool = False,
         try_broadcasting: bool = True,
-        require_array_like=False,
+        require_array_like: bool = False,
     ) -> bool:
         """
         Validates the input data against the specified requirements.
@@ -103,7 +113,7 @@ class InstanceCollection(ConfiguredData):
         Raises:
             ValueError: If the data fails any of the validation checks, such as key mismatches, length mismatches, or invalid timestamp or identity data types.
         """
-        complete_keys = utils.validate_keys(
+        complete_keys = validate_keys(
             data.keys(), self.keys(), allow_missing=allow_missing_keys
         )
         if require_array_like and any(
@@ -113,13 +123,13 @@ class InstanceCollection(ConfiguredData):
             ]
         ):
             raise ValueError("all values are required to be array-like.")
-        length = utils.validated_length(*data.values())
+        length = validated_length(*data.values())
         if (
             not allow_duplicated_timestamps
             and (key_timestamp := self.cfg.key_timestamp) is not None
             and key_timestamp in data
         ):
-            utils.validate_timestamps(data[key_timestamp])
+            _ = validate_timestamps(data[key_timestamp])
         if (
             require_array_like
             and (key_identity := self.cfg.key_identity) is not None
@@ -146,6 +156,7 @@ class InstanceCollection(ConfiguredData):
         return True
 
     @property
+    @override
     def data(self) -> dict[str, np.ndarray]:
         """
         Property that returns the underlying data dictionary.
@@ -154,10 +165,12 @@ class InstanceCollection(ConfiguredData):
         return super().data
 
     @data.setter
-    def data(self, data: Mapping[str, np.ndarray]) -> None:
+    def data(self, data: dict[str, np.ndarray]) -> None:
         if self._validate:
-            self.validate_data(data, require_array_like=True)
-        self._data = {key: value for key, value in data.items()}
+            _ = self.validate_data(data, require_array_like=True)
+        self._data: dict[str, np.ndarray] | None = {
+            key: value for key, value in data.items()
+        }
         self._length = len(next(iter(data.values())))
 
     def init_other(
@@ -204,7 +217,7 @@ class InstanceCollection(ConfiguredData):
     def _set_value(
         self,
         key: str,
-        value: utils.Value,
+        value: Value,
         at: slice | int | np.integer,
     ) -> None:
         """
@@ -223,7 +236,7 @@ class InstanceCollection(ConfiguredData):
         if self._data is None:
             raise ValueError("not initialized")
         _value = self._get_value(key, copy=False)
-        with utils.writeable(
+        with writeable(
             *[base._get_value(key, copy=False) for base in self._view_of],
             _value,
         ):
@@ -257,19 +270,19 @@ class InstanceCollection(ConfiguredData):
         ...
 
     @overload
-    def __getitem__(self, key: int | np.integer) -> instance.Instance:
+    def __getitem__(self, key: int | np.integer) -> Instance:
         # trajectory index
         ...
 
     @overload
-    def __getitem__(self, key: tuple[int | np.integer, str]) -> utils.Value:
+    def __getitem__(self, key: tuple[int | np.integer, str]) -> Value:
         # trajectory index with key
         ...
 
     @overload
     def __getitem__(
         self, key: tuple[int | np.integer, tuple[str, ...] | list[str]]
-    ) -> dict[str, utils.Value]:
+    ) -> dict[str, Value]:
         # trajectory index with multiple keys
         ...
 
@@ -292,17 +305,16 @@ class InstanceCollection(ConfiguredData):
         | tuple[np.ndarray, ...]
         | Self
         | dict[str, np.ndarray]
-        | instance.Instance
-        | utils.Value
-        | dict[str, utils.Value]
+        | Instance
+        | Value
+        | dict[str, Value]
     ):
         if isinstance(key, str):
             # single key
             return self._get_value(key)
-        valid, _key = type_checking.is_str_iterable(key)
-        if valid:
+        if confirm_str_iterable(key):
             # multiple keys
-            return tuple(self._get_value(_key) for _key in _key)
+            return tuple(self._get_value(_key) for _key in key)
         if isinstance(key, slice):
             # slice
             view = self.init_other(
@@ -311,40 +323,31 @@ class InstanceCollection(ConfiguredData):
             self._views.append(view)
             view._view_of.append(self)
             return view
-        valid, _key = type_checking.is_slice_str(key)
-        if valid:
+        if confirm_slice_str(key):
             # slice single key
-            return self._get_value(_key[1])[_key[0]]
-        valid, _key = type_checking.is_slice_str_iterable(key)
-        if valid:
+            return self._get_value(key[1])[key[0]]
+        if confirm_slice_str_iterable(key):
             # slice multiple keys
-            return {__key: self._get_value(__key)[_key[0]] for __key in _key[1]}
+            return {_key: self._get_value(_key)[key[0]] for _key in key[1]}
         if isinstance(key, int | np.integer):
             # instance at index
-            instance_data = {
-                _key: (value[key] if value is not None else None)
-                for _key, value in self.items(copy=False)
-            }
-            return instance.Instance(cfg=self.cfg, **instance_data, from_scalars=True)
-        valid, _key = type_checking.is_int_str(key)
-        if valid:
+            instance_data = {_key: value[key] for _key, value in self.items(copy=False)}
+            return Instance(cfg=self.cfg, **instance_data, from_scalars=True)
+        if confirm_int_str(key):
             # instance value at index
-            return self._get_value(_key[1], copy=True)[_key[0]]
-        valid, _key = type_checking.is_int_str_iterable(key)
-        if valid:
+            return self._get_value(key[1], copy=True)[key[0]]
+        if confirm_int_str_iterable(key):
             # instance values at index
-            return {
-                __key: self._get_value(__key, copy=True)[_key[0]] for __key in _key[1]
-            }
+            return {_key: self._get_value(_key, copy=True)[key[0]] for _key in key[1]}
         raise KeyError(f"unsupported key of type ({type(key)})")
 
     @overload
-    def __setitem__(self, key: str, value: utils.Value) -> None:
+    def __setitem__(self, key: str, value: Value) -> None:
         # single key, single value
         ...
 
     @overload
-    def __setitem__(self, key: tuple[str, ...] | list[str], value: utils.Value) -> None:
+    def __setitem__(self, key: tuple[str, ...] | list[str], value: Value) -> None:
         # multiple keys, single value
         ...
 
@@ -352,7 +355,7 @@ class InstanceCollection(ConfiguredData):
     def __setitem__(
         self,
         key: tuple[str, ...] | list[str],
-        value: utils.MultipleValues,
+        value: MultipleValues,
     ) -> None:
         # multiple keys and corresponding values
         ...
@@ -370,7 +373,7 @@ class InstanceCollection(ConfiguredData):
     def __setitem__(
         self,
         key: tuple[slice, str],
-        value: utils.Value,
+        value: Value,
     ) -> None:
         # single key with slice
         ...
@@ -379,7 +382,7 @@ class InstanceCollection(ConfiguredData):
     def __setitem__(
         self,
         key: tuple[slice, tuple[str, ...] | list[str]],
-        value: utils.Value,
+        value: Value,
     ) -> None:
         # multiple keys with slice, single value
         ...
@@ -388,7 +391,7 @@ class InstanceCollection(ConfiguredData):
     def __setitem__(
         self,
         key: tuple[slice, tuple[str, ...] | list[str]],
-        value: utils.MultipleValues,
+        value: MultipleValues,
     ) -> None:
         # multiple keys with slice, corresponding values
         ...
@@ -397,7 +400,7 @@ class InstanceCollection(ConfiguredData):
     def __setitem__(
         self,
         key: int,
-        value: instance.Instance,
+        value: Instance,
     ) -> None:
         # instance at index
         ...
@@ -406,7 +409,7 @@ class InstanceCollection(ConfiguredData):
     def __setitem__(
         self,
         key: tuple[int, str],
-        value: utils.Value,
+        value: Value,
     ) -> None:
         # instance value at index
         ...
@@ -415,7 +418,7 @@ class InstanceCollection(ConfiguredData):
     def __setitem__(
         self,
         key: tuple[int, tuple[str, ...] | list[str]],
-        value: utils.Value,
+        value: Value,
     ) -> None:
         # instance values at index
         ...
@@ -424,7 +427,7 @@ class InstanceCollection(ConfiguredData):
     def __setitem__(
         self,
         key: tuple[int, tuple[str, ...] | list[str]],
-        value: utils.MultipleValues,
+        value: MultipleValues,
     ) -> None:
         # instance values at index, corresponding values
         ...
@@ -453,120 +456,113 @@ class InstanceCollection(ConfiguredData):
             | tuple[int, str]
             | tuple[int, tuple[str, ...] | list[str]]
         ),
-        value: (utils.Value | utils.MultipleValues | Self | instance.Instance),
+        value: (Value | MultipleValues | Self | Instance),
     ) -> None:
         # single value
-        valid_value, _value = type_checking.is_value(value)
-        if valid_value and isinstance(key, str):
-            # single key, single value
-            if self._validate:
-                data = self.data
-                data[key][:] = _value
-                self.validate_data(data)
-            self._set_value(key, _value, slice(None))
-            return
-        valid_key, _key = type_checking.is_str_iterable(key)
-        if valid_value and valid_key:
-            # multiple keys, single value
-            if self._validate:
-                data = self.data
-                for __key in _key:
-                    data[__key][:] = _value
-                self.validate_data(data)
-            for __key in _key:
-                self._set_value(__key, _value, slice(None))
-            return
-        valid_key, _key = type_checking.is_slice_str(key)
-        if valid_value and valid_key:
-            # single key with slice
-            if self._validate:
-                data = self.data
-                data[_key[1]][_key[0]] = _value
-                self.validate_data(data)
-            self._set_value(_key[1], _value, _key[0])
-            return
-        valid_key, _key = type_checking.is_slice_str_iterable(key)
-        if valid_value and valid_key:
-            # multiple keys with slice, single value
-            if self._validate:
-                data = self.data
-                for __key in _key[1]:
-                    data[__key][_key[0]] = _value
-                self.validate_data(data)
-            for __key in _key[1]:
-                self._set_value(__key, _value, _key[0])
-            return
-        valid_key, _key = type_checking.is_int_str(key)
-        if valid_value and valid_key:
-            # instance value at index
-            if self._validate:
-                data = self.data
-                data[_key[1]][_key[0]] = _value
-                self.validate_data(data)
-            self._set_value(_key[1], _value, _key[0])
-            return
-        valid_key, _key = type_checking.is_int_str_iterable(key)
-        if valid_value and valid_key:
-            # instance values at index
-            if self._validate:
-                data = self.data
-                for __key in _key[1]:
-                    data[__key][_key[0]] = _value
-                self.validate_data(data)
-            for __key in _key[1]:
-                self._set_value(__key, _value, _key[0])
-            return
+        if confirm_value(value):
+            if isinstance(key, str):
+                # single key, single value
+                if self._validate:
+                    data = self.data
+                    data[key][:] = value
+                    _ = self.validate_data(data)
+                self._set_value(key, value, slice(None))
+                return
+            if confirm_str_iterable(key):
+                # multiple keys, single value
+                if self._validate:
+                    data = self.data
+                    for _key in key:
+                        data[_key][:] = value
+                    _ = self.validate_data(data)
+                for _key in key:
+                    self._set_value(_key, value, slice(None))
+                return
+            if confirm_slice_str(key):
+                # single key with slice
+                if self._validate:
+                    data = self.data
+                    data[key[1]][key[0]] = value
+                    _ = self.validate_data(data)
+                self._set_value(key[1], value, key[0])
+                return
+            if confirm_slice_str_iterable(key):
+                # multiple keys with slice, single value
+                if self._validate:
+                    data = self.data
+                    for _key in key[1]:
+                        data[_key][key[0]] = value
+                    _ = self.validate_data(data)
+                for _key in key[1]:
+                    self._set_value(_key, value, key[0])
+                return
+            if confirm_int_str(key):
+                # instance value at index
+                if self._validate:
+                    data = self.data
+                    data[key[1]][key[0]] = value
+                    _ = self.validate_data(data)
+                self._set_value(key[1], value, key[0])
+                return
+            if confirm_int_str_iterable(key):
+                # instance values at index
+                if self._validate:
+                    data = self.data
+                    for _key in key[1]:
+                        data[_key][key[0]] = value
+                    _ = self.validate_data(data)
+                for _key in key[1]:
+                    self._set_value(_key, value, key[0])
+                return
+            raise ValueError(f"Invalid key type for single value: {type(key)}")
         # corresponding values
-        valid_value, _value = type_checking.is_value_iterable(value)
-        valid_key, _key = type_checking.is_str_iterable(key)
-        if valid_value and valid_key:
-            # multiple keys and corresponding values
-            if self._validate:
-                data = self.data
-                for __key, __value in zip(_key, _value):
-                    data[__key][:] = __value
-                self.validate_data(data)
-            for __key, __value in zip(_key, _value):
-                self._set_value(__key, __value, slice(None))
-            return
-        valid_key, _key = type_checking.is_slice_str_iterable(key)
-        if not valid_key:
-            valid_key, _key = type_checking.is_int_str_iterable(key)
-        if valid_value and valid_key:
-            # multiple keys with slice, corresponding values
-            # instance values at index, corresponding values
-            if self._validate:
-                data = self.data
-                for __key, __value in zip(_key[1], _value):
-                    data[__key][_key[0]] = __value
-                self.validate_data(data)
-            for __key, __value in zip(_key[1], _value):
-                self._set_value(__key, __value, _key[0])
-            return
-        if isinstance(key, slice) and isinstance(value, InstanceCollection):
-            # slice
-            _data = value.data
-            if self._validate:
-                self.validate_data(_data)
-                data = self.data
+        if confirm_value_iterable(value):
+            if confirm_str_iterable(key):
+                # multiple keys and corresponding values
+                if self._validate:
+                    data = self.data
+                    for _key, _value in zip(key, value):
+                        data[_key][:] = _value
+                    _ = self.validate_data(data)
+                for _key, _value in zip(key, value):
+                    self._set_value(_key, _value, slice(None))
+                return
+            if confirm_slice_str_iterable(key) or confirm_int_str_iterable(key):
+                # multiple keys with slice, corresponding values
+                # instance values at index, corresponding values
+                if self._validate:
+                    data = self.data
+                    for _key, _value in zip(key[1], value):
+                        data[_key][key[0]] = _value
+                    _ = self.validate_data(data)
+                for _key, _value in zip(key[1], value):
+                    self._set_value(_key, _value, key[0])
+                return
+            if isinstance(key, slice) and isinstance(value, InstanceCollection):
+                # slice
+                _data = value.data
+                if self._validate:
+                    _ = self.validate_data(_data)
+                    data = self.data
+                    for _key, _value in _data.items():
+                        data[_key][key] = _value
+                    _ = self.validate_data(data)
                 for _key, _value in _data.items():
-                    data[_key][key] = _value
-                self.validate_data(data)
-            for _key, _value in _data.items():
-                self._set_value(_key, _value, key)
-            return
-        if isinstance(key, int | np.integer) and isinstance(value, instance.Instance):
-            # instance at index
-            if self._validate:
-                data = self.data
+                    self._set_value(_key, _value, key)
+                return
+            if isinstance(key, int | np.integer) and isinstance(value, Instance):
+                # instance at index
+                if self._validate:
+                    data = self.data
+                    for _key in value.keys():
+                        data[_key][key] = value[_key]
+                    _ = self.validate_data(data)
                 for _key in value.keys():
-                    data[_key][key] = value[_key]
-                self.validate_data(data)
-            for _key in value.keys():
-                self._set_value(_key, value[_key], key)
-            return
+                    self._set_value(_key, value[_key], key)
+                return
+            raise ValueError(f"Invalid key type for corresponding values: {type(key)}")
         raise ValueError(
-            f"unsupported key value pair of types ({type(key)} {type(value)})"
+            f"unsupported key value pair of types: {type(key)}, {type(value)}"
         )
 
     def select_index(self, index: np.ndarray) -> Self:
@@ -590,8 +586,8 @@ class InstanceCollection(ConfiguredData):
     def select(
         self,
         *,
-        timestamp: Optional[utils.Value] = None,
-        identity: Optional[utils.Value] = None,
+        timestamp: Value | None = None,
+        identity: Value | None = None,
     ) -> Self:
         """
         Selects a subset of instances based on timestamp and/or identity.

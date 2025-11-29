@@ -1,12 +1,13 @@
 from collections.abc import Mapping
 from math import isclose
-from typing import Optional, Self
+from typing import Self, override
 
 import numpy as np
 
-from .. import config, series_operations
-from . import utils
+from ..config import Config
+from ..series_operations import sample
 from .timestamped_collection import TimestampedInstanceCollection
+from .utils import Value, greatest_common_denominator
 
 
 class Trajectory(TimestampedInstanceCollection):
@@ -22,23 +23,24 @@ class Trajectory(TimestampedInstanceCollection):
         validate_on_init: Whether to validate the data during initialization.
     """
 
-    _timestep: Optional[int | float]
+    _timestep: int | float | None
 
     def __init__(
         self,
         *,
-        data: Optional[Mapping[str, np.ndarray]] = None,
-        cfg: Optional[config.Config] = None,
-        timestep: Optional[int | float] = None,
+        data: Mapping[str, np.ndarray] | None = None,
+        cfg: Config | None = None,
+        timestep: int | float | None = None,
         validate_on_init: bool = True,
     ) -> None:
         super().__init__(data=data, cfg=cfg, validate_on_init=validate_on_init)
         self._timestep = timestep
 
+    @override
     def init_other(
         self,
         *,
-        data: Optional[dict[str, np.ndarray]],
+        data: Mapping[str, np.ndarray] | None,
         copy_config: bool = False,
         validate_on_init: bool = False,
     ) -> Self:
@@ -63,9 +65,10 @@ class Trajectory(TimestampedInstanceCollection):
             validate_on_init=validate_on_init,
         )
 
+    @override
     def validate_data(
         self,
-        data: Mapping[str, utils.Value],
+        data: Mapping[str, Value],
         *,
         allow_duplicated_timestamps: bool = False,
         allow_missing_keys: bool = False,
@@ -118,14 +121,14 @@ class Trajectory(TimestampedInstanceCollection):
             return self.cfg.timestep
         timestamps = self.timestamps
         unique_timesteps = np.unique(np.diff(timestamps))
-        timestep = utils.greatest_common_denominator(unique_timesteps)
+        timestep = greatest_common_denominator(unique_timesteps)
         is_int = issubclass(timestamps.dtype.type, np.integer)
         if is_int:
             timestep = int(timestep)
         return timestep
 
     @timestep.setter
-    def timestep(self, timestep: Optional[int | float]) -> None:
+    def timestep(self, timestep: int | float) -> None:
         self._timestep = timestep
 
     def sample(
@@ -168,7 +171,7 @@ class Trajectory(TimestampedInstanceCollection):
             identity = (identities[0], identities.dtype)
             exclude.append(key_identity)
         data = {
-            key: series_operations.sample(
+            key: sample(
                 self[key],
                 self.timestamps,
                 timestamps,
@@ -182,11 +185,11 @@ class Trajectory(TimestampedInstanceCollection):
                 identity[1]
             )
         if not copy:
-            self.data = data
+            super().data = data
             return self
         return self.init_other(data=data)
 
-    def get_interpolated_length(self, timestep: Optional[int | float] = None) -> int:
+    def get_interpolated_length(self, timestep: int | float | None = None) -> int:
         """
         Calculates the interpolated length of the trajectory based on a given timestep.
 
@@ -204,11 +207,11 @@ class Trajectory(TimestampedInstanceCollection):
         interpolated_length = (
             1 + (self.timestamps.max() - self.timestamps.min()) / timestep
         )
-        if not isclose(interpolated_length, np.round(interpolated_length)):
+        if not isclose(interpolated_length, round(interpolated_length)):
             raise ValueError(
                 f"timestep should result in an integer trajectory length and not: {interpolated_length}"
             )
-        return int(np.round(interpolated_length))
+        return int(round(interpolated_length))
 
     def interpolate(
         self,
@@ -230,14 +233,16 @@ class Trajectory(TimestampedInstanceCollection):
         """
         interpolated_length = self.get_interpolated_length(timestep)
         timestamps = np.linspace(
-            self.timestamps[0],
-            self.timestamps[-1],
+            float(self.timestamps[0]),
+            float(self.timestamps[-1]),
             interpolated_length,
         )
         trajectory = self.sample(timestamps, copy=copy)
-        trajectory.timestep = timestep
+        if timestep is not None:
+            trajectory.timestep = timestep
         return trajectory
 
+    @override
     def slice_window(
         self,
         start: int | float,
@@ -287,7 +292,8 @@ class Trajectory(TimestampedInstanceCollection):
                 min(self.length, slice_key.stop + 1),
             )
         trajectory_window = self[slice_key]
-        trajectory_window.timestep = interpolation_timestep
+        if interpolation_timestep is not None:
+            trajectory_window.timestep = interpolation_timestep
         if not trajectory_window.is_complete:
             trajectory_window = trajectory_window.interpolate(
                 timestep=interpolation_timestep

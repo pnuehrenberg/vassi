@@ -1,100 +1,113 @@
-from collections.abc import Iterable
-from typing import Any, Literal
+from collections.abc import Iterable, Sequence
+from typing import TypeGuard
 
 import numpy as np
 
+from ..type_guards import is_iterable_of
 from .utils import MultipleValues, Value
 
 
-def is_str_iterable(
-    value: Any,
-) -> tuple[Literal[True], Iterable[str]] | tuple[Literal[False], Any]:
+def confirm_str_iterable(
+    value: ...,
+) -> TypeGuard[Iterable[str]]:
     """
     Checks if a value is an iterable of strings.
 
     Parameters:
         value: The value to check.
     """
-    if not isinstance(value, Iterable):
-        return False, value
-    if all([isinstance(element, str) for element in value]):
-        return True, value
-    return False, value
+    if is_iterable_of(value, str):
+        return True
+    return False
 
 
-def is_slice_str(
-    value: Any,
-) -> tuple[Literal[True], tuple[slice, str]] | tuple[Literal[False], Any]:
+def confirm_slice_str(
+    value: ...,
+) -> TypeGuard[tuple[slice, str]]:
     """
     Checks if a value is a tuple containing a slice and a string.
 
     Parameters:
         value: The value to check.
     """
-    if not isinstance(value, tuple):
-        return False, value
-    if len(value) == 2 and isinstance(value[0], slice) and isinstance(value[1], str):
-        return True, value
-    return False, value
+    if not isinstance(value, Sequence):
+        return False
+    if (
+        len(value) == 2
+        and isinstance(value[0], slice)
+        and isinstance(value[1], str)
+        and isinstance(value, tuple)
+    ):
+        return True
+    return False
 
 
-def is_slice_str_iterable(
-    value: Any,
-) -> tuple[Literal[True], tuple[slice, Iterable[str]]] | tuple[Literal[False], Any]:
+def confirm_slice_str_iterable(
+    value: ...,
+) -> TypeGuard[tuple[slice, Iterable[str]]]:
     """
     Checks if a value is a tuple containing a slice and an iterable of strings.
 
     Parameters:
         value: The value to check.
     """
-    if not isinstance(value, tuple):
-        return False, value
-    if len(value) == 2 and isinstance(value[0], slice) and is_str_iterable(value[1]):
-        return True, value
-    return False, value
+    if not isinstance(value, Sequence):
+        return False
+    if (
+        len(value) == 2
+        and isinstance(value[0], slice)
+        and confirm_str_iterable(value[1])
+        and isinstance(value, tuple)
+    ):
+        return True
+    return False
 
 
-def is_int_str(
-    value: Any,
-) -> tuple[Literal[True], tuple[int, str]] | tuple[Literal[False], Any]:
+def confirm_int_str(
+    value: ...,
+) -> TypeGuard[tuple[int, str]]:
     """
     Checks if a value is a tuple containing an integer and a string.
 
     Parameters:
         value: The value to check.
     """
-    if not isinstance(value, tuple):
-        return False, value
+    if not isinstance(value, Sequence):
+        return False
     if (
         len(value) == 2
         and isinstance(value[0], int | np.integer)
         and isinstance(value[1], str)
+        and isinstance(value, tuple)
     ):
-        return True, value
-    return False, value
+        return True
+    return False
 
 
-def is_int_str_iterable(
-    value: Any,
-) -> tuple[Literal[True], tuple[int, Iterable[str]]] | tuple[Literal[False], Any]:
+def confirm_int_str_iterable(
+    value: ...,
+) -> TypeGuard[tuple[int, Iterable[str]]]:
     """
     Checks if a value is a tuple containing an integer and an iterable of strings.
 
     Parameters:
         value: The value to check.
     """
-    if not isinstance(value, tuple):
-        return False, value
+    if not isinstance(value, Sequence):
+        return False
     if (
         len(value) == 2
         and isinstance(value[0], int | np.integer)
-        and is_str_iterable(value[1])
+        and confirm_str_iterable(value[1])
+        and isinstance(value, tuple)
     ):
-        return True, value
-    return False, value
+        return True
+    return False
 
 
-def is_value(value: Any) -> tuple[Literal[True], Value] | tuple[Literal[False], Any]:
+def confirm_value(
+    value: ...,
+) -> TypeGuard[Value]:
     """
     Checks if a given value is an instance of the :code:`Value` type union.
 
@@ -102,13 +115,13 @@ def is_value(value: Any) -> tuple[Literal[True], Value] | tuple[Literal[False], 
         value: The value to check.
     """
     if isinstance(value, Value):
-        return True, value
-    return False, value
+        return True
+    return False
 
 
-def is_value_iterable(
-    value: Any,
-) -> tuple[Literal[True], MultipleValues] | tuple[Literal[False], Any]:
+def confirm_value_iterable(
+    value: ...,
+) -> TypeGuard[MultipleValues]:
     """
     Checks if a value is iterable and contains only valid values (instances of :code:`Value`).
 
@@ -116,7 +129,7 @@ def is_value_iterable(
         value: The value to check.
     """
     if not isinstance(value, Iterable):
-        return False, value
-    if any([not is_value(_value) for _value in value]):
-        return False, value
-    return True, value
+        return False
+    if not all(confirm_value(_value) for _value in value):
+        return False
+    return True

@@ -1,18 +1,19 @@
 import hashlib
 from collections.abc import Iterable
-from typing import Optional
+from typing import override
 
 import numpy as np
 
-from .. import config
+from ..config import Config
+from ..type_guards import is_mapping_of
 from ..utils import hash_mapping
 
 
 class ConfiguredData:
     """Represents a configured data object with associated configuration and data."""
 
-    _data: Optional[dict[str, np.ndarray]]
-    _cfg: config.Config
+    _data: dict[str, np.ndarray] | None = None
+    _cfg: Config | None = None
 
     @property
     def sha1(self) -> str:
@@ -29,29 +30,37 @@ class ConfiguredData:
             ).hexdigest()
             for key, value in self.items(copy=False)
         }
-        items["cfg"] = hash_mapping(self.cfg())
+        cfg = self.cfg()
+        if not is_mapping_of(cfg, object, object):
+            raise ValueError("Invalid configuration")
+        items["cfg"] = hash_mapping(cfg)
         return hash_mapping(items)
 
+    @override
     def __hash__(self) -> int:
         return hash(self.sha1)
 
-    def __eq__(self, other: object) -> bool:
+    @override
+    def __eq__(self, other: ...) -> bool:
         if not isinstance(other, type(self)):
             return False
         return hash(self) == hash(other)
 
+    @override
     def __str__(self) -> str:
         return self.__repr__()
 
     @property
-    def cfg(self) -> config.Config:
+    def cfg(self) -> Config:
         """Property that returns the configuration object."""
+        if not self._cfg:
+            raise ValueError("Configuration not initialized")
         return self._cfg
 
     def keys(
         self,
         *,
-        exclude: Optional[Iterable[str]] = None,
+        exclude: Iterable[str] | None = None,
     ) -> tuple[str, ...]:
         """
         Returns the keys of the trajectory data, excluding specified keys.
@@ -65,8 +74,6 @@ class ConfiguredData:
         Raises:
             ValueError: If the configuration is not initialized.
         """
-        if self.cfg is None:
-            raise ValueError("not initialized")
         if exclude is None:
             exclude = []
         return tuple(set(self.cfg.trajectory_keys).difference(exclude))
@@ -100,7 +107,7 @@ class ConfiguredData:
     def values(
         self,
         *,
-        exclude: Optional[Iterable[str]] = None,
+        exclude: Iterable[str] | None = None,
         copy: bool = True,
     ) -> tuple[np.ndarray, ...]:
         """
@@ -120,7 +127,7 @@ class ConfiguredData:
     def items(
         self,
         *,
-        exclude: Optional[Iterable[str]] = None,
+        exclude: Iterable[str] | None = None,
         copy: bool = True,
     ) -> tuple[tuple[str, np.ndarray], ...]:
         """

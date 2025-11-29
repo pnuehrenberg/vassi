@@ -1,10 +1,9 @@
-from typing import Optional
-
 import numpy as np
 
-from .. import config
-from . import utils
+from ..config import Config
+from ..config import cfg as CFG
 from .base import ConfiguredData
+from .utils import Value, writeable
 
 
 class Instance(ConfiguredData):
@@ -26,12 +25,15 @@ class Instance(ConfiguredData):
     """
 
     def __init__(
-        self, cfg: Optional[config.Config] = None, from_scalars: bool = False, **kwargs
+        self,
+        cfg: Config | None = None,
+        from_scalars: bool = False,
+        **kwargs: ...,
     ):
         if cfg is None:
-            cfg = config.cfg.copy()
-        self._cfg = cfg
-        self._data = {}
+            cfg = CFG.copy()
+        self._cfg: Config | None = cfg
+        self._data: dict[str, np.ndarray] | None = {}
         for key in set(self.keys()) - set(kwargs.keys()):
             raise ValueError(f"missing key: {key}")
         for key, value in kwargs.items():
@@ -54,7 +56,7 @@ class Instance(ConfiguredData):
     def __getitem__(self, key: str) -> np.ndarray:
         return self._get_value(key)
 
-    def __setitem__(self, key: str, value: utils.Value) -> None:
+    def __setitem__(self, key: str, value: Value) -> None:
         _value = self._get_value(key)
-        with utils.writeable(_value):
+        with writeable(_value):
             _value[:] = value

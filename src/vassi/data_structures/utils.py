@@ -1,4 +1,4 @@
-from collections.abc import Generator, Iterable
+from collections.abc import Iterable, Iterator
 from contextlib import contextmanager
 from fractions import Fraction
 from functools import reduce
@@ -140,7 +140,7 @@ def get_interval_slice(
 
 
 @contextmanager
-def writeable(*arrays: np.ndarray) -> Generator:
+def writeable(*arrays: np.ndarray) -> Iterator[None]:
     """
     A context manager that temporarily makes numpy arrays writeable.
 

@@ -1,10 +1,11 @@
-from typing import Mapping, Optional, Self
+from collections.abc import Mapping
+from typing import Self
 
 import numpy as np
 
-from .. import config
-from . import utils
+from ..config import Config
 from .collection import InstanceCollection
+from .utils import OutOfInterval, get_interval_slice
 
 
 class TimestampedInstanceCollection(InstanceCollection):
@@ -26,8 +27,8 @@ class TimestampedInstanceCollection(InstanceCollection):
     def __init__(
         self,
         *,
-        data: Optional[Mapping[str, np.ndarray]] = None,
-        cfg: Optional[config.Config] = None,
+        data: Mapping[str, np.ndarray] | None = None,
+        cfg: Config | None = None,
         validate_on_init: bool = True,
     ) -> None:
         super().__init__(data=data, cfg=cfg, validate_on_init=validate_on_init)
@@ -85,7 +86,7 @@ class TimestampedInstanceCollection(InstanceCollection):
         sort_idx = np.argsort(self.timestamps)
         data = {key: value[sort_idx] for key, value in self.items()}
         if not copy:
-            self.data = data
+            super().data = data
             return self
         return self.init_other(data=data)
 
@@ -118,14 +119,14 @@ class TimestampedInstanceCollection(InstanceCollection):
         first = timestamps.min()
         last = timestamps.max()
         if start < first:
-            raise utils.OutOfInterval(
+            raise OutOfInterval(
                 f"start: {start} not in timestamp range: [{first} {last}]"
             )
         if stop > last:
-            raise utils.OutOfInterval(
+            raise OutOfInterval(
                 f"stop: {stop} not in timestamp range: [{first} {last}]"
             )
-        return utils.get_interval_slice(timestamps, start, stop)
+        return get_interval_slice(timestamps, start, stop)
 
     def slice_window(
         self,
