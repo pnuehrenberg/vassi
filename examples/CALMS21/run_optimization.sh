@@ -16,6 +16,6 @@ module load gcc/10 impi/2021.2
 module load anaconda/3/2021.05
 module load mpi4py/3.0.3
 
-source activate ~/vassi/.venv/bin/activate
+source ~/vassi/.venv/bin/activate
 
 srun python3 -m scripts.optimization
