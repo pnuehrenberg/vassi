@@ -11,9 +11,6 @@
 #SBATCH --cpus-per-task=72    # assign all the cores to that first task to make room for Python's multiprocessing tasks
 #SBATCH --time=00:20:00
 
-module purge
-module load gcc/10 impi/2021.2
-
 source ~/vassi/.venv/bin/activate
 
 # run this script to pre-cache features for mice dataset

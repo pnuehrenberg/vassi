@@ -6,15 +6,16 @@
 #SBATCH -e ./err.%j
 #SBATCH -D ./
 #SBATCH -J PYTHON_MP
-#SBATCH --nodes=1            # request as many nodes as iterations
+#SBATCH --nodes=10            # request as many nodes as iterations
 #SBATCH --ntasks-per-node=1   # only start 1 task via srun because Python multiprocessing starts more tasks internally
 #SBATCH --cpus-per-task=72    # assign all the cores to that first task to make room for Python's multiprocessing tasks
 #SBATCH --time=24:00:00
 
 module purge
 module load gcc/10 impi/2021.2
+module load anaconda/3/2021.05
+module load mpi4py/3.0.3
 
-source activate autoscore
+source activate ~/vassi/.venv/bin/activate
 
-# srun python3 ./postprocessing_experiment-mice-sequential.py --step 1
-srun python3 ./postprocessing_experiment-mice-sequential.py --step 2
+srun python3 -m scripts.optimization

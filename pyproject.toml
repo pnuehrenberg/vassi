@@ -28,7 +28,6 @@ dependencies = [
     "fastparquet>=2024.11.0",
     "pip>=25.2",
     "ipympl>=0.9.7",
-    "transformations",
     "joblib-stubs>=1.5.2.0.20250831",
     "h5py-stubs>=0.1.2",
     "mpi4py>=4.1.1",
