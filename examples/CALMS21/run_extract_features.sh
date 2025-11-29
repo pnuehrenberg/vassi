@@ -14,7 +14,7 @@
 module purge
 module load gcc/10 impi/2021.2
 
-source activate autoscore
+source ~/vassi/.venv/bin/activate
 
 # run this script to pre-cache features for mice dataset
-srun python3 ./extract_features-mice.py
+srun python3 -m scripts.extract_features
