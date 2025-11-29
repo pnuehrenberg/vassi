@@ -17,4 +17,5 @@ docs/source/*.ipynb
 docs/source/vassi.*.rst
 docs/source/2_mice-results.svg
 video_snippets
-feature_cache_*
+feature_cache/
+*.db
