@@ -40,13 +40,13 @@ class Classifier(Protocol):
         :class:`~sklearn.base.ClassifierMixin` for the classifier interface in :mod:`~sklearn`.
     """
 
-    def predict(self, *args: object, **kwargs: object) -> np.ndarray: ...
+    def predict(self, *args: ..., **kwargs: ...) -> np.ndarray: ...
 
-    def predict_proba(self, *args: object, **kwargs: object) -> np.ndarray: ...
+    def predict_proba(self, *args: ..., **kwargs: ...) -> np.ndarray: ...
 
     def get_params(self) -> dict[str, object]: ...
 
-    def fit(self, *args: object, **kwargs: object) -> Self: ...
+    def fit(self, *args: ..., **kwargs: ...) -> Self: ...
 
 
 def _predict_base_sampleable[F: Shaped](
@@ -439,7 +439,7 @@ def k_fold_predict[F: Shaped](
         tuple[F, np.ndarray],
     ],
     balance_sample_weights: bool = True,
-    **sampling_function_kwargs: object,
+    **sampling_function_kwargs: ...,
 ) -> AnnotatedDatasetClassification:
     """
     Run k-fold cross-validation on a dataset.

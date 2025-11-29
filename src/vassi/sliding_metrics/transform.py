@@ -173,7 +173,7 @@ class SlidingWindowAggregator(BaseEstimator, TransformerMixin):
         return hashlib.sha1(self._feature_names_out(["f"])).hexdigest()
 
     @override
-    def __eq__(self, other: object) -> bool:
+    def __eq__(self, other: ...) -> bool:
         if not isinstance(other, type(self)):
             return False
         return hash(self) == hash(other)

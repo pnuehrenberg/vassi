@@ -31,7 +31,7 @@ from .utils import (
 
 
 def _write_h5_array(
-    data_file: str | Path, *, array: np.ndarray, data_path: str, **attrs: object
+    data_file: str | Path, *, array: np.ndarray, data_path: str, **attrs: ...
 ) -> None:
     data_file = Path(data_file)
     with h5py.File(str(data_file), "a") as h5_file:
@@ -56,7 +56,7 @@ def _write_h5_array(
             h5_data.attrs[key] = attr
 
 
-def _write_h5_attrs(data_file: str | Path, *, data_path: str, **attrs: object) -> None:
+def _write_h5_attrs(data_file: str | Path, *, data_path: str, **attrs: ...) -> None:
     data_file = Path(data_file)
     if not data_file.exists():
         raise FileNotFoundError(f"file {data_file} does not exist")
@@ -88,7 +88,7 @@ def _write_h5_data(
     *,
     data: Mapping[str, np.ndarray],
     data_path: str | None,
-    **attrs: object,
+    **attrs: ...,
 ) -> None:
     if data_path is None:
         data_path = ""
@@ -202,7 +202,7 @@ class BaseClassification(WithCategories, ABC):
     ) -> Self: ...
 
     @classmethod
-    def confirm_instance(cls, classification: object) -> Self:
+    def confirm_instance(cls, classification: ...) -> Self:
         assert isinstance(classification, cls), (
             f"Expected classification to be an instance of {cls}, got {type(classification)}"
         )
@@ -210,7 +210,7 @@ class BaseClassification(WithCategories, ABC):
 
     @abstractmethod
     def to_h5(
-        self, data_file: str | Path, *, data_path: str = ".", **attrs: object
+        self, data_file: str | Path, *, data_path: str = ".", **attrs: ...
     ) -> None: ...
 
     @classmethod
@@ -484,7 +484,7 @@ class ClassificationCollection[
 
     @override
     def to_h5(
-        self, data_file: str | Path, *, data_path: str = ".", **attrs: object
+        self, data_file: str | Path, *, data_path: str = ".", **attrs: ...
     ) -> None:
         for identifier, classification in self:
             classification.to_h5(
@@ -539,7 +539,7 @@ class Classification(BaseClassification):
         categories: set[str],
         background_category: str,
         discretize_on_init: bool,
-        **_: object,  # for compatibility with other classification types
+        **_: ...,  # for compatibility with other classification types
     ):
         self.with_categories(categories, background_category=background_category)
         self.timestamps = timestamps
@@ -608,7 +608,7 @@ class Classification(BaseClassification):
 
     @override
     def to_h5(
-        self, data_file: str | Path, *, data_path: str = ".", **attrs: object
+        self, data_file: str | Path, *, data_path: str = ".", **attrs: ...
     ) -> None:
         _write_h5_data(
             data_file,
@@ -733,7 +733,7 @@ class AnnotatedClassification(WithGroundTruth, Classification):
 
     @override
     def to_h5(
-        self, data_file: str | Path, *, data_path: str = ".", **attrs: object
+        self, data_file: str | Path, *, data_path: str = ".", **attrs: ...
     ) -> None:
         super().to_h5(data_file, data_path=data_path, **attrs)
         _write_h5_array(

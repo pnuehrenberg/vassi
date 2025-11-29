@@ -44,7 +44,7 @@ def remove_cache(cache_file: str | Path) -> bool:
 
 
 def to_cache(
-    obj: object,
+    obj: ...,
     cache_file: str | Path | None = None,
     directory: str | Path | None = None,
     *,
@@ -462,7 +462,7 @@ def load_dataset(
         if categories is None:
             categories = set(observations["category"]) | {background_category}
             warn(
-                f"Loading categories ({', '.join(categories)}) from observations file, specify categories argument if incomplete."
+                f"Loading categories ({', '.join(sorted(categories))}) from observations file, specify categories argument if incomplete."
             )
         return AnnotatedDataset(
             trajectories,

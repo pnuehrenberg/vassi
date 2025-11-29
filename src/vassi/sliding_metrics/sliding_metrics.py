@@ -437,6 +437,10 @@ def _sliding_metric_wrapper(
     5. Reshaping of the output array to match the expected final shape.
     """
     # 1. Input Validation
+    was_1d = False
+    if array.ndim == 1:
+        was_1d = True
+        array = array.reshape(-1, 1)
     if array.ndim < 2:
         raise ValueError("Input array must be at least 2-dimensional (T, ...)")
     if window_size < 1:
@@ -479,7 +483,10 @@ def _sliding_metric_wrapper(
             # e.g., for mean, shape is (T, ..., S)
             final_out_shape = original_shape + (s_dim,)
 
-    return out_arr.reshape(final_out_shape)
+    out_arr = out_arr.reshape(final_out_shape)
+    if was_1d:
+        return out_arr.ravel()
+    return out_arr
 
 
 def sliding_quantiles(

@@ -451,10 +451,10 @@ class WithAnnotations(RequiresBase, WithCategories, ABC):
         store_indices: bool,
         ensure_sampling_at: np.ndarray | None,
         out: np.ndarray | None,
-    ) -> tuple[F, np.ndarray | None]:
+    ) -> tuple[F, np.ndarray]:
         if isinstance(size, int | float):
             self, _ = self.base
-            return _stratified_subsample(
+            x, y = _stratified_subsample(
                 self,
                 extractor,
                 size=size,
@@ -466,6 +466,10 @@ class WithAnnotations(RequiresBase, WithCategories, ABC):
                 ensure_sampling_at=ensure_sampling_at,
                 out=out,
             )
+            assert isinstance(y, np.ndarray), (
+                "Expected y to be a numpy array for an annotated dataset type"
+            )
+            return x, y
         return _stratified_subsample_by_categories(
             self,
             extractor,
@@ -842,13 +846,13 @@ class ElementCollection[I: Hashable, E: Base](Base, ABC):
             for identifier, element in sorted(elements.items())
         }
 
-    def __getitem__(self, identifier: object) -> E:
+    def __getitem__(self, identifier: ...) -> E:
         if self.elements is None:
             raise ValueError(f"{type(self)} is not initialized")
         identifier = self.identifier_validator(identifier)
         return self.elements[identifier]
 
-    def __setitem__(self, identifier: object, element: object) -> None:
+    def __setitem__(self, identifier: ..., element: ...) -> None:
         if self.elements is None:
             raise ValueError(f"{type(self)} is not initialized")
         identifier = self.identifier_validator(identifier)
@@ -980,21 +984,19 @@ class ElementCollection[I: Hashable, E: Base](Base, ABC):
         return self.sample_X(extractor, indices=indices, out=out), None
 
 
-def _value_validator[VT](value_type: type[VT], value: object) -> VT:
+def _value_validator[VT](value_type: type[VT], value: ...) -> VT:
     if not isinstance(value, value_type):
         raise ValueError(f"value must be of type {value_type} according to first item")
     return value
 
 
-def _key_validator[KT: Hashable](key_type: type[KT], key: object) -> KT:
+def _key_validator[KT: Hashable](key_type: type[KT], key: ...) -> KT:
     if not isinstance(key, key_type):
         raise ValueError(f"key must be of type {key_type} according to first item")
     return key
 
 
-def _tuple_key_validator[KT: Hashable](
-    key_type: type[KT], key: object
-) -> tuple[KT, KT]:
+def _tuple_key_validator[KT: Hashable](key_type: type[KT], key: ...) -> tuple[KT, KT]:
     if not is_tuple_of(key, key_type):
         raise ValueError(f"key must be of type {key_type} according to first item")
     return key

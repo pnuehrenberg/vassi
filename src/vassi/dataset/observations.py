@@ -274,7 +274,7 @@ def interval_contained(
     return (start_a >= start_b) & (end_a <= end_b)
 
 
-def _bout_aggregator(bout_data: pd.DataFrame, **_: object) -> pd.Series:
+def _bout_aggregator(bout_data: pd.DataFrame, **_: ...) -> pd.Series:
     duration = np.asarray(bout_data["stop"] - bout_data["start"] + 1)
     aggregated_values: dict[str, object] = {}
     for column in bout_data.columns:

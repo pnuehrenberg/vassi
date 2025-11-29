@@ -5,11 +5,11 @@ import numpy as np
 import pandas as pd
 
 
-def is_iterable_of[T](obj: object, t: type[T]) -> TypeGuard[Iterable[T]]:
+def is_iterable_of[T](obj: ..., t: type[T]) -> TypeGuard[Iterable[T]]:
     return isinstance(obj, Iterable) and all(isinstance(item, t) for item in obj)
 
 
-def is_tuple_of[T](obj: object, t: type[T]) -> TypeGuard[tuple[T, T]]:
+def is_tuple_of[T](obj: ..., t: type[T]) -> TypeGuard[tuple[T, T]]:
     if not isinstance(obj, tuple):
         return False
     if len(obj) != 2:  # pyright: ignore[reportUnknownArgumentType]
@@ -17,14 +17,12 @@ def is_tuple_of[T](obj: object, t: type[T]) -> TypeGuard[tuple[T, T]]:
     return all(isinstance(item, t) for item in obj)  # pyright: ignore[reportUnknownVariableType]
 
 
-def is_iterable_of_tuple[T](
-    obj: object, t: type[T]
-) -> TypeGuard[Iterable[tuple[T, T]]]:
+def is_iterable_of_tuple[T](obj: ..., t: type[T]) -> TypeGuard[Iterable[tuple[T, T]]]:
     return isinstance(obj, Iterable) and all(is_tuple_of(item, t) for item in obj)
 
 
 def is_valid_features_config(
-    obj: object,
+    obj: ...,
 ) -> TypeGuard[
     Mapping[Literal["individual", "dyad"], Iterable[tuple[str, Mapping[str, object]]]]
 ]:
@@ -68,7 +66,7 @@ class ClassificationData(TypedDict):
     annotations: pd.DataFrame | None
 
 
-def is_valid_classification_data(obj: object) -> TypeGuard[ClassificationData]:
+def is_valid_classification_data(obj: ...) -> TypeGuard[ClassificationData]:
     if not isinstance(obj, Mapping):
         print("not a mapping")
         return False
@@ -103,7 +101,7 @@ def is_valid_classification_data(obj: object) -> TypeGuard[ClassificationData]:
 
 
 def is_mapping_of[TK, TV](
-    obj: object,
+    obj: ...,
     tk: type[TK],
     tv: type[TV],
 ) -> TypeGuard[Mapping[TK, TV]]:
@@ -118,7 +116,7 @@ def is_mapping_of[TK, TV](
 
 
 def is_mapping_of_mappings_of[TK1, TK2, TV](
-    obj: object,
+    obj: ...,
     tk_1: type[TK1],
     tk_2: type[TK2],
     tv: type[TV],

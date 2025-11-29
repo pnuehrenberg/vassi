@@ -49,19 +49,19 @@ def _params_config(config: Mapping[str, object]) -> dict[str, Hashable]:
     return valid_config
 
 
-def _parse_reversed_dyad(**kwargs: object) -> bool:
+def _parse_reversed_dyad(**kwargs: ...) -> bool:
     if not isinstance(reversed_dyad := kwargs.pop("reversed_dyad", False), bool):
         raise ValueError("reversed_dyad must be a boolean if specified")
     return reversed_dyad
 
 
-def _parse_as_absolute(**kwargs: object) -> bool:
+def _parse_as_absolute(**kwargs: ...) -> bool:
     if not isinstance(as_absolute := kwargs.pop("as_absolute", False), bool):
         raise ValueError("as_absolute must be a boolean if specified")
     return as_absolute
 
 
-def _parse_as_sign_change_latency(**kwargs: object) -> bool:
+def _parse_as_sign_change_latency(**kwargs: ...) -> bool:
     if not isinstance(
         as_sign_change_latency := kwargs.get("as_sign_change_latency", False), bool
     ):
@@ -69,7 +69,7 @@ def _parse_as_sign_change_latency(**kwargs: object) -> bool:
     return as_sign_change_latency
 
 
-def _parse_keep(**kwargs: object) -> str | Iterable[str] | None:
+def _parse_keep(**kwargs: ...) -> str | Iterable[str] | None:
     if (
         (keep := kwargs.pop("keep", None)) is not None
         and not isinstance(keep, str)
@@ -79,7 +79,7 @@ def _parse_keep(**kwargs: object) -> str | Iterable[str] | None:
     return keep
 
 
-def _parse_discard(**kwargs: object) -> str | Iterable[str] | None:
+def _parse_discard(**kwargs: ...) -> str | Iterable[str] | None:
     if (
         (discard := kwargs.pop("discard", None)) is not None
         and not isinstance(discard, str)
@@ -226,13 +226,13 @@ class BaseExtractor[F: Shaped](ABC):
         return hash(self.sha1)
 
     @override
-    def __eq__(self, other: object) -> bool:
+    def __eq__(self, other: ...) -> bool:
         if not isinstance(other, type(self)):
             return False
         return hash(self) == hash(other)
 
     @abstractmethod
-    def _parse_modify_params(self, **kwargs: object) -> tuple[object, ...]: ...
+    def _parse_modify_params(self, **kwargs: ...) -> tuple[object, ...]: ...
 
     def _separate_modify_params(
         self, kwargs: Mapping[str, object]
@@ -304,7 +304,7 @@ class BaseExtractor[F: Shaped](ABC):
     def _modify_feature_func(
         self,
         func: Callable[..., np.ndarray],
-        **kwargs: object,
+        **kwargs: ...,
     ) -> Callable[..., F]: ...
 
     @abstractmethod
@@ -438,7 +438,7 @@ class Extractor(BaseExtractor[np.ndarray]):
     }
 
     @override
-    def _parse_modify_params(self, **kwargs: object) -> tuple[bool, bool, bool]:
+    def _parse_modify_params(self, **kwargs: ...) -> tuple[bool, bool, bool]:
         return (
             _parse_reversed_dyad(**kwargs),
             _parse_as_absolute(**kwargs),
@@ -449,7 +449,7 @@ class Extractor(BaseExtractor[np.ndarray]):
     def _modify_feature_func(
         self,
         func: Callable[..., np.ndarray],
-        **kwargs: object,
+        **kwargs: ...,
     ) -> Callable[..., np.ndarray]:
         param_reversed_dyad, param_as_absolute, param_as_sign_change_latency = (
             self._parse_modify_params(**kwargs)
@@ -486,7 +486,7 @@ class DataFrameExtractor(BaseExtractor[pd.DataFrame]):
 
     @override
     def _parse_modify_params(
-        self, **kwargs: object
+        self, **kwargs: ...
     ) -> tuple[bool, bool, bool, Iterable[str] | None, Iterable[str] | None]:
         return (
             _parse_reversed_dyad(**kwargs),
@@ -500,7 +500,7 @@ class DataFrameExtractor(BaseExtractor[pd.DataFrame]):
     def _modify_feature_func(
         self,
         func: Callable[..., np.ndarray],
-        **kwargs: object,
+        **kwargs: ...,
     ) -> Callable[..., pd.DataFrame]:
         (
             param_reversed_dyad,

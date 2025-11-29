@@ -10,7 +10,7 @@ class _NoAliasDumper(yaml.SafeDumper):
     """
 
     @override
-    def ignore_aliases(self, data: object) -> bool:
+    def ignore_aliases(self, data: ...) -> bool:
         return True
 
 
@@ -32,7 +32,7 @@ class _TupleLoader(yaml.SafeLoader):
 _TupleLoader.add_constructor("tag:yaml.org,2002:seq", _construct_yaml_tuple)
 
 
-def to_yaml(dump: object, *, file_name: str | Path) -> None:
+def to_yaml(dump: ..., *, file_name: str | Path) -> None:
     """
     Helper function to write an object to a YAML file.
 

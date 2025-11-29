@@ -1,7 +1,9 @@
 from copy import deepcopy
-from typing import Literal, Optional, overload
+from typing import Literal, final, overload, override
 
 import yaml
+
+from .type_guards import is_mapping_of
 
 
 class BaseConfig:
@@ -57,7 +59,7 @@ class BaseConfig:
     <BLANKLINE>
     """
 
-    def __init__(self, **kwargs):
+    def __init__(self, **kwargs: ...):
         """Initialize a Config object with the provided key-value pairs."""
         for key, arg in kwargs.items():
             setattr(self, key, arg)
@@ -75,46 +77,56 @@ class BaseConfig:
         return self.__dict__.items()
 
     @overload
-    def __call__(self, *, as_frozenset: Literal[False] = False) -> dict: ...
+    def __call__(
+        self, *, as_frozenset: Literal[False] = False
+    ) -> dict[str, object]: ...
 
     @overload
-    def __call__(self, *, as_frozenset: Literal[True]) -> frozenset: ...
+    def __call__(
+        self, *, as_frozenset: Literal[True]
+    ) -> frozenset[tuple[str, object]]: ...
 
     @overload
-    def __call__(self, *, as_frozenset: bool = False) -> dict | frozenset: ...
+    def __call__(
+        self, *, as_frozenset: bool = False
+    ) -> dict[str, object] | frozenset[tuple[str, object]]: ...
 
-    def __call__(self, *, as_frozenset: bool = False) -> dict | frozenset:
+    def __call__(
+        self, *, as_frozenset: bool = False
+    ) -> dict[str, object] | frozenset[tuple[str, object]]:
         """Return a dictionary (or frozenset) representation of a deep copy of the configuration object."""
-        cfg = {}
+        cfg: dict[str, object] = {}
         for key, value in self.items():
             if isinstance(value, BaseConfig):
                 cfg[key] = value(as_frozenset=as_frozenset)
                 continue
-            elif as_frozenset and isinstance(value, dict):
-                cfg[key] = frozenset(value)
+            elif as_frozenset and is_mapping_of(value, str, object):
+                cfg[key] = frozenset(value.items())
             else:
                 cfg[key] = value
         if as_frozenset:
             return frozenset(cfg.items())
         return cfg
 
-    def __str__(self):
+    @override
+    def __str__(self) -> str:
         """Return a string representation of the configuration object."""
         return yaml.dump(self())
 
-    def __getitem__(self, key):
+    def __getitem__(self, key: str) -> ...:
         """Get the value associated with the specified key."""
         if key not in self.keys():
             raise KeyError
         return self.__dict__[key]
 
-    def __setitem__(self, key, value):
+    def __setitem__(self, key: str, value: ...) -> None:
         """Set the value associated with the specified key."""
         if key not in self.keys():
             raise KeyError
         self.__dict__[key] = value
 
-    def __eq__(self, other):
+    @override
+    def __eq__(self, other: ...):
         if not isinstance(other, BaseConfig):
             return False
         return self(as_frozenset=True) == other(as_frozenset=True)
@@ -124,9 +136,10 @@ class BaseConfig:
         return deepcopy(self)
 
 
+@final
 class Config(BaseConfig):
     """
-    Config for *automated-scoring*.
+    Config for *vassi*.
 
     Configurations derived from this class are used to define data access (via keys) for the structures implemented in :mod:`vassi.data_structures`.
 
@@ -145,16 +158,16 @@ class Config(BaseConfig):
     def __init__(
         self,
         *,
-        trajectory_keys: tuple[str, ...] = tuple(),
-        key_identity: Optional[str] = None,
-        key_timestamp: Optional[str] = None,
-        key_category: Optional[str] = None,
-        key_score: Optional[str] = None,
-        key_box: Optional[str] = None,
-        key_keypoints: Optional[str] = None,
-        timestep: Optional[int | float] = None,
+        trajectory_keys: tuple[str, ...] = (),
+        key_identity: str | None = None,
+        key_timestamp: str | None = None,
+        key_category: str | None = None,
+        key_score: str | None = None,
+        key_box: str | None = None,
+        key_keypoints: str | None = None,
+        timestep: int | float | None = None,
         hash_decimals: int = 9,
-        **kwargs,
+        **kwargs: ...,
     ):
         self.trajectory_keys = trajectory_keys
         self.key_identity = key_identity
@@ -174,4 +187,4 @@ cfg = Config()
 if __name__ == "__main__":
     import doctest
 
-    doctest.testmod()
+    _ = doctest.testmod()
