@@ -1,4 +1,7 @@
+import os
+import tempfile
 from collections.abc import Callable, Mapping
+from concurrent.futures import ProcessPoolExecutor
 from functools import partial
 from typing import Concatenate, Literal, TypedDict, final
 
@@ -62,7 +65,8 @@ class KFoldExperiment:
         ],
         sampling_function_kwargs: Mapping[str, object] | None = None,
         postprocessing_function: Callable[
-            [AnnotatedDatasetClassification], AnnotatedDatasetClassification
+            Concatenate[AnnotatedDatasetClassification, ...],
+            AnnotatedDatasetClassification,
         ] = without_postprocessing,
         postprocessing_function_kwargs: Mapping[str, object] | None = None,
         scoring_function: Callable[[AnnotatedDatasetClassification], float],
@@ -172,7 +176,7 @@ def _run_k_fold_experiment[F: Shaped](
         Concatenate[AnnotatedDataset, BaseExtractor[F], ...], tuple[F, np.ndarray]
     ],
     postprocessing_function: Callable[
-        [AnnotatedDatasetClassification], AnnotatedDatasetClassification
+        Concatenate[AnnotatedDatasetClassification, ...], AnnotatedDatasetClassification
     ] = without_postprocessing,
     scoring_function: Callable[[AnnotatedDatasetClassification], float],
     parameter_space: ParameterSpace,
@@ -191,7 +195,7 @@ def _run_k_fold_experiment[F: Shaped](
     ).run()
 
 
-def run_optuna_hyperparameter_search[F: Shaped](
+def _run_optuna_hyperparameter_search_linear[F: Shaped](
     dataset: AnnotatedDataset,
     extractor: BaseExtractor[F],
     classifier: Classifier | type[Classifier],
@@ -203,7 +207,7 @@ def run_optuna_hyperparameter_search[F: Shaped](
         Concatenate[AnnotatedDataset, BaseExtractor[F], ...], tuple[F, np.ndarray]
     ],
     postprocessing_function: Callable[
-        [AnnotatedDatasetClassification], AnnotatedDatasetClassification
+        Concatenate[AnnotatedDatasetClassification, ...], AnnotatedDatasetClassification
     ] = without_postprocessing,
     scoring_function: Callable[[AnnotatedDatasetClassification], float],
     random_state: np.random.Generator | int | None = None,
@@ -229,3 +233,218 @@ def run_optuna_hyperparameter_search[F: Shaped](
         n_trials=num_trials,
     )
     return study
+
+
+def _optuna_worker[F: Shaped](
+    study_name: str,
+    storage: str | optuna.storages.BaseStorage,
+    random_state: int,
+    num_trials: int,
+    dataset: AnnotatedDataset,
+    extractor: BaseExtractor[F],
+    classifier: Classifier | type[Classifier],
+    parameter_space: ParameterSpace,
+    k: int,
+    sampling_function: Callable[
+        Concatenate[AnnotatedDataset, BaseExtractor[F], ...], tuple[F, np.ndarray]
+    ],
+    postprocessing_function: Callable[
+        Concatenate[AnnotatedDatasetClassification, ...], AnnotatedDatasetClassification
+    ],
+    scoring_function: Callable[[AnnotatedDatasetClassification], float],
+) -> None:
+    sampler = optuna.samplers.TPESampler(seed=random_state)
+    study = optuna.create_study(
+        study_name=study_name,
+        storage=storage,
+        sampler=sampler,
+        direction="maximize",
+        load_if_exists=True,
+    )
+    study.optimize(
+        partial(
+            _run_k_fold_experiment,
+            dataset,
+            extractor,
+            classifier,
+            k=k,
+            sampling_function=sampling_function,
+            postprocessing_function=postprocessing_function,
+            scoring_function=scoring_function,
+            random_state=random_state,
+            parameter_space=parameter_space,
+        ),
+        n_trials=num_trials,
+    )
+
+
+def _pool_helper[F: Shaped](
+    worker_args: tuple[
+        str,  # study_name,
+        str,  # storage,
+        int,  # int_seed,
+        int,  # num trials for this worker
+        AnnotatedDataset,  # dataset,
+        BaseExtractor[F],  # extractor,
+        Classifier | type[Classifier],  # classifier,
+        ParameterSpace,  # parameter_space,
+        int,  # k,
+        Callable[
+            Concatenate[AnnotatedDataset, BaseExtractor[F], ...], tuple[F, np.ndarray]
+        ],  # sampling_function,
+        Callable[
+            Concatenate[AnnotatedDatasetClassification, ...],
+            AnnotatedDatasetClassification,
+        ],  # postprocessing_function,
+        Callable[[AnnotatedDatasetClassification], float],  # scoring_function,
+    ],
+) -> None:
+    return _optuna_worker(*worker_args)
+
+
+def run_optuna_hyperparameter_search[F: Shaped](
+    dataset: AnnotatedDataset,
+    extractor: BaseExtractor[F],
+    classifier: Classifier | type[Classifier],
+    parameter_space: ParameterSpace,
+    *,
+    num_trials: int,
+    k: int,
+    sampling_function: Callable[
+        Concatenate[AnnotatedDataset, BaseExtractor[F], ...], tuple[F, np.ndarray]
+    ],
+    postprocessing_function: Callable[
+        Concatenate[AnnotatedDatasetClassification, ...], AnnotatedDatasetClassification
+    ] = without_postprocessing,
+    scoring_function: Callable[[AnnotatedDatasetClassification], float],
+    random_state: np.random.Generator | int | None = None,
+    n_jobs: int = 1,
+) -> optuna.study.Study:
+    rank = 0
+    comm = None
+    try:
+        from mpi4py import MPI
+
+        if MPI.COMM_WORLD.Get_size() > 1:
+            comm = MPI.COMM_WORLD
+            rank = comm.Get_rank()
+    except ImportError:
+        pass
+
+    # sync random state as int seed
+    int_seed: int
+    if comm is not None:
+        if rank == 0:
+            rng = np.random.default_rng(random_state)
+            int_seed = to_int_seed(rng)
+        else:
+            # will be overwritten by rank 0
+            int_seed = 0
+        int_seed = comm.bcast(int_seed, root=0)
+    else:
+        # no MPI
+        rng = np.random.default_rng(random_state)
+        int_seed = to_int_seed(rng)
+
+    if comm is not None or n_jobs > 1:
+        if comm is None or rank == 0:
+            handle, study_name_file = tempfile.mkstemp(
+                dir=".", prefix="optuna_study_", suffix=".db"
+            )
+            os.close(handle)
+            db_path = os.path.abspath(study_name_file)
+            storage = f"sqlite:///{db_path}".replace(os.sep, "/")
+            study_name = os.path.basename(study_name_file).split(".")[0]
+        else:
+            storage = ""
+            study_name = ""
+
+        if comm is not None:
+            storage = str(comm.bcast(storage, root=0))
+            study_name = str(comm.bcast(study_name, root=0))
+
+        if comm is None or rank == 0:
+            _ = optuna.create_study(
+                study_name=study_name,
+                storage=optuna.storages.RDBStorage(url=storage),
+                sampler=optuna.samplers.TPESampler(seed=int_seed),
+                load_if_exists=True,
+                direction="maximize",
+            )
+
+        if comm is not None:
+            # wait for DB creation
+            comm.Barrier()
+
+        trials_per_process = num_trials // (n_jobs if comm is None else comm.Get_size())
+        remainder = num_trials % (n_jobs if comm is None else comm.Get_size())
+
+        if comm is not None:
+            # distributed MPI case
+
+            _optuna_worker(
+                study_name=study_name,
+                storage=storage,
+                random_state=int_seed + rank,
+                num_trials=trials_per_process + (1 if rank < remainder else 0),
+                dataset=dataset,
+                extractor=extractor,
+                classifier=classifier,
+                parameter_space=parameter_space,
+                k=k,
+                sampling_function=sampling_function,
+                postprocessing_function=postprocessing_function,
+                scoring_function=scoring_function,
+            )
+
+            # sync and return on all nodes (even if we only continue downstream on root node)
+            comm.Barrier()
+            return optuna.load_study(study_name=study_name, storage=storage)
+
+        # single node with true multiprocessing case (n_jobs > 1)
+        worker_num_trials = [
+            trials_per_process + (1 if n < remainder else 0) for n in range(n_jobs)
+        ]
+
+        # Prepare arguments for starmap/map
+        worker_args = [
+            (
+                study_name,
+                storage,
+                int_seed + worker_idx,
+                count,  # trials for this worker
+                dataset,
+                extractor,
+                classifier,
+                parameter_space,
+                k,
+                sampling_function,
+                postprocessing_function,
+                scoring_function,
+            )
+            for worker_idx, count in enumerate(worker_num_trials)
+            if count > 0
+        ]
+
+        if not worker_args:
+            # num_trials was 0
+            return optuna.create_study(
+                storage=storage, study_name=study_name, load_if_exists=True
+            )
+
+        with ProcessPoolExecutor(max_workers=n_jobs) as pool:
+            _ = pool.map(_pool_helper, worker_args)
+
+        return optuna.load_study(study_name=study_name, storage=storage)
+
+    return _run_optuna_hyperparameter_search_linear(
+        dataset,
+        extractor,
+        classifier,
+        parameter_space,
+        num_trials=num_trials,
+        k=k,
+        sampling_function=sampling_function,
+        postprocessing_function=postprocessing_function,
+        scoring_function=scoring_function,
+    )

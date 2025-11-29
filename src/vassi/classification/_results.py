@@ -2,20 +2,22 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from collections.abc import Callable, Hashable, Iterable, Iterator, Mapping, Sequence
+from concurrent.futures import ProcessPoolExecutor
 from copy import copy as shallow_copy
+from functools import partial
+from multiprocessing import cpu_count
 from pathlib import Path, PurePosixPath
 from typing import Literal, Self, override
 
 import h5py
 import numpy as np
 import pandas as pd
-from joblib import Parallel, delayed, parallel_config
 from sklearn.metrics import f1_score  # pyright: ignore[reportUnknownVariableType]
 
 from ..dataset import densify_observations, remove_overlapping_observations
 from ..dataset.types import WithCategories, get_validators
 from ..type_guards import is_tuple_of, is_valid_classification_data
-from ..utils import SmoothingFunction, available_resources
+from ..utils import SmoothingFunction
 from ..warnings import warn
 from .utils import (
     filter_observations_by_recipient_bouts,
@@ -152,17 +154,17 @@ def _read_h5_data(
     return data_dict
 
 
-def _discretize(
-    classification: Classification, decision_thresholds: Mapping[str, float] | None
-):
+def _discretize[T: Classification](
+    classification: T, decision_thresholds: Mapping[str, float] | None
+) -> T:
     return classification.discretize(decision_thresholds)
 
 
-def _smooth(
-    classification: Classification,
+def _smooth[T: Classification](
+    classification: T,
     smoothing_function: SmoothingFunction,
     decision_thresholds: Mapping[str, float] | None,
-):
+) -> T:
     return classification.smooth(
         smoothing_function, decision_thresholds=decision_thresholds
     )
@@ -435,15 +437,14 @@ class ClassificationCollection[
         self,
         decision_thresholds: Mapping[str, float] | None = None,
     ) -> Self:
-        num_jobs, num_inner_threads = available_resources()
-        with parallel_config(backend="loky", inner_max_num_threads=num_inner_threads):
-            classifications = Parallel(n_jobs=num_jobs)(
-                delayed(_discretize)(
-                    classification,
-                    decision_thresholds,
+        with ProcessPoolExecutor(max_workers=cpu_count()) as pool:
+            classifications = [
+                Classification.confirm_instance(classification)
+                for classification in pool.map(
+                    partial(_discretize, decision_thresholds=decision_thresholds),
+                    self._flat_classifications(),
                 )
-                for classification in self._flat_classifications()
-            )
+            ]
         return self.update_from_flat_classifications(classifications)
 
     @override
@@ -453,16 +454,18 @@ class ClassificationCollection[
         *,
         decision_thresholds: Mapping[str, float] | None = None,
     ) -> Self:
-        num_jobs, num_inner_threads = available_resources()
-        with parallel_config(backend="loky", inner_max_num_threads=num_inner_threads):
-            classifications = Parallel(n_jobs=num_jobs)(
-                delayed(_smooth)(
-                    classification,
-                    smoothing_func,
-                    decision_thresholds=decision_thresholds,
+        with ProcessPoolExecutor(max_workers=cpu_count()) as pool:
+            classifications = [
+                Classification.confirm_instance(classification)
+                for classification in pool.map(
+                    partial(
+                        _smooth,
+                        smoothing_function=smoothing_func,
+                        decision_thresholds=decision_thresholds,
+                    ),
+                    self._flat_classifications(),
                 )
-                for classification in self._flat_classifications()
-            )
+            ]
         return self.update_from_flat_classifications(classifications)
 
     @abstractmethod
