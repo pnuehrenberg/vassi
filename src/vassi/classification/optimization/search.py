@@ -318,18 +318,9 @@ def run_optuna_hyperparameter_search[F: Shaped](
         db_path = os.path.abspath(study_name_file)
         storage = f"sqlite:///{db_path}".replace(os.sep, "/")
         study_name = os.path.basename(study_name_file).split(".")[0]
-    env.barrier()
     storage = env.bcast(storage)
     study_name = env.bcast(study_name)
-    env.barrier()
     if env.is_root:
-        print(
-            "creating study with name:",
-            study_name,
-            "and storage:",
-            storage,
-            "(all workers should use this!)",
-        )
         _ = optuna.create_study(
             study_name=study_name,
             storage=optuna.storages.RDBStorage(url=storage),

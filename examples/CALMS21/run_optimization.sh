@@ -13,9 +13,8 @@
 
 module purge
 module load gcc/10 impi/2021.2
-module load anaconda/3/2021.05
-module load mpi4py/3.0.3
 
 source ~/vassi/.venv/bin/activate
+# uv pip install --force-reinstall --no-binary=mpi4py mpi4py
 
 srun python3 -m scripts.optimization

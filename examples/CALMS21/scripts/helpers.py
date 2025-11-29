@@ -124,7 +124,7 @@ for category in CATEGORIES:
         )
 
 parameter_space = ParameterSpace(
-    classifier_kwargs={"n_estimators": IntParameter("n_estimators", 10, 10)},
+    classifier_kwargs={"n_estimators": IntParameter("n_estimators", 1000, 1000)},
     balance_sample_weights=CategoricalParameter(
         "balance_sample_weights", [True, False]
     ),
