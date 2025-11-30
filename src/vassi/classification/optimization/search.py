@@ -1,7 +1,6 @@
 import os
 import tempfile
 from collections.abc import Callable, Mapping
-from concurrent.futures import ProcessPoolExecutor
 from functools import partial
 from typing import Concatenate, final
 
@@ -11,12 +10,12 @@ import optuna.storages.journal
 import pandas as pd
 
 from ...dataset import AnnotatedDataset
+from ...distributed import Environment, get_process_state, limited_process_pool
 from ...features import BaseExtractor, Shaped
 from ...utils import to_int_seed
 from ...yaml import to_yaml
 from .._predict import Classifier, k_fold_predict
 from .._results import AnnotatedDatasetClassification
-from .distributed import Environment
 from .utils import ParameterSpace, without_postprocessing
 
 
@@ -58,18 +57,19 @@ class KFoldExperiment:
         self.random_state = np.random.default_rng(random_state)
 
     def run(self) -> float:
-        k_fold_result = k_fold_predict(
-            self.dataset,
-            self.extractor,
-            self.classifier,
-            k=self.k,
-            sampling_function=self.sampling_function,
-            balance_sample_weights=self.balance_sample_weights,
-            random_state=self.random_state,
-            **self.sampling_function_kwargs
-            if self.sampling_function_kwargs is not None
-            else {},
-        )
+        with get_process_state():
+            k_fold_result = k_fold_predict(
+                self.dataset,
+                self.extractor,
+                self.classifier,
+                k=self.k,
+                sampling_function=self.sampling_function,
+                balance_sample_weights=self.balance_sample_weights,
+                random_state=self.random_state,
+                **self.sampling_function_kwargs
+                if self.sampling_function_kwargs is not None
+                else {},
+            )
         k_fold_result = self.postprocessing_function(
             k_fold_result,
             **self.postprocessing_function_kwargs
@@ -267,7 +267,7 @@ def _run_optuna_hyperparameter_search_parallel[F: Shaped](
     if not worker_args:
         return
 
-    with ProcessPoolExecutor(max_workers=n_jobs) as pool:
+    with limited_process_pool(n_jobs) as pool:
         _ = pool.map(_pool_helper, worker_args)
 
 

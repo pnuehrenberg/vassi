@@ -1,4 +1,3 @@
-from .distributed import Environment
 from .search import (
     KFoldExperiment,
     run_optuna_hyperparameter_search,
@@ -17,7 +16,6 @@ from .utils import (
 )
 
 __all__ = [
-    "Environment",
     "KFoldExperiment",
     "summarize_study",
     "run_optuna_hyperparameter_search",

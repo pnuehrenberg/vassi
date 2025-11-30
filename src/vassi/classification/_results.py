@@ -2,10 +2,8 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from collections.abc import Callable, Hashable, Iterable, Iterator, Mapping, Sequence
-from concurrent.futures import ProcessPoolExecutor
 from copy import copy as shallow_copy
 from functools import partial
-from multiprocessing import cpu_count
 from pathlib import Path, PurePosixPath
 from typing import Literal, Self, override
 
@@ -16,6 +14,7 @@ from sklearn.metrics import f1_score  # pyright: ignore[reportUnknownVariableTyp
 
 from ..dataset import densify_observations, remove_overlapping_observations
 from ..dataset.types import WithCategories, get_validators
+from ..distributed import get_process_state, limited_process_pool
 from ..type_guards import is_tuple_of, is_valid_classification_data
 from ..utils import SmoothingFunction
 from ..warnings import warn
@@ -157,7 +156,8 @@ def _read_h5_data(
 def _discretize[T: Classification](
     classification: T, decision_thresholds: Mapping[str, float] | None
 ) -> T:
-    return classification.discretize(decision_thresholds)
+    with get_process_state():
+        return classification.discretize(decision_thresholds)
 
 
 def _smooth[T: Classification](
@@ -165,9 +165,10 @@ def _smooth[T: Classification](
     smoothing_function: SmoothingFunction,
     decision_thresholds: Mapping[str, float] | None,
 ) -> T:
-    return classification.smooth(
-        smoothing_function, decision_thresholds=decision_thresholds
-    )
+    with get_process_state():
+        return classification.smooth(
+            smoothing_function, decision_thresholds=decision_thresholds
+        )
 
 
 class BaseClassification(WithCategories, ABC):
@@ -437,7 +438,7 @@ class ClassificationCollection[
         self,
         decision_thresholds: Mapping[str, float] | None = None,
     ) -> Self:
-        with ProcessPoolExecutor(max_workers=cpu_count()) as pool:
+        with limited_process_pool() as pool:
             classifications = [
                 Classification.confirm_instance(classification)
                 for classification in pool.map(
@@ -454,7 +455,7 @@ class ClassificationCollection[
         *,
         decision_thresholds: Mapping[str, float] | None = None,
     ) -> Self:
-        with ProcessPoolExecutor(max_workers=cpu_count()) as pool:
+        with limited_process_pool() as pool:
             classifications = [
                 Classification.confirm_instance(classification)
                 for classification in pool.map(

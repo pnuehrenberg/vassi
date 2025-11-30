@@ -1,118 +1,139 @@
-from typing import TYPE_CHECKING, Any, Literal, Optional, overload
+import multiprocessing
+import os
+from collections.abc import Iterator
+from concurrent.futures import ProcessPoolExecutor
+from contextlib import AbstractContextManager, contextmanager, nullcontext
+from multiprocessing.context import SpawnContext
 
-import numpy as np
+# from multiprocessing.managers import SyncManager
+from typing import final
 
-try:
-    from mpi4py import MPI  # type: ignore
-except ImportError:
-    MPI = None
+from .warnings import warn
 
-from .io import from_cache, remove_cache, to_cache
-from .utils import Experiment
+_ctx = None
+_semaphore = None
+_n_jobs = None
+_manager = None
 
 
-class DistributedExperiment(Experiment):
-    """
-    To run experiments in parallel using MPI (via :mod:`~mpi4py`).
+@final
+class Environment:
+    def __init__(self) -> None:
+        self._comm = None
+        self._rank = 0
+        self._size = 1
 
-    Parameters:
-        num_runs: Number of runs to perform.
-        random_state: Random state to use for reproducibility.
-    """
+        try:
+            from mpi4py import MPI
 
-    def __init__(
-        self, num_runs: int, *, random_state: Optional[np.random.Generator | int] = None
-    ):
-        super().__init__(num_runs, random_state=random_state)
-        self.data = {}
-        self.comm = None
-        self.rank = 0
-        self.size = 1
-        if MPI is None:
-            return
-        self.comm = MPI.COMM_WORLD
-        self.rank = self.comm.Get_rank()
-        self.size = self.comm.Get_size()
-        if self.size > 1:
-            self._is_distributed = True
-
-    def broadcast[T](self, data: T) -> T:
-        """
-        Broadcast data to all processes.
-
-        Ensures that all processes are synchronized before broadcasting, see also (:meth:`barrier`).
-
-        Parameters:
-            data: Data to broadcast.
-
-        Returns:
-            Broadcasted data.
-        """
-        if self.comm is None:
-            raise RuntimeError("No MPI communicator available")
-        temp_file = None
-        if self.is_root:
-            temp_file = to_cache(data)
-        self.barrier()
-        temp_file_broadcast: str = self.comm.bcast(temp_file, root=0)
-        data = from_cache(temp_file_broadcast)
-        self.barrier()
-        remove_cache(temp_file_broadcast)
-        return data
-
-    def barrier(self) -> None:
-        """Synchronize all MPI processes."""
-        if self.comm is None:
-            raise RuntimeError("No MPI communicator available")
-        return self.comm.barrier()
+            comm = MPI.COMM_WORLD
+            if comm.Get_size() > 1:
+                self._comm = comm
+                self._rank = comm.Get_rank()
+                self._size = comm.Get_size()
+        except ImportError:
+            pass
 
     @property
-    def performs_run(self) -> bool:
-        """Property that checks if the current MPI process should perform a run when iterating over :class:`DistributedExperiment`."""
-        if self.comm is None:
-            return True
-        return self.run % self.size == self.rank
+    def rank(self) -> int:
+        return self._rank
+
+    @property
+    def size(self) -> int:
+        return self._size
 
     @property
     def is_root(self) -> bool:
-        """Property that checks if the current MPI process is the root process."""
-        return self.rank == 0
+        return self._rank == 0
 
-    def add(self, data: Any) -> None:
-        """Add data of the current run to the distributed experiment. Note that this should be only used once per run."""
-        if self.comm is None or self.is_root:
-            self.data[self.run] = data
-            return
-        self.comm.send(data, dest=0, tag=self.run)
+    def barrier(self) -> None:
+        if self._comm is not None:
+            self._comm.Barrier()
 
-    @overload
-    def collect(self, broadcast: Literal[True] = True) -> dict[int, Any]: ...
-
-    @overload
-    def collect(self, broadcast: bool) -> dict[int, Any] | None: ...
-
-    def collect(self, broadcast: bool = True) -> dict[int, Any] | None:
-        """
-        Collect data from all MPI processes and return a sorted dictionary of run data.
-
-        Parameters:
-            broadcast (bool): Whether to broadcast the collected data to all processes.
-
-        Returns:
-            A sorted dictionary of run data if the current process is the root, otherwise None.
-        """
-        if self.comm is None:
-            return self.data
-        data = None
-        if self.is_root:
-            for run in range(1, self.num_runs):
-                rank = run % self.size
-                if rank == self.rank:
-                    continue
-                self.data[run] = self.comm.recv(source=rank, tag=run)
-            data = dict(sorted(self.data.items()))
-        if broadcast:
-            data = self.broadcast(data)
-            if TYPE_CHECKING:
-                assert data is not None
+    def bcast[T](self, data: T, root: int = 0) -> T:
+        if self._comm is not None:
+            return self._comm.bcast(data, root=root)
         return data
+
+
+def set_process_state(
+    context: SpawnContext,
+    semaphore: AbstractContextManager[object],
+    n_jobs: int,
+):
+    global _ctx, _semaphore, _n_jobs
+    _ctx = context
+    _semaphore = semaphore
+    _n_jobs = n_jobs
+
+
+def get_process_state() -> AbstractContextManager[object]:
+    # only semaphore is relevant for the worker
+    global _semaphore
+    return _semaphore if _semaphore else nullcontext()
+
+
+def set_or_load_context(
+    n_jobs: int,
+) -> tuple[SpawnContext, AbstractContextManager[object], int]:
+    global _ctx, _semaphore, _n_jobs
+
+    if n_jobs == -1:
+        if _n_jobs is None:
+            n_jobs = cpu_count if (cpu_count := os.cpu_count()) else 1
+        else:
+            n_jobs = _n_jobs
+    if _semaphore is not None:
+        if _ctx is None or _n_jobs is None:
+            raise RuntimeError("Cannot use context when context or n_jobs is not set.")
+        if n_jobs != _n_jobs:
+            warn(
+                f"Reusing existing context with n_jobs={_n_jobs}. Ignoring request for new limit of n_jobs={n_jobs}."
+            )
+        return _ctx, _semaphore, _n_jobs
+    if _ctx is not None or _n_jobs is not None:
+        raise RuntimeError(
+            "Cannot set context when context, manager, semaphore or n_jobs is already set."
+        )
+    _ctx = multiprocessing.get_context("spawn")
+    _manager = _ctx.Manager()
+    _semaphore = _manager.Semaphore(n_jobs)
+    _n_jobs = n_jobs
+
+    return _ctx, _semaphore, _n_jobs
+
+
+@contextmanager
+def limited_process_pool(n_jobs: int | None = None) -> Iterator[ProcessPoolExecutor]:
+    """
+    A robust Context Manager for nested ProcessPools.
+
+    1. Detects if it's the Root process or a Nested process.
+    2. Creates or Reuses a Global Semaphore.
+    3. Configures the Pool to inject this semaphore into children.
+
+    Usage:
+        with limited_process_pool(n_jobs=4) as executor:
+            executor.submit(func, args)
+    """
+    if n_jobs is None:
+        n_jobs = -1
+    # 1. Resolve Infrastructure
+    context, semaphore, n_jobs = set_or_load_context(n_jobs)
+
+    # 2. Setup the Executor
+    # We pass the semaphore down to children via '_initializer'
+    executor = ProcessPoolExecutor(
+        max_workers=n_jobs,
+        mp_context=context,
+        initializer=set_process_state,
+        initargs=(context, semaphore, n_jobs),
+    )
+
+    try:
+        yield executor
+    except Exception as e:
+        executor.shutdown(wait=True)
+        raise e
+    finally:
+        executor.shutdown(wait=True)
