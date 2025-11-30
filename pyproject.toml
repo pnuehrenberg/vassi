@@ -31,6 +31,7 @@ dependencies = [
     "joblib-stubs>=1.5.2.0.20250831",
     "h5py-stubs>=0.1.2",
     "mpi4py>=4.1.1",
+    "grpcio>=1.76.0",
 ]
 requires-python = ">=3.12"
 
