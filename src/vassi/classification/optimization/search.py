@@ -1,15 +1,13 @@
 import os
-import socket
 import tempfile
-import time
 from collections.abc import Callable, Mapping
 from concurrent.futures import ProcessPoolExecutor
 from functools import partial
-from multiprocessing import Process
-from typing import Concatenate, TypedDict, final
+from typing import Concatenate, final
 
 import numpy as np
 import optuna
+import optuna.storages.journal
 import pandas as pd
 
 from ...dataset import AnnotatedDataset
@@ -20,18 +18,6 @@ from .._predict import Classifier, k_fold_predict
 from .._results import AnnotatedDatasetClassification
 from .distributed import Environment
 from .utils import ParameterSpace, without_postprocessing
-
-
-def _get_free_port() -> int:
-    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-        s.bind(("", 0))
-        s.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-        return s.getsockname()[1]
-
-
-def _grpc_server_entrypoint(storage: str, host: str, port: int) -> None:
-    backend = optuna.storages.RDBStorage(url=storage)
-    optuna.storages.run_grpc_proxy_server(backend, host=host, port=port)
 
 
 @final
@@ -163,14 +149,9 @@ def _run_optuna_hyperparameter_search_linear[F: Shaped](
     return study
 
 
-class StorageSpec(TypedDict):
-    host: str
-    grpc_port: int
-
-
 def _optuna_worker[F: Shaped](
     study_name: str,
-    storage_spec: StorageSpec,
+    storage: str,
     random_state: int,
     num_trials: int,
     dataset: AnnotatedDataset,
@@ -189,8 +170,8 @@ def _optuna_worker[F: Shaped](
     sampler = optuna.samplers.TPESampler(seed=random_state)
     study = optuna.create_study(
         study_name=study_name,
-        storage=optuna.storages.GrpcStorageProxy(
-            host=storage_spec["host"], port=storage_spec["grpc_port"]
+        storage=optuna.storages.JournalStorage(
+            optuna.storages.journal.JournalFileBackend(storage)
         ),
         sampler=sampler,
         direction="maximize",
@@ -216,7 +197,7 @@ def _optuna_worker[F: Shaped](
 def _pool_helper[F: Shaped](
     worker_args: tuple[
         str,  # study_name,
-        StorageSpec,  # storage spec,
+        str,  # storage,
         int,  # int_seed,
         int,  # num trials for this worker
         AnnotatedDataset,  # dataset,
@@ -242,7 +223,7 @@ def _run_optuna_hyperparameter_search_parallel[F: Shaped](
     num_trials_node: int,
     int_seed_node: int,
     study_name: str,
-    storage_spec: StorageSpec,
+    storage: str,
     dataset: AnnotatedDataset,
     extractor: BaseExtractor[F],
     classifier: type[Classifier],
@@ -267,7 +248,7 @@ def _run_optuna_hyperparameter_search_parallel[F: Shaped](
     worker_args = [
         (
             study_name,
-            storage_spec,
+            storage,
             int_seed_node + worker_idx,
             count,
             dataset,
@@ -330,42 +311,22 @@ def run_optuna_hyperparameter_search[F: Shaped](
         int_seed = to_int_seed(rng)
     int_seed = env.bcast(int_seed)
 
-    server_process = None
-    storage_spec: StorageSpec = StorageSpec(host="", grpc_port=0)
+    storage = ""
     study_name = ""
     if env.is_root:
         handle, study_name_file = tempfile.mkstemp(
-            dir=".", prefix="optuna_study_", suffix=".db"
+            dir=".", prefix="optuna_study_", suffix=".log"
         )
         os.close(handle)
-        db_path = os.path.abspath(study_name_file)
-        storage = f"sqlite:///{db_path}".replace(os.sep, "/")
+        storage = os.path.abspath(study_name_file)
         study_name = os.path.basename(study_name_file).split(".")[0]
-
-        grpc_host = socket.gethostname()
-        grpc_port = _get_free_port()
-
-        server_process = Process(
-            target=_grpc_server_entrypoint,
-            args=(storage, "0.0.0.0", grpc_port),
-            daemon=True,
-        )
-        server_process.start()
-
-        # wait a bit to bind server
-        time.sleep(1.0)
-
-        storage_spec = StorageSpec(host=grpc_host, grpc_port=grpc_port)
-
-    storage_spec = env.bcast(storage_spec)
+    storage = env.bcast(storage)
     study_name = env.bcast(study_name)
-    env.barrier()
-
     if env.is_root:
         _ = optuna.create_study(
             study_name=study_name,
-            storage=optuna.storages.GrpcStorageProxy(
-                host=storage_spec["host"], port=storage_spec["grpc_port"]
+            storage=optuna.storages.JournalStorage(
+                optuna.storages.journal.JournalFileBackend(storage)
             ),
             sampler=optuna.samplers.TPESampler(seed=int_seed),
             load_if_exists=True,
@@ -387,7 +348,7 @@ def run_optuna_hyperparameter_search[F: Shaped](
                 num_trials_node=num_trial_current_node,
                 int_seed_node=int_seed_current_node,
                 study_name=study_name,
-                storage_spec=storage_spec,
+                storage=storage,
                 dataset=dataset,
                 extractor=extractor,
                 classifier=classifier,
@@ -401,7 +362,7 @@ def run_optuna_hyperparameter_search[F: Shaped](
             # MPI-only Parallelism (single process per node)
             _optuna_worker(
                 study_name=study_name,
-                storage_spec=storage_spec,
+                storage=storage,
                 random_state=int_seed_current_node,
                 num_trials=num_trial_current_node,
                 dataset=dataset,
@@ -416,19 +377,12 @@ def run_optuna_hyperparameter_search[F: Shaped](
 
     env.barrier()
 
-    study = optuna.load_study(
+    return optuna.load_study(
         study_name=study_name,
-        storage=optuna.storages.GrpcStorageProxy(
-            host=storage_spec["host"], port=storage_spec["grpc_port"]
+        storage=optuna.storages.JournalStorage(
+            optuna.storages.journal.JournalFileBackend(storage)
         ),
     )
-
-    if env.is_root and server_process is not None:
-        if server_process.is_alive():
-            server_process.terminate()
-            server_process.join()
-
-    return study
 
 
 def summarize_study(

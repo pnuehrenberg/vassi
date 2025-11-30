@@ -41,12 +41,12 @@ if __name__ == "__main__":
         extractor,
         XGBClassifier,
         parameter_space,
-        num_trials=10,
+        num_trials=1000,
         k=5,
         sampling_function=sampling_function,
         postprocessing_function=postprocessing_function,
         scoring_function=macro_f1_all_levels,
-        n_jobs=2,
+        n_jobs=4,
     )
 
     if Environment().is_root:
