@@ -1,5 +1,3 @@
-import os
-
 from collections.abc import Callable, Iterable
 from functools import partial
 
@@ -129,6 +127,9 @@ for category in CATEGORIES:
 n_jobs = 72 // 4  # physical cpus // n_jobs in optimization.py
 
 parameter_space = ParameterSpace(
+    sampling_function_kwargs={
+        "min_samples_per_stratum": IntParameter("min_samples_per_stratum", 0, 30),
+    },
     classifier_kwargs={
         "n_estimators": IntParameter("n_estimators", 1000, 1000),
         "n_jobs": IntParameter("n_jobs", n_jobs, n_jobs),
@@ -137,7 +138,4 @@ parameter_space = ParameterSpace(
         "balance_sample_weights", [True, False]
     ),
     postprocessing_function_kwargs=postprocessing_parameters,
-    sampling_function_kwargs={
-        "min_samples_per_stratum": IntParameter("min_samples_per_stratum", 0, 30),
-    },
 )

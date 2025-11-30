@@ -5,8 +5,8 @@ from vassi.classification.optimization import (
     run_optuna_hyperparameter_search,
     summarize_study,
 )
-from vassi.distributed import Environment
 from vassi.config import cfg
+from vassi.distributed import Environment
 from vassi.features import DataFrameExtractor
 from vassi.io import load_dataset
 
@@ -25,16 +25,9 @@ if __name__ == "__main__":
         background_category="none",
     )[0].exclude({"intruder"})
 
-    dataset_test = load_dataset(
-        "mice_test",
-        directory="../../datasets/CALMS21/test",
-        target="dyad",
-        background_category="none",
-    )[0].exclude({"intruder"})
-
     extractor = DataFrameExtractor.from_yaml(
         "features-mice.yaml",
-        cache_mode=True,
+        cache_mode="required",
     )
 
     study = run_optuna_hyperparameter_search(

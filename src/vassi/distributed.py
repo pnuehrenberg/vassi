@@ -55,6 +55,15 @@ class Environment:
             return self._comm.bcast(data, root=root)
         return data
 
+    def gather[T](self, data: T, root: int = 0) -> list[T]:
+        if self._comm is not None:
+            gathered = self._comm.gather(data, root=root)
+            gathered = self.bcast(gathered, root=root)
+            if not isinstance(gathered, list):
+                raise ValueError("expected gathered data to be a list")
+            return gathered
+        return [data]
+
 
 def set_process_state(
     context: SpawnContext,

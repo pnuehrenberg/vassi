@@ -1,164 +1,156 @@
-# from functools import partial
+from itertools import product
 
-# import numpy as np
-# import pandas as pd
-# from sklearn.utils.class_weight import compute_sample_weight
-# from xgboost import XGBClassifier
+import numpy as np
+import pandas as pd
+from sklearn.utils.class_weight import (
+    compute_sample_weight,  # pyright: ignore[reportUnknownVariableType]
+)
+from xgboost import XGBClassifier
 
-# import vassi._manuscript_utils as manuscript_utils
-# from vassi.classification import (
-#     predict,
-# )
-# from vassi.config import cfg
-# from vassi.features import DataFrameExtractor
-# from vassi.io import _h5_path_join, load_dataset, save_data
-# from vassi.yaml import from_yaml
+from vassi.classification import predict
+from vassi.config import cfg
+from vassi.distributed import Environment
+from vassi.features import DataFrameExtractor
+from vassi.io import load_dataset
+from vassi.type_guards import is_mapping_of
+from vassi.yaml import from_yaml
 
-# from ..helpers import smooth_model_outputs, subsample_train
+from .helpers import parameter_space, postprocessing_function, sampling_function
 
-# cfg.key_keypoints = "keypoints"
-# cfg.key_timestamp = "timestamps"
+cfg.key_keypoints = "keypoints"
+cfg.key_timestamp = "timestamps"
+cfg.trajectory_keys = ("keypoints", "timestamps")
 
-# cfg.trajectory_keys = (
-#     "keypoints",
-#     "timestamps",
-# )
 
-# if __name__ == "__main__":
-#     from vassi.distributed import DistributedExperiment
+def _flat(df: pd.DataFrame, suffix: str) -> pd.DataFrame:
+    return pd.DataFrame(
+        np.array(df).flatten().reshape(1, -1),
+        columns=pd.Index(
+            map(
+                lambda pair: "-".join(map(str, pair)) + f"-{suffix}",
+                product(df.index, df.columns),
+            )
+        ),
+    )
 
-#     dataset_train = load_dataset(
-#         "mice_train",
-#         directory="../../../datasets/CALMS21/train",
-#         target="dyad",
-#         background_category="none",
-#     )[0].exclude({"intruder"})
 
-#     dataset_test = load_dataset(
-#         "mice_test",
-#         directory="../../../datasets/CALMS21/test",
-#         target="dyad",
-#         background_category="none",
-#     )[0].exclude({"intruder"})
+if __name__ == "__main__":
+    env = Environment()
+    dataset_train = load_dataset(
+        "mice_train",
+        directory="../../datasets/CALMS21/train",
+        target="dyad",
+        background_category="none",
+    )[0].exclude({"intruder"})
 
-#     extractor = DataFrameExtractor.from_yaml(
-#         "../features-mice.yaml",
-#         cache_directory="../feature_cache",
-#         cache_mode="required",
-#     )
+    dataset_test = load_dataset(
+        "mice_test",
+        directory="../../datasets/CALMS21/test",
+        target="dyad",
+        background_category="none",
+    )[0].exclude({"intruder"})
 
-#     best_parameters = from_yaml("optimization-summary.yaml")
-#     best_thresholds = [
-#         best_parameters[f"threshold-{category}"] for category in dataset_test.categories
-#     ]
+    extractor = DataFrameExtractor.from_yaml(
+        "features-mice.yaml",
+        cache_mode="required",
+    )
 
-#     log = set_logging_level("info")
+    best_parameters = from_yaml("optimization/session_2/optimization-summary.yaml")
+    if not is_mapping_of(best_parameters, str, object):
+        raise ValueError("Expected parameters to be a mapping of strings to objects")
 
-#     experiment = DistributedExperiment(20, random_state=1)
-#     test_result = None  # dummy variable if no predictions are made
+    parameters = parameter_space.parse(best_parameters)
+    min_samples_per_stratum = parameters["sampling_function_kwargs"][
+        "min_samples_per_stratum"
+    ]
+    if not isinstance(min_samples_per_stratum, int):
+        raise ValueError("Expected min_samples_per_stratum to be an integer")
 
-#     for run in experiment:
-#         _log, _ = with_loop(log, name="run", step=run)
+    n_estimators = parameters["classifier_kwargs"]["n_estimators"]
+    if not isinstance(n_estimators, int):
+        raise ValueError("Expected n_estimators to be an integer")
 
-#         X, y = subsample_train(
-#             dataset_train,
-#             extractor,
-#             random_state=experiment.random_state,
-#             log=_log,
-#         )
-#         y = dataset_train.encode(y)
+    n_estimators = parameters["classifier_kwargs"]["n_estimators"]
+    if not isinstance(n_estimators, int):
+        raise ValueError("Expected n_estimators to be an integer")
 
-#         classifier = XGBClassifier(
-#             n_estimators=1000, random_state=experiment.random_state
-#         ).fit(X.to_numpy(), y, sample_weight=compute_sample_weight("balanced", y))
+    summary: dict[
+        int, tuple[dict[str, pd.DataFrame], dict[str, dict[str, np.ndarray]]]
+    ] = {}
 
-#         summary = []
-#         y = {"true": {}, "pred": {}}
+    for run in range(20):
+        if run % env.size != env.rank:
+            continue
+        x, y = sampling_function(
+            dataset_train,
+            extractor,
+            min_samples_per_stratum=min_samples_per_stratum,
+            random_state=run,
+        )
+        classifier = XGBClassifier(n_estimators=n_estimators)
 
-#         test_result = predict(dataset_test, classifier, extractor, log=_log)
-#         summary.append(
-#             manuscript_utils.summarize_scores(
-#                 test_result,
-#                 foreground_categories=dataset_test.foreground_categories,
-#                 run=run,
-#                 postprocessing_step="model_outputs",
-#             )
-#         )
+        sample_weights = None
+        if parameters["balance_sample_weights"]:
+            sample_weights = compute_sample_weight(class_weight="balanced", y=y)
 
-#         _log.info("finished scoring model outputs")
+        classifier = classifier.fit(x, y, sample_weight=sample_weights)
 
-#         test_result = test_result.smooth(partial(smooth_model_outputs, best_parameters))
-#         summary.append(
-#             manuscript_utils.summarize_scores(
-#                 test_result,
-#                 foreground_categories=dataset_test.foreground_categories,
-#                 run=run,
-#                 postprocessing_step="smoothed",
-#             )
-#         )
+        result = predict(dataset_test, classifier, extractor)
 
-#         _log.info("finished scoring smoothed results")
+        result_postprocessed = postprocessing_function(
+            result, **parameters["postprocessing_function_kwargs"]
+        )
 
-#         test_result = test_result.threshold(best_thresholds, default_decision="none")
-#         summary.append(
-#             manuscript_utils.summarize_scores(
-#                 test_result,
-#                 foreground_categories=dataset_test.foreground_categories,
-#                 run=run,
-#                 postprocessing_step="thresholded",
-#             )
-#         )
+        summary[run] = (
+            {
+                "raw": _flat(result.score(), "raw").assign(run=run),
+                "postprocessed": _flat(
+                    result_postprocessed.score(), "postprocessed"
+                ).assign(run=run),
+            },
+            {
+                "true": {
+                    "timestamp": result.y_gt,
+                    "annotation": result.encode(
+                        np.array(result.annotations["category"])
+                    ),
+                    "prediction": result.encode(
+                        np.array(result.predictions["true_category"])
+                    ),
+                },
+                "pred": {
+                    "timestamp": result.y,
+                    "annotation": result.encode(
+                        np.array(result.annotations["predicted_category"])
+                    ),
+                    "prediction": result.encode(
+                        np.array(result.predictions["category"])
+                    ),
+                },
+            },
+        )
 
-#         _log.info("finished scoring thresholded results")
+    gathered_summaries = env.gather(summary)
 
-#         summary = pd.concat(summary, ignore_index=True)
+    if not env.is_root:
+        exit()
 
-#         y["true"]["timestamp"] = test_result.y_true_numeric
-#         y["pred"]["timestamp"] = test_result.y_pred_numeric
-#         y["true"]["annotation"] = dataset_test.encode(
-#             test_result.annotations["category"].to_numpy()
-#         )
-#         y["pred"]["annotation"] = dataset_test.encode(
-#             test_result.annotations["predicted_category"].to_numpy()
-#         )
-#         y["true"]["prediction"] = dataset_test.encode(
-#             test_result.predictions["true_category"].to_numpy()
-#         )
-#         y["pred"]["prediction"] = dataset_test.encode(
-#             test_result.predictions["category"].to_numpy()
-#         )
+    summary = {}
+    for _summary in gathered_summaries:
+        for key, value in _summary.items():
+            if key in summary:
+                raise ValueError(f"Duplicate run: {key}")
+            summary[key] = value
 
-#         experiment.add((summary, y))
+    scores_raw = pd.concat(
+        [scores["raw"] for scores, _ in summary.values()], ignore_index=True
+    )
 
-#     results = experiment.collect()
+    scores_postprocessed = pd.concat(
+        [scores["postprocessed"] for scores, _ in summary.values()], ignore_index=True
+    )
 
-#     summary = pd.concat([summary for summary, _ in results.values()], ignore_index=True)
-#     confusion = [y for _, y in results.values()]
+    scores = pd.concat([scores_raw.drop(columns=["run"]), scores_postprocessed], axis=1)
+    print(scores.drop(columns=["run"]).mean(axis=0))
 
-#     log.info("collected results")
-
-#     if not experiment.is_root:
-#         exit()
-
-#     for run, confusion_data in enumerate(confusion):
-#         save_data(
-#             "results.h5",
-#             confusion_data["true"],
-#             _h5_path_join(f"run_{run:02d}", "true"),
-#         )
-#         save_data(
-#             "results.h5",
-#             confusion_data["pred"],
-#             _h5_path_join(f"run_{run:02d}", "pred"),
-#         )
-#     save_data(
-#         "results.h5",
-#         {"runs": np.array([f"run_{run:02d}" for run in range(len(confusion))])},
-#     )
-#     summary.to_hdf("results.h5", key="summary")
-
-#     if test_result is None:
-#         log.error("no results to save")
-#     else:
-#         test_result.to_h5("results.h5", dataset_name="test_dataset")
-#         log.info("saved results")
+    scores.to_csv("scores.csv", index=False)
