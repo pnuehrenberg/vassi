@@ -1,3 +1,5 @@
+import os
+
 from collections.abc import Callable, Iterable
 from functools import partial
 
@@ -123,10 +125,13 @@ for category in CATEGORIES:
             quantile_range, 0.0, 1.0
         )
 
+
+n_jobs = 72 // 4  # physical cpus // n_jobs in optimization.py
+
 parameter_space = ParameterSpace(
     classifier_kwargs={
-        "n_estimators": IntParameter("n_estimators", 10, 10),
-        "n_jobs": IntParameter("n_jobs", 1, 1),
+        "n_estimators": IntParameter("n_estimators", 1000, 1000),
+        "n_jobs": IntParameter("n_jobs", n_jobs, n_jobs),
     },
     balance_sample_weights=CategoricalParameter(
         "balance_sample_weights", [True, False]
