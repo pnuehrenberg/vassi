@@ -9,15 +9,13 @@ from sklearn.utils.class_weight import (
 from xgboost import XGBClassifier
 
 from vassi.classification import predict
-from vassi.classification._results import (
-    _write_h5_data,  # pyright: ignore[reportPrivateUsage]
-)
 from vassi.config import cfg
+from vassi.dataset import AnnotatedDataset
 from vassi.distributed import Environment
 from vassi.features import DataFrameExtractor
-from vassi.io import load_dataset
+from vassi.io.h5 import write_h5_data
+from vassi.io.yaml import from_yaml
 from vassi.type_guards import is_mapping_of
-from vassi.yaml import from_yaml
 
 from .helpers import parameter_space, sampling_function, smooth_model_outputs
 
@@ -40,19 +38,19 @@ def _flat(df: pd.DataFrame, suffix: str) -> pd.DataFrame:
 
 if __name__ == "__main__":
     env = Environment()
-    dataset_train = load_dataset(
-        "mice_train",
-        directory="../../datasets/CALMS21/train",
+    dataset_train = AnnotatedDataset.load_legacy(
+        "../../datasets/CALMS21/train/mice_train_trajectories.h5",
+        observation_file="../../datasets/CALMS21/train/mice_train_observations.csv",
         target="dyad",
         background_category="none",
-    )[0].exclude({"intruder"})
+    ).exclude({"intruder"})
 
-    dataset_test = load_dataset(
-        "mice_test",
-        directory="../../datasets/CALMS21/test",
+    dataset_test = AnnotatedDataset.load_legacy(
+        "../../datasets/CALMS21/test/mice_train_trajectories.h5",
+        observation_file="../../datasets/CALMS21/test/mice_test_observations.csv",
         target="dyad",
         background_category="none",
-    )[0].exclude({"intruder"})
+    ).exclude({"intruder"})
 
     extractor = DataFrameExtractor.from_yaml(
         "features-mice.yaml",
@@ -193,7 +191,7 @@ if __name__ == "__main__":
 
     for run, (_, y_data) in summary.items():
         for name, y in y_data.items():
-            _write_h5_data("results.h5", data=y, data_path=f"y/{run}/{name}", key=name)
+            write_h5_data("results.h5", data=y, data_path=f"y/{run}/{name}", key=name)
     scores.to_hdf("results.h5", key="scores", index=False)
 
     if result_for_visualization is None:

@@ -45,7 +45,7 @@ docs = [
     "sphinx_autodoc_typehints",
 ]
 
-[tool.pyright]
+[tool.basedpyright]
 venvPath = "."
 venv = ".venv"
 # This will disable the 'reportAny' check project-wide

@@ -12,11 +12,11 @@ import pandas as pd
 
 from .._utils import get_inner
 from ..data_structures import Trajectory
+from ..io.yaml import from_yaml, to_yaml
 from ..sliding_metrics import SlidingWindowAggregator
 from ..type_guards import is_iterable_of, is_iterable_of_tuple
 from ..utils import hash_mapping
 from ..warnings import warn
-from ..yaml import from_yaml, to_yaml
 from .features import load_by_name as load_feature_by_name
 from .modifiers import as_absolute, as_sign_change_latency, reversed_dyad
 from .naming import as_dataframe, generate_feature_names, prune_feature_names

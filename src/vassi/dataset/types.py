@@ -4,6 +4,7 @@ from abc import ABC, abstractmethod
 from collections.abc import Callable, Hashable, Iterable, Iterator, Mapping, Sequence
 from functools import partial
 from itertools import permutations
+from pathlib import Path
 from typing import (
     Literal,
     Self,
@@ -22,8 +23,10 @@ from sklearn.model_selection import (
 from .._utils import check_memory_for_array
 from ..data_structures import Trajectory
 from ..features import BaseExtractor, Shaped
+from ..io.h5 import load_trajectories
 from ..type_guards import is_tuple_of
 from ..utils import to_int_seed
+from ..warnings import warn
 from .observations import densify_observations
 from .stratification import biased_stratified_subsample
 from .utils import (
@@ -1498,7 +1501,7 @@ class Dataset(ElementCollection[Hashable, Group]):
         # the below is only for type checking purposes (sklearn is not fully typed)
         selected_actors: set[tuple[Hashable, Hashable]] = set()
         for actor in selection:  # pyright: ignore[reportUnknownVariableType]
-            if not is_tuple_of(actor, Hashable):  # pyright: ignore[reportUnknownArgumentType]
+            if not is_tuple_of(actor, Hashable):
                 raise ValueError(f"Invalid actor {actor}")
             selected_actors.add(actor)
 
@@ -1525,6 +1528,19 @@ class Dataset(ElementCollection[Hashable, Group]):
                 yield self._split(
                     {actors[idx] for idx in selected},  # pyright: ignore[reportUnknownVariableType]
                 )
+
+    @classmethod
+    def load(
+        cls,
+        trajectory_file: Path | str,
+        *,
+        target: Literal["individual", "dyad"],
+        **_: ...,
+    ) -> Self:
+        return cls(
+            load_trajectories(trajectory_file),
+            target=target,
+        )
 
 
 class AnnotatedDataset(
@@ -1687,3 +1703,29 @@ class AnnotatedDataset(
         )
         y = self.sample_y(indices=indices)
         return X, y
+
+    @override
+    @classmethod
+    def load(
+        cls,
+        trajectory_file: Path | str,
+        *,
+        target: Literal["individual", "dyad"],
+        observation_file: Path | str,
+        categories: set[str] | None = None,
+        background_category: str,
+        **_: ...,
+    ) -> Self:
+        observations = pd.read_csv(observation_file)  # pyright: ignore[reportUnknownMemberType]
+        if categories is None:
+            categories = set(observations["category"]) | {background_category}
+            warn(
+                f"Loading categories ({', '.join(sorted(categories))}) from observations file, specify categories argument if incomplete."
+            )
+        return cls(
+            load_trajectories(trajectory_file),
+            target=target,
+            observations=observations,
+            categories=categories,
+            background_category=background_category,
+        )

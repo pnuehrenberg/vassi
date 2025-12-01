@@ -12,8 +12,8 @@ import pandas as pd
 from ...dataset import AnnotatedDataset
 from ...distributed import Environment, get_process_state, limited_process_pool
 from ...features import BaseExtractor, Shaped
+from ...io.yaml import to_yaml
 from ...utils import to_int_seed
-from ...yaml import to_yaml
 from .._predict import Classifier, k_fold_predict
 from .._results import AnnotatedDatasetClassification
 from .utils import ParameterSpace, without_postprocessing

@@ -6,9 +6,9 @@ from vassi.classification.optimization import (
     summarize_study,
 )
 from vassi.config import cfg
+from vassi.dataset import AnnotatedDataset
 from vassi.distributed import Environment
 from vassi.features import DataFrameExtractor
-from vassi.io import load_dataset
 
 from .helpers import parameter_space, postprocessing_function, sampling_function
 
@@ -18,12 +18,12 @@ cfg.trajectory_keys = ("keypoints", "timestamps")
 
 if __name__ == "__main__":
     env = Environment()
-    dataset_train = load_dataset(
-        "mice_train",
-        directory="../../datasets/CALMS21/train",
+    dataset_train = AnnotatedDataset.load_legacy(
+        "../../datasets/CALMS21/train/mice_train_trajectories.h5",
+        observation_file="../../datasets/CALMS21/train/mice_train_annotations.csv",
         target="dyad",
         background_category="none",
-    )[0].exclude({"intruder"})
+    ).exclude({"intruder"})
 
     extractor = DataFrameExtractor.from_yaml(
         "features-mice.yaml",

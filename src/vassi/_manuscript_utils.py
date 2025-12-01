@@ -1,64 +1,37 @@
-from collections.abc import Callable, Iterable, Sequence
-from typing import (
-    TYPE_CHECKING,
-    Literal,
-    Optional,
-)
+from collections.abc import Callable, Hashable, Iterable, Sequence
+from typing import Literal
 
 import matplotlib.pyplot as plt
+import matplotlib.typing as mpt
 import numpy as np
 import pandas as pd
 from matplotlib.axes import Axes
+from matplotlib.colors import Colormap, Normalize
 from matplotlib.patches import ArrowStyle, ConnectionStyle, FancyArrowPatch
 
-from .classification._results import AnnotatedClassification
-from .classification.visualization import _Array
+from .classification.visualization import AxesArray
 from .dataset.types import AnnotatedDyad, AnnotatedGroup
-
-
-def summarize_scores(
-    result: AnnotatedClassification,
-    *,
-    foreground_categories: Iterable[str],
-    run: int,
-    postprocessing_step: str,
-):
-    # this is a helper function to aggregate the f1 scores for one postprocessing in one run
-    scores = result.score()
-    summary = scores.stack().reset_index()
-    summary = pd.DataFrame(
-        np.array(summary[0]),
-        index=summary["level_0"] + "_f1" + "-" + summary["level_1"],
-    ).T
-    columns = summary.columns
-    summary["run"] = run
-    summary["postprocessing_step"] = postprocessing_step
-    summary = summary[["run", "postprocessing_step", *columns]]
-    for level in scores.index:
-        summary[f"{level}_f1-macro-foreground"] = scores.loc[
-            level, list(foreground_categories)
-        ].mean()
-        summary[f"{level}_f1-macro-all"] = scores.loc[level].mean()
-    summary.columns = pd.MultiIndex.from_tuples(
-        [
-            tuple(map(str, (column.split("-", 1) if "-" in column else (column, ""))))
-            for column in summary.columns
-        ]
-    )
-    return summary
+from .type_guards import is_tuple_of
 
 
 def aggregate_scores(
-    summary: pd.DataFrame, score_level: str, *, categories: Iterable[str]
+    summary: pd.DataFrame,
+    *,
+    categories: Iterable[str],
+    level: Literal["timestamp", "annotation", "prediction"],
+    pipeline_step: Literal["raw", "smoothed", "thresholded"],
 ):
-    return (
-        summary.loc[:, ["postprocessing_step", score_level]]
-        .sort_index(axis=1)  # avoid unsorted index warning
-        .groupby("postprocessing_step")
-        .aggregate(["mean", "std"])
-        .loc[:, score_level]
-        .loc[:, ["macro-foreground", "macro-all", *categories]]
-    )
+    relevant_columns = summary[
+        [
+            column
+            for column in summary.columns
+            if column.endswith(pipeline_step)
+            and column.startswith(level)
+            and any(category in column for category in categories)
+        ]
+    ]
+    scores = relevant_columns.mean(axis=1)
+    return tuple(scores.aggregate(["mean", "std"], axis=0))  # pyright: ignore[reportUnknownMemberType]
 
 
 def plot_errorbars(
@@ -66,16 +39,16 @@ def plot_errorbars(
     means: Iterable[float] | float,
     stds: Iterable[float] | float,
     *,
-    x: Optional[Iterable[float]] = None,
-    padding: float = 0.5,
-    ls="none",
-    marker="_",
-    ms: float = 10,
-    lw: float = 6,
-    markeredgecolor="k",
-    color="k",
+    x: Iterable[float] | None = None,
     xticklabels: Iterable[str] = ("model", "smooth", "thresh"),
     ylabel: str,
+    padding: float = 0.5,
+    ms: float = 10,
+    lw: float = 6,
+    ls: mpt.LineStyleType = "none",
+    marker: mpt.MarkerType = "_",
+    markeredgecolor: mpt.ColorType = "k",
+    color: mpt.ColorType = "k",
 ):
     if isinstance(means, float):
         means = [means]
@@ -87,7 +60,7 @@ def plot_errorbars(
         x = np.arange(means.size)
     else:
         x = np.array(x)
-    ax.errorbar(
+    _ = ax.errorbar(  # pyright: ignore[reportUnknownMemberType]
         x,
         means,
         stds,
@@ -98,17 +71,21 @@ def plot_errorbars(
         markeredgecolor=markeredgecolor,
         color=color,
     )
-    ax.set_xlim(np.min(x) - padding, np.max(x) + padding)
-    ax.set_xticks(x)
-    ax.set_xticklabels(xticklabels, rotation=75)
-    ax.set_ylabel(ylabel)
+    _ = ax.set_xlim(np.min(x) - padding, np.max(x) + padding)
+    _ = ax.set_xticks(x)  # pyright: ignore[reportUnknownMemberType]
+    _ = ax.set_xticklabels(xticklabels, rotation=75)  # pyright: ignore[reportUnknownMemberType]
+    _ = ax.set_ylabel(ylabel)  # pyright: ignore[reportUnknownMemberType]
 
 
 def adjust_node_positions_repulsion_vectorized(
-    positions, min_distance, step=0.1, max_iterations=1000, convergence_threshold=1e-5
+    positions: np.ndarray,
+    min_distance: float,
+    step: float = 0.1,
+    max_iterations: int = 1000,
+    convergence_threshold: float = 1e-5,
 ):
     adjusted_positions = positions.copy()
-    for iteration in range(max_iterations):
+    for _ in range(max_iterations):
         max_displacement = 0.0
         # Calculate pairwise distances
         diffs = (
@@ -135,15 +112,15 @@ def adjust_node_positions_repulsion_vectorized(
 
 
 def draw_network(
-    ax,
-    connectivity_matrix,
-    locations,
-    cmap,
-    norm,
-    edge_weight_threshold=0,
-    fc="lightgray",
+    ax: Axes,
+    connectivity_matrix: np.ndarray,
+    locations: np.ndarray,
+    cmap: Colormap,
+    norm: Normalize,
+    edge_weight_threshold: float = 0,
+    fc: mpt.ColorType = "lightgray",
 ):
-    ax.scatter(
+    _ = ax.scatter(  # pyright: ignore[reportUnknownMemberType]
         *locations.T, ec="k", fc=fc, s=10, lw=0.5, zorder=connectivity_matrix.max() + 1
     )
     assert connectivity_matrix.shape[0] == connectivity_matrix.shape[1]
@@ -164,11 +141,11 @@ def draw_network(
                 shrinkB=3,
                 joinstyle="miter",
                 capstyle="round",
-                color=cmap(norm(np.log(edge_weight))),
+                color=cmap(norm(np.log(edge_weight))),  # pyright: ignore[reportUnknownArgumentType]
                 zorder=edge_weight,
                 clip_on=False,
             )
-            ax.add_patch(edge)
+            _ = ax.add_patch(edge)
 
 
 def dyadic_interactions(group: AnnotatedGroup, *, kind: Literal["count", "duration"]):
@@ -178,10 +155,10 @@ def dyadic_interactions(group: AnnotatedGroup, *, kind: Literal["count", "durati
         for category in group.foreground_categories
     }
     for identifier, sampleable in group:
-        if not isinstance(identifier, tuple):
-            raise ValueError("group target should be 'dyad'")
-        if TYPE_CHECKING:
-            assert isinstance(sampleable, AnnotatedDyad)
+        if not is_tuple_of(identifier, Hashable):
+            raise ValueError("Expected group of dyads")
+        if not isinstance(sampleable, AnnotatedDyad):
+            raise ValueError("sampleable should be AnnotatedDyad")
         actor, recipient = identifier
         actor_idx = individuals.index(actor)
         recipient_idx = individuals.index(recipient)
@@ -193,16 +170,15 @@ def dyadic_interactions(group: AnnotatedGroup, *, kind: Literal["count", "durati
                 ]
             except KeyError:
                 continue
-            match kind:
-                case "count":
+                if kind == "count":
                     interaction_matrices[category][actor_idx, recipient_idx] = len(
                         observations_category
                     )
-                case "duration":
+                elif kind == "duration":
                     interaction_matrices[category][actor_idx, recipient_idx] = (
                         observations_category["duration"].sum()
                     )
-                case _:
+                else:
                     raise ValueError(
                         f"invalid value for 'kind', specify either 'count' or 'duration' (got '{kind}')"
                     )
@@ -213,22 +189,22 @@ def plot_classification_timeline_multiple(
     predictions: pd.DataFrame,
     categories: Iterable[str],
     *,
-    annotations: Optional[pd.DataFrame] = None,
-    timestamps: Optional[np.ndarray] = None,
-    y_proba: Optional[np.ndarray] = None,
-    y_proba_smoothed: Optional[np.ndarray] = None,
-    axes: Optional[_Array[Axes]] = None,
+    annotations: pd.DataFrame | None = None,
+    timestamps: np.ndarray | None = None,
+    y_proba: np.ndarray | None = None,
+    y_proba_smoothed: np.ndarray | None = None,
+    axes: AxesArray | None = None,
     figsize: tuple[float, float] = (10, 3),
     dpi: float = 100,
-    category_labels: Optional[Iterable[str]] = None,
-    interval: Optional[tuple[float, float]] = None,
+    category_labels: Iterable[str] | None = None,
+    interval: tuple[float, float] | None = None,
     limit_interval: bool = True,
-    x_tick_step: Optional[float] = None,
-    x_tick_conversion: Optional[Callable[[Sequence[float]], Sequence[str]]] = None,
-    x_label: Optional[str] = None,
-    y_offset=0,
-    x_offset=0,
-    zorder=1,
+    x_tick_step: float | None = None,
+    x_tick_conversion: Callable[[Sequence[float]], Sequence[str]] | None = None,
+    x_label: str | None = None,
+    y_offset: int = 0,
+    x_offset: int = 0,
+    zorder: int = 1,
 ):
     zorder *= 3
 
@@ -237,7 +213,7 @@ def plot_classification_timeline_multiple(
         observations: pd.DataFrame,
         categories: list[str],
         y_range: tuple[float, float],
-        color,
+        color: mpt.ColorType,
     ):
         try:
             intervals = (
@@ -247,7 +223,7 @@ def plot_classification_timeline_multiple(
             )
         except KeyError:
             return
-        ax.broken_barh(
+        _ = ax.broken_barh(  # pyright: ignore[reportUnknownMemberType]
             [(float(start) + x_offset, float(stop)) for start, stop in intervals],
             yrange=y_range,
             lw=0,
@@ -265,10 +241,9 @@ def plot_classification_timeline_multiple(
     category_labels = categories if category_labels is None else list(category_labels)
     show_on_return = False
     if axes is None:
-        fig = plt.figure(figsize=figsize, dpi=dpi)
+        fig = plt.figure(figsize=figsize, dpi=dpi)  # pyright: ignore[reportUnknownMemberType]
         axes = fig.subplots(len(categories), 1, sharey=True)
         show_on_return = True
-    if TYPE_CHECKING:
         assert axes is not None
     predictions_y_range = (
         (0.5 if annotations is not None else 0) + y_offset,
@@ -286,8 +261,7 @@ def plot_classification_timeline_multiple(
             assert timestamps is not None, (
                 "specify timestamps when plotting probabilities"
             )
-            # tolist is a hack for type checking: Type "NDArray[numpy.bool[builtins.bool]]" is not assignable to type "Sequence[bool] | None"
-            axes[idx].fill_between(
+            _ = axes[idx].fill_between(  # pyright: ignore[reportUnknownMemberType]
                 timestamps + x_offset,
                 y_proba_smoothed[:, idx] + y_offset,
                 where=(y_proba_smoothed[:, idx] > 0.01).tolist(),
@@ -295,7 +269,7 @@ def plot_classification_timeline_multiple(
                 color="#f7f7f7",
                 zorder=zorder - 2,
             )
-            axes[idx].plot(
+            _ = axes[idx].plot(  # pyright: ignore[reportUnknownMemberType]
                 timestamps + x_offset,
                 y_proba_smoothed[:, idx] + y_offset,
                 lw=1,
@@ -305,19 +279,21 @@ def plot_classification_timeline_multiple(
         axes[idx].set_facecolor("#f7f7f7")
         axes[idx].spines[["right", "top", "bottom"]].set_visible(False)
         if y_proba is None and y_proba_smoothed is None:
-            axes[idx].set_yticks([])
+            _ = axes[idx].set_yticks([])  # pyright: ignore[reportUnknownMemberType]
             axes[idx].spines[["left"]].set_visible(False)
-        axes[idx].set_xticks([])
-        axes[idx].set_xlim(interval[0], interval[1] + x_offset)
-        axes[idx].set_ylim(-0.1, 1.1 + y_offset)
-        axes[idx].set_ylabel(category_labels[idx], ha="right", va="center", rotation=0)
+        _ = axes[idx].set_xticks([])  # pyright: ignore[reportUnknownMemberType]
+        _ = axes[idx].set_xlim(interval[0], interval[1] + x_offset)
+        _ = axes[idx].set_ylim(-0.1, 1.1 + y_offset)
+        _ = axes[idx].set_ylabel(  # pyright: ignore[reportUnknownMemberType]
+            category_labels[idx], ha="right", va="center", rotation=0
+        )
     if x_tick_step is not None:
-        axes[-1].set_xticks(np.arange(*interval, x_tick_step))
+        _ = axes[-1].set_xticks(np.arange(*interval, x_tick_step))  # pyright: ignore[reportUnknownMemberType]
     else:
-        axes[-1].set_xticks([])
+        _ = axes[-1].set_xticks([])  # pyright: ignore[reportUnknownMemberType]
     if x_tick_conversion is not None:
-        axes[-1].set_xticklabels(x_tick_conversion(list(axes[-1].get_xticks())))
+        _ = axes[-1].set_xticklabels(x_tick_conversion(list(axes[-1].get_xticks())))  # pyright: ignore[reportUnknownMemberType]
     if x_label is not None:
-        axes[-1].set_xlabel(x_label)
+        _ = axes[-1].set_xlabel(x_label)  # pyright: ignore[reportUnknownMemberType]
     if show_on_return:
-        plt.show()
+        plt.show()  # pyright: ignore[reportUnknownMemberType]

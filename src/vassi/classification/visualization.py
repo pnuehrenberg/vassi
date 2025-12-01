@@ -1,32 +1,28 @@
 from collections.abc import Iterable, Sequence
 from typing import (
     TYPE_CHECKING,
-    Any,
     Callable,
-    Generic,
     Literal,
+    Protocol,
     Self,
-    TypeVar,
 )
 
 import matplotlib.patches as patches
 import matplotlib.pyplot as plt
+import matplotlib.typing as mpt
 import numpy as np
 import pandas as pd
 from matplotlib.axes import Axes
 from matplotlib.colors import Colormap, Normalize
-from sklearn.metrics import confusion_matrix
-
-# Little helper class, only used for array type annotations.
-# https://stackoverflow.com/questions/72649220/precise-type-annotating-array-numpy-ndarray-of-matplotlib-axes-from-plt-subplo
-DType = TypeVar("DType")
+from sklearn.metrics import (
+    confusion_matrix,  # pyright: ignore[reportUnknownVariableType]
+)
 
 
-class _Array(np.ndarray, Generic[DType]):
-    def __getitem__(self, key) -> DType:  # pyright: ignore[reportIncompatibleMethodOverride]
-        return super().__getitem__(key)  # pyright: ignore[reportReturnType]
+class AxesArray(Protocol):
+    def __getitem__(self, key: int | tuple[int, ...]) -> Axes: ...
 
-    def ravel(self, *args, **kwargs) -> Self: ...
+    def ravel(self, *args: ..., **kwargs: ...) -> Self: ...
 
 
 def _matshow_patches(
@@ -38,7 +34,7 @@ def _matshow_patches(
     vmin: float | None = None,
     vmax: float | None = None,
     line_width: float = 0.5,
-    **kwargs: Any,
+    **kwargs: ...,
 ) -> plt.cm.ScalarMappable:
     """
     Plot a matrix as an image using matplotlib.patches.Rectangle,
@@ -65,9 +61,10 @@ def _matshow_patches(
         The ScalarMappable object that can be passed to :code:`plt.colorbar()`
         for external colorbar creation.
     """
+    del kwargs  # not used in the scope of the function
 
     mat = np.asarray(mat)
-    rows, cols = mat.shape
+    rows, cols = map(int, mat.shape[:2])
 
     if cmap is None:
         cmap = plt.rcParams["image.cmap"]
@@ -81,25 +78,29 @@ def _matshow_patches(
 
     for i in range(rows):
         for j in range(cols):
-            color = colormap(norm(mat[i, j]))
+            color = colormap(norm(mat[i, j]))  # pyright: ignore[reportUnknownVariableType, reportUnknownArgumentType]
             rect = patches.Rectangle(
                 (j - 0.5, i - 0.5),  # Position of the patch
                 1,
                 1,  # Size of the patch
-                facecolor=color,
-                edgecolor=color,  # Set edge color to match face color
-                linewidth=line_width,  # Use the specified line width
+                facecolor=color,  # pyright: ignore[reportUnknownArgumentType]
+                edgecolor=color,  # pyright: ignore[reportUnknownArgumentType]
+                linewidth=line_width,
             )
-            ax.add_patch(rect)
+            _ = ax.add_patch(rect)
 
-    ax.set_xlim(-0.5, cols - 0.5)
-    ax.set_ylim(rows - 0.5, -0.5)  # Invert y-axis to match matshow
+    _ = ax.set_xlim(-0.5, cols - 0.5)
+    _ = ax.set_ylim(rows - 0.5, -0.5)  # Invert y-axis to match matshow
 
-    ax.set_xticks(np.arange(cols))
-    ax.set_yticks(np.arange(rows))
+    _ = ax.set_xticks(np.arange(cols))  # pyright: ignore[reportUnknownMemberType]
+    _ = ax.set_yticks(np.arange(rows))  # pyright: ignore[reportUnknownMemberType]
 
-    ax.tick_params(axis="x", top=True, labeltop=True, bottom=False, labelbottom=False)
-    ax.tick_params(axis="y", left=True, labelleft=True, right=False, labelright=False)
+    _ = ax.tick_params(  # pyright: ignore[reportUnknownMemberType]
+        axis="x", top=True, labeltop=True, bottom=False, labelbottom=False
+    )
+    _ = ax.tick_params(  # pyright: ignore[reportUnknownMemberType]
+        axis="y", left=True, labelleft=True, right=False, labelright=False
+    )
 
     ax.set_aspect(aspect)
 
@@ -134,7 +135,7 @@ def plot_confusion_matrix(
         show_colorbar: Whether to show the colorbar.
     """
 
-    def format_count(count) -> str:
+    def format_count(count: int) -> str:
         if count > 100000:
             return f"{count:.1e}".replace("e+0", "e").replace("e+", "e")
         return str(count)
@@ -144,14 +145,16 @@ def plot_confusion_matrix(
     if not y_true.shape == y_pred.shape:
         raise ValueError("y_true and y_pred must be of same shape")
     if y_true.ndim == 1 and y_true.dtype != "O":
-        cm = confusion_matrix(
-            y_true, y_pred, labels=range(max(max(y_true), max(y_pred)) + 1)
+        cm = np.asarray(
+            confusion_matrix(  # pyright: ignore[reportUnknownArgumentType]
+                y_true, y_pred, labels=range(max(max(y_true), max(y_pred)) + 1)
+            )
         )
     else:
         cm = (
             np.asarray(
                 [
-                    confusion_matrix(
+                    confusion_matrix(  # pyright: ignore[reportUnknownArgumentType]
                         y_true,
                         y_pred,
                         labels=range(
@@ -169,45 +172,46 @@ def plot_confusion_matrix(
             .round()
             .astype(int)
         )
+
     with np.errstate(divide="ignore", invalid="ignore"):
-        cm_prob = (cm.T / cm.sum(axis=1)).T
+        cm_prob = cm / np.sum(cm, axis=1, keepdims=True)
     show_on_return = False
     if ax is None:
-        fig = plt.figure(figsize=figsize, dpi=dpi)
-        ax = fig.add_axes((0, 0, 1, 1))
+        fig = plt.figure(figsize=figsize, dpi=dpi)  # pyright: ignore[reportUnknownMemberType]
+        ax = fig.add_axes((0, 0, 1, 1))  # pyright: ignore[reportUnknownMemberType]
         show_on_return = True
     ax_colorbar = None
     if show_colorbar:
-        ax_colorbar = ax.inset_axes((1.05, 0, 0.05, 1))
+        ax_colorbar = ax.inset_axes((1.05, 0, 0.05, 1))  # pyright: ignore[reportUnknownMemberType]
     mappable = _matshow_patches(
         ax, cm_prob, vmin=0, vmax=1, interpolation="none", rasterized=True
     )
     grid = np.indices(cm_prob.shape)
     for row_idx, col_idx in zip(grid[0].ravel(), grid[1].ravel()):
-        ax.text(
+        _ = ax.text(  # pyright: ignore[reportUnknownMemberType]
             col_idx,
             row_idx,
-            f"{cm_prob[row_idx, col_idx]:.2f}\n({format_count(cm[row_idx, col_idx])})",
+            f"{cm_prob[row_idx, col_idx]:.2f}\n({format_count(int(cm[row_idx, col_idx]))})",
             ha="center",
             va="center",
             c="k" if cm_prob[row_idx, col_idx] > 0.5 else "w",
             fontsize=8,
         )
     if show_colorbar and ax_colorbar is not None:
-        plt.colorbar(mappable, cax=ax_colorbar)
+        _ = plt.colorbar(mappable, cax=ax_colorbar)  # pyright: ignore[reportUnknownMemberType]
         ax_colorbar.yaxis.set_ticks_position("right")
     if category_labels is not None:
-        ax.set_yticks(range(len(category_labels)))
-        ax.set_yticklabels(category_labels, rotation=90, va="center")
-        ax.set_xticks(range(len(category_labels)))
-        ax.set_xticklabels(category_labels)
-    ax.set_ylabel("Annotated")
-    ax.set_xlabel("Predicted")
+        _ = ax.set_yticks(range(len(category_labels)))  # pyright: ignore[reportUnknownMemberType]
+        _ = ax.set_yticklabels(category_labels, rotation=90, va="center")  # pyright: ignore[reportUnknownMemberType]
+        _ = ax.set_xticks(range(len(category_labels)))  # pyright: ignore[reportUnknownMemberType]
+        _ = ax.set_xticklabels(category_labels)  # pyright: ignore[reportUnknownMemberType]
+    _ = ax.set_ylabel("Annotated")  # pyright: ignore[reportUnknownMemberType]
+    _ = ax.set_xlabel("Predicted")  # pyright: ignore[reportUnknownMemberType]
     ax.xaxis.set_ticks_position("bottom")
-    ax.set_xlim(-0.5, cm.shape[1] - 0.5)
-    ax.set_ylim(cm.shape[0] - 0.5, -0.5)
+    _ = ax.set_xlim(-0.5, cm.shape[1] - 0.5)
+    _ = ax.set_ylim(cm.shape[0] - 0.5, -0.5)
     if show_on_return:
-        plt.show()
+        plt.show()  # pyright: ignore[reportUnknownMemberType]
 
 
 def plot_classification_timeline(
@@ -218,7 +222,7 @@ def plot_classification_timeline(
     timestamps: np.ndarray | None = None,
     y_proba: np.ndarray | None = None,
     y_proba_smoothed: np.ndarray | None = None,
-    axes: _Array[Axes] | None = None,
+    axes: AxesArray | None = None,
     figsize: tuple[float, float] = (10, 3),
     dpi: float = 100,
     category_labels: Sequence[str] | None = None,
@@ -254,7 +258,7 @@ def plot_classification_timeline(
         observations: pd.DataFrame,
         categories: list[str],
         y_range: tuple[float, float],
-        color,
+        color: mpt.ColorType,
     ):
         try:
             intervals = (
@@ -264,7 +268,7 @@ def plot_classification_timeline(
             )
         except KeyError:
             return
-        ax.broken_barh(
+        _ = ax.broken_barh(  # pyright: ignore[reportUnknownMemberType]
             [
                 (float(start), float(stop) - float(start) + 1)
                 for start, stop in intervals
@@ -284,7 +288,7 @@ def plot_classification_timeline(
     category_labels = categories if category_labels is None else list(category_labels)
     show_on_return = False
     if axes is None:
-        fig = plt.figure(figsize=figsize, dpi=dpi)
+        fig = plt.figure(figsize=figsize, dpi=dpi)  # pyright: ignore[reportUnknownMemberType]
         axes = fig.subplots(len(categories), 1, sharey=True)
         show_on_return = True
     if TYPE_CHECKING:
@@ -303,7 +307,7 @@ def plot_classification_timeline(
             assert timestamps is not None, (
                 "specify timestamps when plotting probabilities"
             )
-            axes[idx].plot(
+            _ = axes[idx].plot(  # pyright: ignore[reportUnknownMemberType]
                 timestamps,
                 y_proba[:, idx],
                 lw=1,
@@ -314,23 +318,25 @@ def plot_classification_timeline(
             assert timestamps is not None, (
                 "specify timestamps when plotting probabilities"
             )
-            axes[idx].plot(timestamps, y_proba_smoothed[:, idx], lw=1, c="k")
+            _ = axes[idx].plot(timestamps, y_proba_smoothed[:, idx], lw=1, c="k")  # pyright: ignore[reportUnknownMemberType]
         axes[idx].set_facecolor("#f7f7f7")
         axes[idx].spines[["right", "top", "bottom"]].set_visible(False)
         if y_proba is None and y_proba_smoothed is None:
-            axes[idx].set_yticks([])
+            _ = axes[idx].set_yticks([])  # pyright: ignore[reportUnknownMemberType]
             axes[idx].spines[["left"]].set_visible(False)
-        axes[idx].set_xticks([])
-        axes[idx].set_xlim(interval[0], interval[1])
-        axes[idx].set_ylim(-0.1, 1.1)
-        axes[idx].set_ylabel(category_labels[idx], ha="right", va="center", rotation=0)
+        _ = axes[idx].set_xticks([])  # pyright: ignore[reportUnknownMemberType]
+        _ = axes[idx].set_xlim(interval[0], interval[1])
+        _ = axes[idx].set_ylim(-0.1, 1.1)
+        _ = axes[idx].set_ylabel(  # pyright: ignore[reportUnknownMemberType]
+            category_labels[idx], ha="right", va="center", rotation=0
+        )
     if x_tick_step is not None:
-        axes[-1].set_xticks(np.arange(*interval, x_tick_step))
+        _ = axes[-1].set_xticks(np.arange(*interval, x_tick_step))  # pyright: ignore[reportUnknownMemberType]
     else:
-        axes[-1].set_xticks([])
+        _ = axes[-1].set_xticks([])  # pyright: ignore[reportUnknownMemberType]
     if x_tick_conversion is not None:
-        axes[-1].set_xticklabels(x_tick_conversion(list(axes[-1].get_xticks())))
+        _ = axes[-1].set_xticklabels(x_tick_conversion(list(axes[-1].get_xticks())))  # pyright: ignore[reportUnknownMemberType]
     if x_label is not None:
-        axes[-1].set_xlabel(x_label)
+        _ = axes[-1].set_xlabel(x_label)  # pyright: ignore[reportUnknownMemberType]
     if show_on_return:
-        plt.show()
+        plt.show()  # pyright: ignore[reportUnknownMemberType]

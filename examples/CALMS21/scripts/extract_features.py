@@ -1,6 +1,6 @@
 from vassi.config import cfg
+from vassi.dataset import AnnotatedDataset
 from vassi.features import DataFrameExtractor
-from vassi.io import load_dataset
 
 cfg.key_keypoints = "keypoints"
 cfg.key_timestamp = "timestamps"
@@ -11,19 +11,19 @@ cfg.trajectory_keys = (
 )
 
 if __name__ == "__main__":
-    dataset_train = load_dataset(
-        "mice_train",
-        directory="../../datasets/CALMS21/train",
+    dataset_train = AnnotatedDataset.load_legacy(
+        "../../datasets/CALMS21/train/mice_train_trajectories.h5",
+        observation_file="../../datasets/CALMS21/train/mice_train_annotations.csv",
         target="dyad",
         background_category="none",
-    )[0].exclude({"intruder"})
+    ).exclude({"intruder"})
 
-    dataset_test = load_dataset(
-        "mice_test",
-        directory="../../datasets/CALMS21/test",
+    dataset_test = AnnotatedDataset.load_legacy(
+        "../../datasets/CALMS21/test/mice_train_trajectories.h5",
+        observation_file="../../datasets/CALMS21/test/mice_test_observations.csv",
         target="dyad",
         background_category="none",
-    )[0].exclude({"intruder"})
+    ).exclude({"intruder"})
 
     extractor = DataFrameExtractor.from_yaml(
         "features-mice.yaml",

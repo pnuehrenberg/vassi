@@ -7,7 +7,6 @@ from functools import partial
 from pathlib import Path, PurePosixPath
 from typing import Literal, Self, override
 
-import h5py
 import numpy as np
 import pandas as pd
 from sklearn.metrics import f1_score  # pyright: ignore[reportUnknownVariableType]
@@ -15,6 +14,14 @@ from sklearn.metrics import f1_score  # pyright: ignore[reportUnknownVariableTyp
 from ..dataset import densify_observations, remove_overlapping_observations
 from ..dataset.types import WithCategories, get_validators
 from ..distributed import get_process_state, limited_process_pool
+from ..io.h5 import (
+    get_h5_keys,
+    read_h5_attrs,
+    read_h5_data,
+    write_h5_array,
+    write_h5_attrs,
+    write_h5_data,
+)
 from ..type_guards import is_tuple_of, is_valid_classification_data
 from ..utils import SmoothingFunction
 from ..warnings import warn
@@ -27,130 +34,6 @@ from .utils import (
 # if vassi is bumped to Python 3.13:
 # copy.replace could be used instead of shallow copy
 # and subsequent assignment of attributes
-
-
-def _write_h5_array(
-    data_file: str | Path, *, array: np.ndarray, data_path: str, **attrs: ...
-) -> None:
-    data_file = Path(data_file)
-    with h5py.File(str(data_file), "a") as h5_file:
-        if data_path in h5_file:
-            h5_data = h5_file[data_path]
-            if not isinstance(h5_data, h5py.Dataset):
-                raise ValueError("cannot overwrite non-dataset element with array")
-            if h5_data.shape != array.shape:
-                raise ValueError(
-                    "cannot overwrite dataset with array of different shape"
-                )
-            h5_data[:] = array
-        else:
-            if np.issubdtype(array.dtype, np.str_):
-                dtype = np.dtype("T")
-                array = array.astype(dtype)
-            h5_data = h5_file.create_dataset(
-                data_path,
-                data=array,
-            )
-        for key, attr in attrs.items():
-            h5_data.attrs[key] = attr
-
-
-def _write_h5_attrs(data_file: str | Path, *, data_path: str, **attrs: ...) -> None:
-    data_file = Path(data_file)
-    if not data_file.exists():
-        raise FileNotFoundError(f"file {data_file} does not exist")
-    with h5py.File(str(data_file), "a") as h5_file:
-        if data_path not in h5_file:
-            raise ValueError(
-                f"cannot write attributes to non-existent path '{data_path}'"
-            )
-        h5_data = h5_file[data_path]
-        for key, attr in attrs.items():
-            h5_data.attrs[key] = attr
-
-
-def _read_h5_attrs(data_file: str | Path, *, data_path: str) -> dict[str, object]:
-    data_file = Path(data_file)
-    if not data_file.exists():
-        raise FileNotFoundError(f"file {data_file} does not exist")
-    with h5py.File(str(data_file), "r") as h5_file:
-        if data_path not in h5_file:
-            raise ValueError(
-                f"cannot read attributes from non-existent path '{data_path}'"
-            )
-        h5_data = h5_file[data_path]
-        return dict(h5_data.attrs.items())
-
-
-def _write_h5_data(
-    data_file: str | Path,
-    *,
-    data: Mapping[str, np.ndarray],
-    data_path: str | None,
-    **attrs: ...,
-) -> None:
-    if data_path is None:
-        data_path = ""
-    posix_data_path = PurePosixPath(data_path)
-    for key, array in data.items():
-        _write_h5_array(
-            data_file, array=array, data_path=str(posix_data_path / str(key)), key=key
-        )
-    _write_h5_attrs(data_file, data_path=data_path, **attrs)
-
-
-def _read_h5_array(
-    data_file: str | Path, *, data_path: str
-) -> tuple[None | object, np.ndarray]:
-    data_file = Path(data_file)
-    if not data_file.exists():
-        raise FileNotFoundError(f"file {data_file} does not exist")
-    with h5py.File(str(data_file), "r") as h5_file:
-        if data_path not in h5_file:
-            raise KeyError(f"dataset {data_path} not found in file {data_file}")
-        h5_data = h5_file[data_path]
-        if not isinstance(h5_data, h5py.Dataset):
-            raise ValueError(
-                f"element {data_path} in file {data_file} is not a dataset"
-            )
-        key = None
-        if "key" in h5_data.attrs:
-            key = h5_data.attrs["key"]
-        return key, h5_data[:]
-
-
-def _get_keys(data_file: str | Path, *, data_path: str | None) -> list[str]:
-    data_file = Path(data_file)
-    if not data_file.exists():
-        raise FileNotFoundError(f"file {data_file} does not exist")
-    with h5py.File(str(data_file), "r") as h5_file:
-        if data_path is None:
-            return list(h5_file.keys())
-        posix_data_path = PurePosixPath(data_path)
-        h5_data = h5_file[data_path]
-        if not isinstance(h5_data, h5py.Group):
-            raise ValueError(f"element {data_path} in file {data_file} is not a group")
-        return [
-            str((posix_data_path / key).relative_to(posix_data_path))
-            for key in h5_data.keys()
-        ]
-
-
-def _read_h5_data(
-    data_file: str | Path, *, data_path: str | None
-) -> dict[object, np.ndarray]:
-    if data_path is None:
-        data_path = ""
-    posix_data_path = PurePosixPath(data_path)
-    keys = _get_keys(data_file, data_path=data_path)
-    data = [
-        _read_h5_array(data_file, data_path=str(posix_data_path / str(key)))
-        for key in keys
-    ]
-    data_dict = dict(data)
-    if len(data_dict) != len(data):
-        raise ValueError("can only read data from h5 with unique key attributes")
-    return data_dict
 
 
 def _discretize[T: Classification](
@@ -493,20 +376,20 @@ class ClassificationCollection[
                 data_path=str(PurePosixPath(data_path) / str(identifier)),
                 identifier=identifier,
             )
-        _write_h5_attrs(data_file, data_path=data_path, **attrs)
+        write_h5_attrs(data_file, data_path=data_path, **attrs)
 
     @override
     @classmethod
     def from_h5(
         cls, data_file: str | Path, *, data_path: str = "."
     ) -> tuple[Hashable, Self]:
-        attrs = _read_h5_attrs(data_file, data_path=data_path)
+        attrs = read_h5_attrs(data_file, data_path=data_path)
         identifier = attrs.get("identifier", None)
         classifications = [
             cls._minimal_classification_type.from_h5(
                 data_file, data_path=str(PurePosixPath(data_path) / str(key))
             )
-            for key in _get_keys(data_file, data_path=data_path)
+            for key in get_h5_keys(data_file, data_path=data_path)
         ]
         if len(classifications) == 0:
             raise ValueError("Expected at least one classification")
@@ -611,7 +494,7 @@ class Classification(BaseClassification):
     def to_h5(
         self, data_file: str | Path, *, data_path: str = ".", **attrs: ...
     ) -> None:
-        _write_h5_data(
+        write_h5_data(
             data_file,
             data={
                 "categories": np.array(list(self.categories)),
@@ -625,24 +508,24 @@ class Classification(BaseClassification):
         self.predictions.to_hdf(
             data_file, key=str(PurePosixPath(data_path) / "predictions")
         )
-        _write_h5_attrs(data_file, data_path=data_path, **attrs)
+        write_h5_attrs(data_file, data_path=data_path, **attrs)
 
     @override
     @classmethod
     def from_h5(
         cls, data_file: str | Path, *, data_path: str = "."
     ) -> tuple[Hashable, Self]:
-        attrs = _read_h5_attrs(data_file, data_path=data_path)
+        attrs = read_h5_attrs(data_file, data_path=data_path)
         identifier = attrs.get("identifier", None)
         if not isinstance(identifier, str) and isinstance(identifier, Iterable):
             identifier = tuple(identifier)
         if not isinstance(identifier, Hashable):
             raise ValueError(f"Invalid identifier {identifier}")
-        _data = _read_h5_data(
+        _data = read_h5_data(
             data_file, data_path=str(PurePosixPath(data_path) / "classification")
         )
         annotations = None
-        if "annotations" in _get_keys(data_file, data_path=data_path):
+        if "annotations" in get_h5_keys(data_file, data_path=data_path):
             annotations = pd.read_hdf(
                 data_file, key=str(PurePosixPath(data_path) / "annotations")
             )
@@ -737,7 +620,7 @@ class AnnotatedClassification(WithGroundTruth, Classification):
         self, data_file: str | Path, *, data_path: str = ".", **attrs: ...
     ) -> None:
         super().to_h5(data_file, data_path=data_path, **attrs)
-        _write_h5_array(
+        write_h5_array(
             data_file,
             array=self.y_gt,
             data_path=str(PurePosixPath(data_path) / "classification" / "y_gt"),
