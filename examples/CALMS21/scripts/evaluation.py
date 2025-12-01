@@ -1,3 +1,4 @@
+from functools import partial
 from itertools import product
 
 import numpy as np
@@ -8,6 +9,9 @@ from sklearn.utils.class_weight import (
 from xgboost import XGBClassifier
 
 from vassi.classification import predict
+from vassi.classification._results import (
+    _write_h5_data,  # pyright: ignore[reportPrivateUsage]
+)
 from vassi.config import cfg
 from vassi.distributed import Environment
 from vassi.features import DataFrameExtractor
@@ -15,7 +19,7 @@ from vassi.io import load_dataset
 from vassi.type_guards import is_mapping_of
 from vassi.yaml import from_yaml
 
-from .helpers import parameter_space, postprocessing_function, sampling_function
+from .helpers import parameter_space, sampling_function, smooth_model_outputs
 
 cfg.key_keypoints = "keypoints"
 cfg.key_timestamp = "timestamps"
@@ -97,16 +101,35 @@ if __name__ == "__main__":
 
         result = predict(dataset_test, classifier, extractor)
 
-        result_postprocessed = postprocessing_function(
-            result, **parameters["postprocessing_function_kwargs"]
+        # # instead of running the postprocessing function, we run smoothing and thresholding separately
+        # result_postprocessed = postprocessing_function(
+        #     result, **parameters["postprocessing_function_kwargs"]
+        # )
+
+        # see helpers.py postprocessing_function
+        smoothing_function_kwargs = dict(parameters["postprocessing_function_kwargs"])
+        decision_thresholds = {
+            threshold.replace("decision_threshold-", "", 1): value
+            for threshold in parameters["postprocessing_function_kwargs"]
+            if threshold.startswith("decision_threshold-")
+            and (value := smoothing_function_kwargs.pop(threshold))
+            and isinstance(value, (float, int))
+        }
+        result_smoothed = result.smooth(
+            partial(
+                smooth_model_outputs, result.categories, **smoothing_function_kwargs
+            ),
         )
+
+        result_thresholded = result_smoothed.discretize(decision_thresholds)
 
         summary[run] = (
             {
                 "raw": _flat(result.score(), "raw").assign(run=run),
-                "postprocessed": _flat(
-                    result_postprocessed.score(), "postprocessed"
-                ).assign(run=run),
+                "smoothed": _flat(result.score(), "smoothed").assign(run=run),
+                "thresholded": _flat(result_thresholded.score(), "thresholded").assign(
+                    run=run
+                ),
             },
             {
                 "true": {
@@ -146,11 +169,26 @@ if __name__ == "__main__":
         [scores["raw"] for scores, _ in summary.values()], ignore_index=True
     )
 
-    scores_postprocessed = pd.concat(
-        [scores["postprocessed"] for scores, _ in summary.values()], ignore_index=True
+    scores_smoothed = pd.concat(
+        [scores["smoothed"] for scores, _ in summary.values()], ignore_index=True
     )
 
-    scores = pd.concat([scores_raw.drop(columns=["run"]), scores_postprocessed], axis=1)
-    print(scores.drop(columns=["run"]).mean(axis=0))
+    scores_thresholded = pd.concat(
+        [scores["thresholded"] for scores, _ in summary.values()], ignore_index=True
+    )
 
-    scores.to_csv("scores.csv", index=False)
+    scores = pd.concat(
+        [
+            scores_raw.drop(columns=["run"]),
+            scores_smoothed.drop(columns=["run"]),
+            scores_thresholded,
+        ],
+        axis=1,
+    )
+
+    for run, (_, y_data) in summary.items():
+        for name, y in y_data.items():
+            _write_h5_data("results.h5", data=y, data_path=f"y/{run}/{name}", key=name)
+    scores.to_hdf("results.h5", key="scores", index=False)
+
+    print(scores.drop(columns=["run"]).mean(axis=0))
