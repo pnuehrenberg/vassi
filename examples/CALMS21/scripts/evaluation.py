@@ -82,6 +82,8 @@ if __name__ == "__main__":
         int, tuple[dict[str, pd.DataFrame], dict[str, dict[str, np.ndarray]]]
     ] = {}
 
+    result_for_visualization = None
+
     for run in range(20):
         if run % env.size != env.rank:
             continue
@@ -122,6 +124,9 @@ if __name__ == "__main__":
         )
 
         result_thresholded = result_smoothed.discretize(decision_thresholds)
+
+        if run == 0:
+            result_for_visualization = result_thresholded
 
         summary[run] = (
             {
@@ -190,5 +195,11 @@ if __name__ == "__main__":
         for name, y in y_data.items():
             _write_h5_data("results.h5", data=y, data_path=f"y/{run}/{name}", key=name)
     scores.to_hdf("results.h5", key="scores", index=False)
+
+    if result_for_visualization is None:
+        raise ValueError("expected result, evaulation requires runs > 0")
+    result_for_visualization.to_h5(
+        "results.h5", data_path="result_thresholded", key="result_thresholded"
+    )
 
     print(scores.drop(columns=["run"]).mean(axis=0))
