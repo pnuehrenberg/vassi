@@ -63,8 +63,8 @@ def aggregate_scores(
 
 def plot_errorbars(
     ax: Axes,
-    means: Iterable[float],
-    stds: Iterable[float],
+    means: Iterable[float] | float,
+    stds: Iterable[float] | float,
     *,
     x: Optional[Iterable[float]] = None,
     padding: float = 0.5,
@@ -77,6 +77,10 @@ def plot_errorbars(
     xticklabels: Iterable[str] = ("model", "smooth", "thresh"),
     ylabel: str,
 ):
+    if isinstance(means, float):
+        means = [means]
+    if isinstance(stds, float):
+        stds = [stds]
     means = np.array(means)
     stds = np.array(stds)
     if x is None:

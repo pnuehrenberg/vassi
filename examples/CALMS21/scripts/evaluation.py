@@ -138,21 +138,21 @@ if __name__ == "__main__":
             },
             {
                 "true": {
-                    "timestamp": result.y_gt,
-                    "annotation": result.encode(
-                        np.array(result.annotations["category"])
+                    "timestamp": result_thresholded.y_gt,
+                    "annotation": result_thresholded.encode(
+                        np.array(result_thresholded.annotations["category"])
                     ),
-                    "prediction": result.encode(
-                        np.array(result.predictions["true_category"])
+                    "prediction": result_thresholded.encode(
+                        np.array(result_thresholded.predictions["true_category"])
                     ),
                 },
                 "pred": {
-                    "timestamp": result.y,
-                    "annotation": result.encode(
-                        np.array(result.annotations["predicted_category"])
+                    "timestamp": result_thresholded.y,
+                    "annotation": result_thresholded.encode(
+                        np.array(result_thresholded.annotations["predicted_category"])
                     ),
-                    "prediction": result.encode(
-                        np.array(result.predictions["category"])
+                    "prediction": result_thresholded.encode(
+                        np.array(result_thresholded.predictions["category"])
                     ),
                 },
             },
