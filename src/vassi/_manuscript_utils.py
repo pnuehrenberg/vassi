@@ -11,17 +11,16 @@ import pandas as pd
 from matplotlib.axes import Axes
 from matplotlib.patches import ArrowStyle, ConnectionStyle, FancyArrowPatch
 
-from .classification.results import BaseResult
+from .classification._results import AnnotatedClassification
 from .classification.visualization import _Array
-from .dataset.types import AnnotatedGroup
-from .dataset.types.dyad import AnnotatedDyad
+from .dataset.types import AnnotatedDyad, AnnotatedGroup
 
 
 def summarize_scores(
-    result: BaseResult,
+    result: AnnotatedClassification,
     *,
     foreground_categories: Iterable[str],
-    run,
+    run: int,
     postprocessing_step: str,
 ):
     # this is a helper function to aggregate the f1 scores for one postprocessing in one run
@@ -169,8 +168,9 @@ def draw_network(
 
 
 def dyadic_interactions(group: AnnotatedGroup, *, kind: Literal["count", "duration"]):
+    individuals = list(group.actors())
     interaction_matrices = {
-        category: np.zeros((len(group.individuals), len(group.individuals)))
+        category: np.zeros((len(individuals), len(individuals)))
         for category in group.foreground_categories
     }
     for identifier, sampleable in group:
@@ -179,8 +179,8 @@ def dyadic_interactions(group: AnnotatedGroup, *, kind: Literal["count", "durati
         if TYPE_CHECKING:
             assert isinstance(sampleable, AnnotatedDyad)
         actor, recipient = identifier
-        actor_idx = group.individuals.index(actor)
-        recipient_idx = group.individuals.index(recipient)
+        actor_idx = individuals.index(actor)
+        recipient_idx = individuals.index(recipient)
         observations = sampleable.observations
         for category in group.foreground_categories:
             try:

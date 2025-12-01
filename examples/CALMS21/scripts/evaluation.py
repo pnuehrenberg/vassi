@@ -91,7 +91,7 @@ if __name__ == "__main__":
             min_samples_per_stratum=min_samples_per_stratum,
             random_state=run,
         )
-        classifier = XGBClassifier(n_estimators=n_estimators)
+        classifier = XGBClassifier(n_estimators=n_estimators, random_state=run)
 
         sample_weights = None
         if parameters["balance_sample_weights"]:
@@ -126,7 +126,7 @@ if __name__ == "__main__":
         summary[run] = (
             {
                 "raw": _flat(result.score(), "raw").assign(run=run),
-                "smoothed": _flat(result.score(), "smoothed").assign(run=run),
+                "smoothed": _flat(result_smoothed.score(), "smoothed").assign(run=run),
                 "thresholded": _flat(result_thresholded.score(), "thresholded").assign(
                     run=run
                 ),
