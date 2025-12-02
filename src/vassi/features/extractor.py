@@ -389,14 +389,6 @@ class BaseExtractor[F: Shaped](ABC):
                     feature_idx += num_current_features
             assert feature_idx == self.num_features
         else:
-            if (
-                self.cache_mode
-                and indices is not None
-                and indices != np.arange(len(trajectory))
-            ):
-                raise ValueError(
-                    f"Indices must be None or np.arange(len(trajectory)) with cache_mode={self.cache_mode}."
-                )
             intermediate = np.zeros((len(trajectory), self._num_original_features))
             # here, it is more efficient to write results to intermediate, which is then transformed once
             for target in self._feature_funcs:
@@ -418,10 +410,23 @@ class BaseExtractor[F: Shaped](ABC):
                     ] = features
                     feature_idx += num_current_features
             assert feature_idx == self._num_original_features
-            _ = self.aggregator.transform(intermediate, indices=indices, out=out)
-            if self.cache_mode:
-                # the check above ensures that this includes all samples, so we can safely cache the result
-                cached = out
+            if (
+                not self.cache_mode
+                or indices is None
+                or (
+                    len(indices) == len(trajectory)
+                    and (indices == np.arange(len(trajectory))).all()
+                )
+            ):
+                _ = self.aggregator.transform(intermediate, indices=indices, out=out)
+            else:
+                # can't directly write to out, needs creating full transformed result, and then writing indexed to out
+                # full transformed result will get cached if cache_mode
+                transformed = self.aggregator.transform(
+                    intermediate, indices=None, out=None
+                )
+                cached = transformed
+                out[:] = transformed[indices]
         if self.cache_mode:
             assert cached is not None
             assert cache_file is not None

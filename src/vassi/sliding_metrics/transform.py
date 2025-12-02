@@ -35,11 +35,14 @@ def apply_multiple_to_sliding_windows(
     if isinstance(slices, Iterable):
         slices = list(slices)
     result_shape = (
-        *array.shape,
-        sum(func[1] if isinstance(func, tuple) else 1 for func in funcs),
+        array.shape[0] if indices is None else len(indices),
+        *array.shape[1:],
+        sum((func[1] if isinstance(func, tuple) else 1) for func in funcs),
     )
     if slices is not None:
         result_shape += (1 if isinstance(slices, slice) else len(slices),)
+    else:
+        result_shape += (1,)
     if out is None:
         out = np.zeros(result_shape)
     elif out.shape != result_shape:
@@ -56,81 +59,93 @@ def apply_multiple_to_sliding_windows(
         result = func(array)
         if indices is not None:
             result = result[indices]
-        if slices is None:
-            out[..., feature_idx : feature_idx + num_features] = result
+        if num_features == 1:
+            if slices is None:
+                out[..., feature_idx : feature_idx + num_features] = result[
+                    ..., np.newaxis, np.newaxis
+                ]
+            else:
+                out[..., feature_idx : feature_idx + num_features, :] = result[
+                    ..., np.newaxis, :
+                ]
         else:
-            out[..., feature_idx : feature_idx + num_features, :] = result
+            if slices is None:
+                out[..., feature_idx : feature_idx + num_features] = result[
+                    ..., np.newaxis
+                ]
+            else:
+                out[..., feature_idx : feature_idx + num_features, :] = result
         feature_idx += num_features
     return out
 
 
 @overload
 def get_window_slices(
-    num_windows_per_scale: int,
+    num_slices_per_window: int,
     *,
-    time_scales: Iterable[int],
+    windows: Iterable[int],
 ) -> tuple[list[int], list[slice]]: ...
 
 
 @overload
 def get_window_slices(
-    num_windows_per_scale: int,
+    num_slices_per_window: int,
     *,
     durations: np.ndarray,
-    time_scale_quantiles: Iterable[float],
+    duration_quantiles: Iterable[float],
 ) -> tuple[list[int], list[slice]]: ...
 
 
 def get_window_slices(
-    num_windows_per_scale: int,
+    num_slices_per_window: int,
     *,
-    time_scales: Iterable[float] | None = None,
+    windows: Iterable[float] | None = None,
     durations: np.ndarray | None = None,
-    time_scale_quantiles: Iterable[float] | None = None,
+    duration_quantiles: Iterable[float] | None = None,
 ) -> tuple[list[int], list[slice]]:
     """
     Find consecutive window slices for time scales, either explicitly specified or derived from durations and quantiles.
 
     Parameters:
-        num_windows_per_scale: Number of windows per time scale.
-        time_scales: Explicit time scales.
+        num_slices_per_window: Number of slices per time window.
+        windows: Explicit time windows.
         durations: Durations to calculate time scales from.
-        time_scale_quantiles: Quantiles of the durations to derive time scales.
+        duration_quantiles: Quantiles of the durations to derive time windows.
 
     Returns:
         A tuple containing the (adjusted) time scales and the corresponding window slices.
 
     Raises:
-        ValueError: If neither :code:`time_scales` nor :code:`durations` and :code:`time_scale_quantiles` are specified.
-        ValueError: If :code:`time_scale_quantiles` are specified but :code:`durations` are not.
+        ValueError: If neither :code:`windows` nor :code:`durations` and :code:`duration_quantiles` are specified.
+        ValueError: If :code:`duration_quantiles` are specified but :code:`durations` are not.
     """
-    if time_scales is None:
-        if durations is None or time_scale_quantiles is None:
+    if windows is None:
+        if durations is None or duration_quantiles is None:
             raise ValueError(
-                "Specify either time_scales or durations and time_scale_quantiles"
+                "Specify either windows or durations and duration_quantiles"
             )
-        time_scales = [
+        windows = [
             float(time_scale)
-            for time_scale in np.quantile(durations, tuple(time_scale_quantiles))
+            for time_scale in np.quantile(durations, tuple(duration_quantiles))
         ]
-    time_scales_adjusted = [
-        closest_odd_divisible(scale, num_windows_per_scale) for scale in time_scales
+    windows_adjusted = [
+        closest_odd_divisible(scale, num_slices_per_window) for scale in windows
     ]
-    if set(time_scales) != set(time_scales_adjusted):
+    if set(windows) != set(windows_adjusted):
         warn(
-            f"Time scales adjusted to match num_windows_per_scale: {time_scales} -> {time_scales_adjusted}."
+            f"Time scales adjusted to match num_slices_per_window: {windows} -> {windows_adjusted}."
         )
-    time_scales = time_scales_adjusted
+    windows = windows_adjusted
     window_slices: list[slice] = []
-    max_time_scale = max(time_scales)
-    for time_scale in time_scales:
-        window_size = time_scale // num_windows_per_scale
+    max_time_scale = max(windows)
+    for time_scale in windows:
+        window_size = time_scale // num_slices_per_window
         padding = (max_time_scale - time_scale) // 2
-        for window_idx in range(num_windows_per_scale):
+        for window_idx in range(num_slices_per_window):
             start = padding + window_idx * window_size
             stop = start + window_size
             window_slices.append(slice(start, stop))
-    return time_scales, window_slices
+    return windows, window_slices
 
 
 @final
