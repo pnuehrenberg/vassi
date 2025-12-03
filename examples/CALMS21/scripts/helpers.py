@@ -137,7 +137,7 @@ def aggregator_kwargs(
         sliding_metric_functions = [sliding_median]
     return AggregatorKwargs(
         sliding_metric_functions=sliding_metric_functions,
-        windows=[IntParameter("windows", 11, 61)(trial)],
+        windows=[IntParameter("windows", 11, 61, step=2)(trial)],
         num_slices_per_window=IntParameter("num_slices_per_window", 1, 5)(trial),
         keep_original_features=CategoricalParameter(
             "keep_original_features", [True, False]

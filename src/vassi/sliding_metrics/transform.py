@@ -125,8 +125,8 @@ def get_window_slices(
                 "Specify either windows or durations and duration_quantiles"
             )
         windows = [
-            float(time_scale)
-            for time_scale in np.quantile(durations, tuple(duration_quantiles))
+            float(window)
+            for window in np.quantile(durations, tuple(duration_quantiles))
         ]
     windows_adjusted = [
         closest_odd_divisible(scale, num_slices_per_window) for scale in windows
@@ -137,10 +137,10 @@ def get_window_slices(
         )
     windows = windows_adjusted
     window_slices: list[slice] = []
-    max_time_scale = max(windows)
-    for time_scale in windows:
-        window_size = time_scale // num_slices_per_window
-        padding = (max_time_scale - time_scale) // 2
+    max_window = max(windows)
+    for window in windows:
+        window_size = window // num_slices_per_window
+        padding = (max_window - window) // 2
         for window_idx in range(num_slices_per_window):
             start = padding + window_idx * window_size
             stop = start + window_size

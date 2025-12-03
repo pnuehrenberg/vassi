@@ -425,9 +425,8 @@ class BaseExtractor[F: Shaped](ABC):
                     ] = features
                     feature_idx += num_current_features
             assert feature_idx == self._num_original_features
-            if (
-                not self.cache_mode
-                or indices is None
+            if not self.cache_mode and (
+                indices is None
                 or (
                     len(indices) == len(trajectory)
                     and (indices == np.arange(len(trajectory))).all()
