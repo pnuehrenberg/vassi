@@ -38,14 +38,14 @@ def _flat(df: pd.DataFrame, suffix: str) -> pd.DataFrame:
 
 if __name__ == "__main__":
     env = Environment()
-    dataset_train = AnnotatedDataset.load_legacy(
+    dataset_train = AnnotatedDataset.load(
         "../../datasets/CALMS21/train/mice_train_trajectories.h5",
         observation_file="../../datasets/CALMS21/train/mice_train_observations.csv",
         target="dyad",
         background_category="none",
     ).exclude({"intruder"})
 
-    dataset_test = AnnotatedDataset.load_legacy(
+    dataset_test = AnnotatedDataset.load(
         "../../datasets/CALMS21/test/mice_train_trajectories.h5",
         observation_file="../../datasets/CALMS21/test/mice_test_observations.csv",
         target="dyad",

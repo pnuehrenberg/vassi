@@ -167,16 +167,13 @@ class SlidingWindowAggregator(BaseEstimator, TransformerMixin):
         metric_funcs: Iterable[
             Callable[..., np.ndarray] | tuple[Callable[..., np.ndarray], int]
         ],
-        window_size: int | Iterable[int],
+        window_size: int,
         *,
         window_slices: Iterable[slice] | None,
         keep_original: bool,
     ):
         self.metric_funcs = metric_funcs
-        if isinstance(window_size, int):
-            self.window_size = window_size
-        else:
-            self.window_size = max(window_size)
+        self.window_size = window_size
         self.window_slices = list(window_slices) if window_slices is not None else None
         self.keep_original = keep_original
         self.num_transformations = sum(

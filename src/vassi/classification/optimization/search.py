@@ -13,10 +13,16 @@ from ...dataset import AnnotatedDataset
 from ...distributed import Environment, get_process_state, limited_process_pool
 from ...features import BaseExtractor, Shaped
 from ...io.yaml import to_yaml
+from ...sliding_metrics import SlidingWindowAggregator
 from ...utils import to_int_seed
 from .._predict import Classifier, k_fold_predict
 from .._results import AnnotatedDatasetClassification
-from .utils import ParameterSpace, without_postprocessing
+from .utils import (
+    AggregatorKwargs,
+    ParameterSpace,
+    get_validated_aggregator_kwargs,
+    without_postprocessing,
+)
 
 
 @final
@@ -41,7 +47,9 @@ class KFoldExperiment:
         postprocessing_function_kwargs: Mapping[str, object] | None = None,
         scoring_function: Callable[[AnnotatedDatasetClassification], float],
         random_state: np.random.Generator | int | None = None,
-    ):
+        use_sliding_window_features: bool = False,
+        aggregator_kwargs: AggregatorKwargs | None = None,
+    ):  # implementation
         self.dataset = dataset
         self.extractor = extractor
         self.classifier = classifier(
@@ -55,12 +63,23 @@ class KFoldExperiment:
         self.postprocessing_function_kwargs = postprocessing_function_kwargs
         self.scoring_function = scoring_function
         self.random_state = np.random.default_rng(random_state)
+        self.aggregator = None
+        if use_sliding_window_features and (
+            kwargs := get_validated_aggregator_kwargs(aggregator_kwargs)
+        ):
+            self.aggregator = SlidingWindowAggregator(**kwargs)
 
     def run(self) -> float:
         with get_process_state():
+            extractor = type(self.extractor).from_config(
+                self.extractor.config,
+                cache_mode=self.extractor.cache_mode,
+                cache_directory=self.extractor.cache_directory,
+                aggregator=self.aggregator,
+            )
             k_fold_result = k_fold_predict(
                 self.dataset,
-                self.extractor,
+                extractor,
                 self.classifier,
                 k=self.k,
                 sampling_function=self.sampling_function,

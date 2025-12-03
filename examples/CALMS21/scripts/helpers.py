@@ -11,6 +11,7 @@ from vassi.classification.optimization import (
     IntParameter,
     ParameterSpace,
 )
+from vassi.classification.optimization.utils import AggregatorKwargs
 from vassi.dataset import AnnotatedDataset
 from vassi.features import BaseExtractor, Shaped
 from vassi.sliding_metrics import (
@@ -124,6 +125,26 @@ for category in CATEGORIES:
         )
 
 
+def aggregator_kwargs(
+    trial: optuna.trial.Trial | optuna.trial.FrozenTrial,
+) -> AggregatorKwargs:
+    suggested_metric_funcs = CategoricalParameter(
+        "sliding_metric_functions", ["sliding_mean", "sliding_median"]
+    )(trial)
+    if suggested_metric_funcs == "sliding_mean":
+        sliding_metric_functions = [sliding_mean]
+    else:
+        sliding_metric_functions = [sliding_median]
+    return AggregatorKwargs(
+        sliding_metric_functions=sliding_metric_functions,
+        windows=[IntParameter("windows", 11, 61)(trial)],
+        num_slices_per_window=IntParameter("num_slices_per_window", 1, 5)(trial),
+        keep_original_features=CategoricalParameter(
+            "keep_original_features", [True, False]
+        )(trial),
+    )
+
+
 n_jobs = 72 // 4  # physical cpus // n_jobs in optimization.py
 
 parameter_space = ParameterSpace(
@@ -138,4 +159,8 @@ parameter_space = ParameterSpace(
         "balance_sample_weights", [True, False]
     ),
     postprocessing_function_kwargs=postprocessing_parameters,
+    use_sliding_window_features=CategoricalParameter(
+        "use_sliding_window_features", [True, False]
+    ),
+    aggregator_kwargs=aggregator_kwargs,
 )

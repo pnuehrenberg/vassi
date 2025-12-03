@@ -18,7 +18,7 @@ cfg.trajectory_keys = ("keypoints", "timestamps")
 
 if __name__ == "__main__":
     env = Environment()
-    dataset_train = AnnotatedDataset.load_legacy(
+    dataset_train = AnnotatedDataset.load(
         "../../datasets/CALMS21/train/mice_train_trajectories.h5",
         observation_file="../../datasets/CALMS21/train/mice_train_annotations.csv",
         target="dyad",
@@ -27,7 +27,7 @@ if __name__ == "__main__":
 
     extractor = DataFrameExtractor.from_yaml(
         "features-mice.yaml",
-        cache_mode="required",
+        cache_mode=False,
     )
 
     study = run_optuna_hyperparameter_search(

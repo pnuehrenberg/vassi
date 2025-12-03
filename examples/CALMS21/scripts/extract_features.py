@@ -11,14 +11,14 @@ cfg.trajectory_keys = (
 )
 
 if __name__ == "__main__":
-    dataset_train = AnnotatedDataset.load_legacy(
+    dataset_train = AnnotatedDataset.load(
         "../../datasets/CALMS21/train/mice_train_trajectories.h5",
         observation_file="../../datasets/CALMS21/train/mice_train_annotations.csv",
         target="dyad",
         background_category="none",
     ).exclude({"intruder"})
 
-    dataset_test = AnnotatedDataset.load_legacy(
+    dataset_test = AnnotatedDataset.load(
         "../../datasets/CALMS21/test/mice_train_trajectories.h5",
         observation_file="../../datasets/CALMS21/test/mice_test_observations.csv",
         target="dyad",

@@ -14,7 +14,7 @@ from .._utils import get_inner
 from ..data_structures import Trajectory
 from ..io.yaml import from_yaml, to_yaml
 from ..sliding_metrics import SlidingWindowAggregator
-from ..type_guards import is_iterable_of, is_iterable_of_tuple
+from ..type_guards import is_iterable_of, is_iterable_of_tuple, is_valid_features_config
 from ..utils import hash_mapping
 from ..warnings import warn
 from .features import load_by_name as load_feature_by_name
@@ -177,21 +177,16 @@ class BaseExtractor[F: Shaped](ABC):
         to_yaml(self.config, file_name=features_config_file)
 
     @classmethod
-    def from_yaml(
+    def from_config(
         cls,
-        features_config_file: str | Path,
+        config: Mapping[
+            Literal["individual", "dyad"], Iterable[tuple[str, Mapping[str, object]]]
+        ],
         *,
         cache_mode: bool | Literal["required"] = False,
         cache_directory: str | Path = "./feature_cache",
         aggregator: SlidingWindowAggregator | None = None,
     ) -> Self:
-        config = from_yaml(features_config_file)
-
-        from ..type_guards import is_valid_features_config
-
-        if not is_valid_features_config(config):
-            raise ValueError(f"Invalid features configuration: {features_config_file}")
-
         individual_features = (
             [
                 (_load_by_name(str(func)), kwargs)
@@ -208,6 +203,26 @@ class BaseExtractor[F: Shaped](ABC):
         return cls(
             individual_features,
             dyadic_features,
+            cache_mode=cache_mode,
+            cache_directory=cache_directory,
+            aggregator=aggregator,
+        )
+
+    @classmethod
+    def from_yaml(
+        cls,
+        features_config_file: str | Path,
+        *,
+        cache_mode: bool | Literal["required"] = False,
+        cache_directory: str | Path = "./feature_cache",
+        aggregator: SlidingWindowAggregator | None = None,
+    ) -> Self:
+        config = from_yaml(features_config_file)
+
+        if not is_valid_features_config(config):
+            raise ValueError(f"Invalid features configuration: {features_config_file}")
+        return cls.from_config(
+            config,
             cache_mode=cache_mode,
             cache_directory=cache_directory,
             aggregator=aggregator,
