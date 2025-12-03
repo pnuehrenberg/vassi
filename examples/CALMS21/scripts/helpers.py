@@ -166,5 +166,5 @@ parameter_space = ParameterSpace(
     ),
     postprocessing_function_kwargs=postprocessing_parameters,
     use_sliding_window_features=use_sliding_window_features,
-    aggregator_kwargs=aggregator_kwargs if use_sliding_window_features else None,
+    aggregator_kwargs=aggregator_kwargs,
 )

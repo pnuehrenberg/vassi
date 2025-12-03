@@ -193,7 +193,7 @@ class ParameterSpace:
         balance_sample_weights = self.balance_sample_weights(trial)
         use_sliding_window_features = self.use_sliding_window_features(trial)
         aggregator_kwargs = None
-        if self.aggregator_kwargs:
+        if use_sliding_window_features and self.aggregator_kwargs:
             aggregator_kwargs = self.aggregator_kwargs(trial)
         classifier_kwargs = {
             key: parameter(trial) for key, parameter in self.classifier_kwargs.items()
