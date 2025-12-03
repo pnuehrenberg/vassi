@@ -138,7 +138,9 @@ def aggregator_kwargs(
     return AggregatorKwargs(
         sliding_metric_functions=sliding_metric_functions,
         windows=[IntParameter("windows", 11, 61, step=2)(trial)],
-        num_slices_per_window=IntParameter("num_slices_per_window", 1, 5)(trial),
+        num_slices_per_window=IntParameter("num_slices_per_window", 1, 7, step=2)(
+            trial
+        ),
         keep_original_features=CategoricalParameter(
             "keep_original_features", [True, False]
         )(trial),
@@ -146,6 +148,10 @@ def aggregator_kwargs(
 
 
 n_jobs = 72 // 4  # physical cpus // n_jobs in optimization.py
+
+use_sliding_window_features = CategoricalParameter(
+    "use_sliding_window_features", [True, False]
+)
 
 parameter_space = ParameterSpace(
     sampling_function_kwargs={
@@ -159,8 +165,6 @@ parameter_space = ParameterSpace(
         "balance_sample_weights", [True, False]
     ),
     postprocessing_function_kwargs=postprocessing_parameters,
-    use_sliding_window_features=CategoricalParameter(
-        "use_sliding_window_features", [True, False]
-    ),
-    aggregator_kwargs=aggregator_kwargs,
+    use_sliding_window_features=use_sliding_window_features,
+    aggregator_kwargs=aggregator_kwargs if use_sliding_window_features else None,
 )

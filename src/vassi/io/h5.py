@@ -66,8 +66,11 @@ def read_h5_attrs(data_file: str | Path, *, data_path: str) -> dict[str, object]
         h5_data = h5_file[data_path]
         attrs: dict[str, object] = dict(h5_data.attrs.items())
     for key, value in attrs.items():
-        if isinstance(value, np.ndarray) and np.issubdtype(value.dtype, np.bytes_):
-            attrs[key] = list(map(bytes.decode, value.tolist()))
+        if isinstance(value, np.ndarray):
+            if np.issubdtype(value.dtype, np.bytes_):
+                attrs[key] = list(map(bytes.decode, value.tolist()))
+            else:
+                attrs[key] = value.tolist()
     return attrs
 
 
