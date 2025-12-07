@@ -125,9 +125,7 @@ for category in CATEGORIES:
         )
 
 
-def aggregator_kwargs(
-    trial: optuna.trial.Trial | optuna.trial.FrozenTrial,
-) -> AggregatorKwargs:
+def aggregator_kwargs(trial: optuna.trial.Trial) -> AggregatorKwargs:
     suggested_metric_funcs = CategoricalParameter(
         "sliding_metric_functions", ["sliding_mean", "sliding_median"]
     )(trial)

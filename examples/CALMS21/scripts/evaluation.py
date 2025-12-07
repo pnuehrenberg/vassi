@@ -54,7 +54,7 @@ if __name__ == "__main__":
         background_category="none",
     ).exclude({"intruder"})
 
-    best_parameters = from_yaml("optimization/session_2/optimization-summary.yaml")
+    best_parameters = from_yaml("optimization/session_3/optimization-summary.yaml")
     if not is_mapping_of(best_parameters, str, object):
         raise ValueError("Expected parameters to be a mapping of strings to objects")
 

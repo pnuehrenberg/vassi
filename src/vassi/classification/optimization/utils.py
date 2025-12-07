@@ -137,7 +137,7 @@ class IntParameter:
         self.high = high
         self.step = step
 
-    def __call__(self, trial: optuna.trial.Trial | optuna.trial.FrozenTrial) -> int:
+    def __call__(self, trial: optuna.trial.Trial) -> int:
         return trial.suggest_int(self.name, self.low, self.high, step=self.step)
 
 
@@ -149,7 +149,7 @@ class FloatParameter:
         self.high = high
         self.step = step
 
-    def __call__(self, trial: optuna.trial.Trial | optuna.trial.FrozenTrial) -> float:
+    def __call__(self, trial: optuna.trial.Trial) -> float:
         return trial.suggest_float(self.name, self.low, self.high, step=self.step)
 
 
@@ -159,7 +159,7 @@ class CategoricalParameter:
         self.name = name
         self.choices = choices
 
-    def __call__(self, trial: optuna.trial.Trial | optuna.trial.FrozenTrial) -> ...:
+    def __call__(self, trial: optuna.trial.Trial) -> ...:
         return trial.suggest_categorical(self.name, self.choices)
 
 
@@ -177,9 +177,7 @@ class ParameterSpace:
             str, Callable[[optuna.trial.Trial], object]
         ]
         | None = None,
-        aggregator_kwargs: Callable[
-            [optuna.trial.Trial | optuna.trial.FrozenTrial], AggregatorKwargs
-        ]
+        aggregator_kwargs: Callable[[optuna.trial.Trial], AggregatorKwargs]
         | None = None,
     ):
         self.balance_sample_weights = balance_sample_weights
@@ -238,10 +236,12 @@ class ParameterSpace:
         aggregator_kwargs = dict(aggregator_kwargs) if aggregator_kwargs else {}
         available_aggregator_kwargs: list[object] = []
         if self.aggregator_kwargs is not None:
-            mock_trial = optuna.trial.create_trial()
-            available_aggregator_kwargs = list(
-                self.aggregator_kwargs(mock_trial).keys()
-            )
+            available_aggregator_kwargs = [
+                "sliding_metric_functions",
+                "windows",
+                "num_slices_per_window",
+                "keep_original_features",
+            ]
         for param, value in parameters.items():
             if not param.startswith("param_"):
                 continue
