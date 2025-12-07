@@ -130,6 +130,8 @@ def aggregator_kwargs(trial: optuna.trial.Trial) -> AggregatorKwargs:
         "sliding_metric_functions", ["sliding_mean", "sliding_median"]
     )(trial)
     if suggested_metric_funcs == "sliding_mean":
+        # TODO: Instead load by name from module (and allow multiple, delimited by comma)
+        # but, this gets complicated when a function needs to bind a parameter via partial (e.g., quantile)
         sliding_metric_functions = [sliding_mean]
     else:
         sliding_metric_functions = [sliding_median]

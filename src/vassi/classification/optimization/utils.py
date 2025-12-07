@@ -5,7 +5,7 @@ from typing import Concatenate, Literal, TypedDict, TypeGuard, final
 import numpy as np
 import optuna
 
-from ...sliding_metrics import get_window_slices
+from ...sliding_metrics import get_window_slices, sliding_mean, sliding_median
 from .._results import AnnotatedDatasetClassification
 
 
@@ -80,7 +80,6 @@ def is_aggregator_kwargs(kwargs: dict[str, object]) -> TypeGuard[AggregatorKwarg
     if not isinstance(funcs, Generator):
         # this is unlikely, but we should not consume values if its a generator
         if not all(isinstance(f, Callable) for f in funcs):
-            raise AssertionError(f"case g, got {[type(f) for f in funcs]}")
             return False
     return True
 
@@ -261,6 +260,11 @@ class ParameterSpace:
             elif param in available_aggregator_kwargs:
                 if param == "windows":
                     value = [value]
+                elif param == "sliding_metric_functions":
+                    assert value in ["sliding_mean", "sliding_mean"]
+                    value = [
+                        sliding_mean if value == "sliding_mean" else sliding_median
+                    ]  # TODO: Instead load by name from module
                 aggregator_kwargs[param] = value
             else:
                 raise ValueError(f"undefined parameter {param}")
