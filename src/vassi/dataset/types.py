@@ -733,12 +733,6 @@ class Dyad(ElementMixin, Base):
         categories: set[str],
         background_category: str,
     ) -> AnnotatedDyad:
-        time_range = tuple(self.trajectory.timestamps[[0, -1]])
-        observations = densify_observations(
-            observations,
-            time_range=time_range,
-            background_category=background_category,
-        )
         return AnnotatedDyad(
             dyad=self,
             observations=observations,

@@ -9,12 +9,14 @@ from sklearn.utils.class_weight import (
 from xgboost import XGBClassifier
 
 from vassi.classification import predict
+from vassi.classification.optimization.utils import get_validated_aggregator_kwargs
 from vassi.config import cfg
 from vassi.dataset import AnnotatedDataset
 from vassi.distributed import Environment
 from vassi.features import DataFrameExtractor
 from vassi.io.h5 import write_h5_data
 from vassi.io.yaml import from_yaml
+from vassi.sliding_metrics import SlidingWindowAggregator
 from vassi.type_guards import is_mapping_of
 
 from .helpers import parameter_space, sampling_function, smooth_model_outputs
@@ -52,11 +54,6 @@ if __name__ == "__main__":
         background_category="none",
     ).exclude({"intruder"})
 
-    extractor = DataFrameExtractor.from_yaml(
-        "features-mice.yaml",
-        cache_mode="required",
-    )
-
     best_parameters = from_yaml("optimization/session_2/optimization-summary.yaml")
     if not is_mapping_of(best_parameters, str, object):
         raise ValueError("Expected parameters to be a mapping of strings to objects")
@@ -75,6 +72,18 @@ if __name__ == "__main__":
     n_estimators = parameters["classifier_kwargs"]["n_estimators"]
     if not isinstance(n_estimators, int):
         raise ValueError("Expected n_estimators to be an integer")
+
+    aggregator = None
+    if parameters["use_sliding_window_features"] and (
+        kwargs := get_validated_aggregator_kwargs(parameters["aggregator_kwargs"])
+    ):
+        aggregator = SlidingWindowAggregator(**kwargs)
+
+    extractor = DataFrameExtractor.from_yaml(
+        "features-mice.yaml",
+        cache_mode=False,  # not safe when using sliding window features with unknown aggregation and MPI
+        aggregator=aggregator,
+    )
 
     summary: dict[
         int, tuple[dict[str, pd.DataFrame], dict[str, dict[str, np.ndarray]]]
