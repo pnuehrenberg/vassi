@@ -48,7 +48,7 @@ if __name__ == "__main__":
     ).exclude({"intruder"})
 
     dataset_test = AnnotatedDataset.load(
-        "../../datasets/CALMS21/test/mice_train_trajectories.h5",
+        "../../datasets/CALMS21/test/mice_test_trajectories.h5",
         observation_file="../../datasets/CALMS21/test/mice_test_annotations.csv",
         target="dyad",
         background_category="none",
