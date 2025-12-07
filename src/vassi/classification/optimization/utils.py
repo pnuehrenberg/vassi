@@ -257,6 +257,8 @@ class ParameterSpace:
             elif param in self.postprocessing_function_kwargs:
                 postprocessing_function_kwargs[param] = value
             elif param in available_aggregator_kwargs:
+                if param == "windows":
+                    value = [value]
                 aggregator_kwargs[param] = value
             else:
                 raise ValueError(f"undefined parameter {param}")
@@ -282,7 +284,7 @@ class ParameterSpace:
             else None
         )
         if not valid and aggregator_kwargs:
-            raise ValueError("invalid aggregator_kwargs")
+            raise ValueError(f"invalid aggregator_kwargs: {aggregator_kwargs}")
         return Parameters(
             balance_sample_weights=balance_sample_weights,
             classifier_kwargs=classifier_kwargs,
