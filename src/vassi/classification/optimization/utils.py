@@ -84,7 +84,7 @@ def is_aggregator_kwargs(kwargs: dict[str, object]) -> TypeGuard[AggregatorKwarg
         return False
     if not isinstance(funcs, Generator):
         # this is unlikely, but we should not consume values if its a generator
-        if not all(callable(f) for f in funcs):
+        if not all(isinstance(f, Callable) for f in funcs):
             raise AssertionError("case g")
             return False
     print("all good")
