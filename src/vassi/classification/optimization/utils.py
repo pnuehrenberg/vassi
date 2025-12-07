@@ -60,26 +60,34 @@ def is_aggregator_kwargs(kwargs: dict[str, object]) -> TypeGuard[AggregatorKwarg
         "keep_original_features",
     }
     if not required_keys.issubset(kwargs.keys()):
+        raise AssertionError("case a")
         return False
     if not isinstance(kwargs["keep_original_features"], bool):
+        raise AssertionError("case b")
         return False
     if kwargs["num_slices_per_window"] is not None and not isinstance(
         kwargs["num_slices_per_window"], int
     ):
+        raise AssertionError("case c")
         return False
     windows = kwargs["windows"]
     if not isinstance(windows, Iterable):
+        raise AssertionError("case d")
         return False
     if isinstance(windows, (list, tuple)):
         if not all(isinstance(w, int) for w in windows):
+            raise AssertionError("case e")
             return False
     funcs = kwargs["sliding_metric_functions"]
     if not isinstance(funcs, Iterable):
+        raise AssertionError("case f")
         return False
     if not isinstance(funcs, Generator):
         # this is unlikely, but we should not consume values if its a generator
         if not all(callable(f) for f in funcs):
+            raise AssertionError("case g")
             return False
+    print("all good")
     return True
 
 
