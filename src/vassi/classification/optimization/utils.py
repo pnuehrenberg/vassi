@@ -60,36 +60,25 @@ def is_aggregator_kwargs(kwargs: dict[str, object]) -> TypeGuard[AggregatorKwarg
         "keep_original_features",
     }
     if not required_keys.issubset(kwargs.keys()):
-        print("Missing required keys")
         return False
     if not isinstance(kwargs["keep_original_features"], bool):
-        print(
-            f"Invalid type for keep_original_features {type(kwargs['keep_original_features'])}"
-        )
         return False
     if kwargs["num_slices_per_window"] is not None and not isinstance(
         kwargs["num_slices_per_window"], int
     ):
-        print(
-            f"Invalid type for num_slices_per_window {type(kwargs['num_slices_per_window'])}"
-        )
         return False
     windows = kwargs["windows"]
     if not isinstance(windows, Iterable):
-        print(f"Invalid type for windows {type(windows)}")
         return False
     if isinstance(windows, (list, tuple)):
         if not all(isinstance(w, int) for w in windows):
-            print(f"Invalid type for windows {type(windows)}")
             return False
     funcs = kwargs["sliding_metric_functions"]
     if not isinstance(funcs, Iterable):
-        print(f"Invalid type for sliding_metric_functions {type(funcs)}")
         return False
     if not isinstance(funcs, Generator):
         # this is unlikely, but we should not consume values if its a generator
         if not all(callable(f) for f in funcs):
-            print(f"Invalid type for sliding_metric_functions {type(funcs)}")
             return False
     return True
 
@@ -291,11 +280,11 @@ class ParameterSpace:
             raise ValueError(f"expected value for {param}")
         _aggregator_kwargs = (
             AggregatorKwargs(**aggregator_kwargs)
-            if (valid := is_aggregator_kwargs(aggregator_kwargs))
+            if is_aggregator_kwargs(aggregator_kwargs)
             else None
         )
-        if len(aggregator_kwargs) > 0 and not valid:
-            raise ValueError(f"invalid aggregator_kwargs: {aggregator_kwargs}")
+        if _aggregator_kwargs is None:
+            raise AssertionError("expected valid aggregator kwargs!")
         return Parameters(
             balance_sample_weights=balance_sample_weights,
             classifier_kwargs=classifier_kwargs,
