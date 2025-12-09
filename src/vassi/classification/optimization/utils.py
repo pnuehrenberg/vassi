@@ -6,6 +6,7 @@ import numpy as np
 import optuna
 
 from ...sliding_metrics import get_window_slices, sliding_mean, sliding_median
+from ...warnings import warn
 from .._results import AnnotatedDatasetClassification
 
 
@@ -267,7 +268,7 @@ class ParameterSpace:
                     ]  # TODO: Instead load by name from module
                 aggregator_kwargs[param] = value
             else:
-                raise ValueError(f"undefined parameter {param}")
+                warn(f"cannot parse undefined parameter {param}")
         if balance_sample_weights is None:
             raise ValueError("expected value for balance_sample_weights")
         if use_sliding_window_features is None:
