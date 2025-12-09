@@ -1,7 +1,7 @@
 from xgboost import XGBClassifier
 
 from vassi.classification.optimization import (
-    macro_f1_all_levels,
+    macro_f1_timestamp,
     run_optuna_hyperparameter_search,
     summarize_study,
 )
@@ -39,7 +39,7 @@ if __name__ == "__main__":
         k=5,
         sampling_function=sampling_function,
         postprocessing_function=postprocessing_function,
-        scoring_function=macro_f1_all_levels,
+        scoring_function=macro_f1_timestamp,
         n_jobs=4,
     )
 

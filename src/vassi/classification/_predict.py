@@ -75,13 +75,24 @@ def _predict_annotated_base_sampleable[F: Shaped](
     categories: set[str],
     background_category: str,
 ) -> AnnotatedClassification:
-    X, y = sampleable.sample(extractor, indices=None, store_indices=False, out=None)
+    X, y = sampleable.sample(
+        extractor, indices=None, store_indices=False, out=(None, None)
+    )
+    annotations = sampleable.observations
+    if (
+        background_category != sampleable.background_category
+        and sampleable.background_category not in sampleable.categories
+    ):
+        # will be densified with new background category
+        annotations = annotations[
+            annotations["category"] != sampleable.background_category
+        ].reset_index(drop=True)
     return AnnotatedClassification(
         classifier.predict_proba(X),
         timestamps=sampleable.trajectory.timestamps,
         categories=categories,
         background_category=background_category,
-        annotations=sampleable.observations,
+        annotations=annotations,
         y_gt=y,
         discretize_on_init=False,
     )

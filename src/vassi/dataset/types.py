@@ -47,13 +47,15 @@ def _stratified_subsample[F: Shaped](
     exclude_previously_sampled: bool,
     store_indices: bool,
     ensure_sampling_at: np.ndarray | None,
-    out: np.ndarray | None,
+    out: tuple[np.ndarray | None, np.ndarray | None],
 ) -> tuple[F, np.ndarray | None]:
     random_state = np.random.default_rng(random_state)
-    available_indices, interval_levels, _ = element.describe_available_samples(
+    sample_description = element.describe_available_samples(
         reset=reset,
         exclude_previously_sampled=exclude_previously_sampled,
     )
+    available_indices = sample_description[:, 0]
+    interval_levels = sample_description[:, 1]
     num_available_samples = len(available_indices)
     num_samples = get_num_samples(size, num_available_samples)
     if ensure_sampling_at is not None:
@@ -95,7 +97,7 @@ def _stratified_subsample_by_categories[F: Shaped](
     exclude_previously_sampled: bool,
     store_indices: bool,
     ensure_sampling_at: np.ndarray | None,
-    out: np.ndarray | None,
+    out: tuple[np.ndarray | None, np.ndarray | None],
 ) -> tuple[F, np.ndarray]:
     random_state = np.random.default_rng(random_state)
     # validate input
@@ -122,11 +124,13 @@ def _stratified_subsample_by_categories[F: Shaped](
         raise TypeError(
             f"invalid use of {type(element)}, this mixin should only be used in subclasses of {Base}"
         )
-    available_indices, interval_levels, _ = element.describe_available_samples(
+    sample_description = element.describe_available_samples(
         reset=reset,
         exclude_previously_sampled=exclude_previously_sampled,
     )
-    _y = element.sample_y(indices=None)
+    available_indices = sample_description[:, 0]
+    interval_levels = sample_description[:, 1]
+    _y = element.sample_y(indices=None, out=out[1])
     if ensure_sampling_at is not None:
         mask = ~np.isin(available_indices, ensure_sampling_at)
         categories = sorted(element.categories)
@@ -161,11 +165,7 @@ def _stratified_subsample_by_categories[F: Shaped](
                     f"Cannot ensure sampling of {num_ensured_for_condition} indices for {_condition} from {num_available_samples} available indices with size={subsampling_size}"
                 )
         mask = np.isin(y, element.encode(np.asarray(condition)))
-        _, strata_labels = np.unique(
-            np.concatenate([y[mask].reshape(-1, 1), interval_levels[mask]], axis=1),
-            axis=0,
-            return_inverse=True,
-        )
+        _, strata_labels = np.unique(interval_levels[mask], return_inverse=True)
         _subsampled_indices = available_indices[mask][
             biased_stratified_subsample(
                 strata_labels,
@@ -232,7 +232,7 @@ class WithCategories:
         assert labels.ndim == 1
         categories = sorted(self.categories)
         assert np.isin(labels, categories + [self.background_category]).all()
-        labels_encoded = np.full(len(labels), -1, dtype=int)
+        labels_encoded = np.full(len(labels), -1, dtype=np.int8)
         idx, label_idx = np.where(
             labels[:, np.newaxis] == np.asarray(categories)[np.newaxis]
         )
@@ -254,8 +254,8 @@ class Base(ABC):
         *,
         reset: bool,
         exclude_previously_sampled: bool,
-    ) -> tuple[np.ndarray, np.ndarray, tuple[int, ...]]:
-        # Returns a tuple of available_indices, interval_levels, num_intervals_per_level
+    ) -> np.ndarray:
+        # 2D: num samples x 2 (indices, interval_levels), should be np.uint
         ...
 
     @abstractmethod
@@ -274,7 +274,7 @@ class Base(ABC):
         *,
         indices: np.ndarray | None,
         store_indices: bool,
-        out: np.ndarray | None,
+        out: tuple[np.ndarray | None, np.ndarray | None],
     ) -> tuple[F, np.ndarray | None]: ...
 
     @abstractmethod
@@ -297,7 +297,7 @@ class Base(ABC):
         exclude_previously_sampled: bool,
         store_indices: bool,
         ensure_sampling_at: np.ndarray | None,
-        out: np.ndarray | None,
+        out: tuple[np.ndarray | None, np.ndarray | None],
     ) -> tuple[F, np.ndarray | None]:
         return _stratified_subsample(
             self,
@@ -313,7 +313,7 @@ class Base(ABC):
         )
 
 
-class RequiresBase:
+class ExtendsBase:
     _base: tuple[Base, type[Base]] | None = None
 
     @property
@@ -335,7 +335,7 @@ class RequiresBase:
         return self._base
 
 
-class WithAnnotations(RequiresBase, WithCategories, ABC):
+class WithAnnotations(ExtendsBase, WithCategories, ABC):
     _columns: frozenset[str] | None = None
     _conditional_columns: dict[str, dict[int | str, set[str]]] | None = None
     _observations: pd.DataFrame | None = None
@@ -397,24 +397,18 @@ class WithAnnotations(RequiresBase, WithCategories, ABC):
         self,
         *,
         indices: np.ndarray | None,
+        out: np.ndarray | None,
     ) -> np.ndarray: ...
 
+    @abstractmethod
     def sample[F: Shaped](
         self,
         extractor: BaseExtractor[F],
         *,
         indices: np.ndarray | None,
         store_indices: bool,
-        out: np.ndarray | None,
-    ) -> tuple[F, np.ndarray]:
-        y = self.sample_y(indices=indices)
-        self, base_type = self.base
-        x, _ = (
-            base_type.sample(  # TODO: _ may already hold y, in which case it is sampled twice!
-                self, extractor, indices=indices, store_indices=store_indices, out=out
-            )
-        )
-        return (x, y)
+        out: tuple[np.ndarray | None, np.ndarray | None],
+    ) -> tuple[F, np.ndarray]: ...
 
     @property
     def observations(self) -> pd.DataFrame:
@@ -453,7 +447,7 @@ class WithAnnotations(RequiresBase, WithCategories, ABC):
         exclude_previously_sampled: bool,
         store_indices: bool,
         ensure_sampling_at: np.ndarray | None,
-        out: np.ndarray | None,
+        out: tuple[np.ndarray | None, np.ndarray | None],
     ) -> tuple[F, np.ndarray]:
         if isinstance(size, int | float):
             self, _ = self.base
@@ -487,23 +481,23 @@ class WithAnnotations(RequiresBase, WithCategories, ABC):
         )
 
 
-class ElementMixin(RequiresBase):
+class ElementMixin(ExtendsBase):
     # this mixin class provides common functionality for elemental dataset types
     # (e.g., individual and dyad) and should be used in combination with some subclass of Base
 
     def describe_available_samples(
         self, *, reset: bool, exclude_previously_sampled: bool
-    ) -> tuple[np.ndarray, np.ndarray, tuple[int, ...]]:
+    ) -> np.ndarray:
         self, _ = self.base
         num_samples = self.num_samples
-        indices = np.arange(num_samples)
+        indices = np.arange(num_samples, dtype=np.uint)
         if reset:
             self.previously_sampled_indices.clear()
         if exclude_previously_sampled and len(self.previously_sampled_indices) > 0:
             indices = np.setdiff1d(
                 indices, np.concatenate(self.previously_sampled_indices)
             )
-        return indices, np.zeros((len(indices), 1), dtype=int), (1,)
+        return np.transpose([indices, np.zeros(len(indices), dtype=np.uint)])
 
     def sample[F: Shaped](
         self,
@@ -511,46 +505,54 @@ class ElementMixin(RequiresBase):
         *,
         indices: np.ndarray | None,
         store_indices: bool,
-        out: np.ndarray | None,
+        out: tuple[np.ndarray | None, np.ndarray | None],
     ) -> tuple[F, np.ndarray | None]:
         self, _ = self.base
         if store_indices:
             if indices is None:
                 indices = np.arange(self.num_samples)
             self.previously_sampled_indices.append(indices)
-        return self.sample_X(extractor, indices=indices, out=out), None
+        return self.sample_X(extractor, indices=indices, out=out[0]), None
 
 
 class AnnotatedElementMixin(
     WithAnnotations, ABC, columns={"start", "stop", "category"}
 ):
     @override
-    def sample_y[F: Shaped](self, *, indices: np.ndarray | None) -> np.ndarray:
+    def sample_y[F: Shaped](
+        self, *, indices: np.ndarray | None, out: np.ndarray | None
+    ) -> np.ndarray:
         if self._y is None:
             observations = self.observations
             start = np.asarray(observations["start"])
             stop = np.asarray(observations["stop"])
             category = self.encode(np.asarray(observations["category"]))
             self._y: np.ndarray | None = np.repeat(category, stop - start + 1)
+        y = self._y
         if indices is not None:
-            return self._y[indices]
-        return self._y
+            y = y[indices]
+        if out is not None:
+            out[:] = y
+        else:
+            out = y
+        return out
 
     def describe_available_samples(
         self, *, reset: bool, exclude_previously_sampled: bool
-    ) -> tuple[np.ndarray, np.ndarray, tuple[int, ...]]:
+    ) -> np.ndarray:
         observations = self.observations
         num_intervals = len(observations)
         start = np.asarray(observations["start"])
         stop = np.asarray(observations["stop"])
         self, base_type = self.base
-        available_indices, _, _ = base_type.describe_available_samples(
+        sample_description = base_type.describe_available_samples(
             self, reset=reset, exclude_previously_sampled=exclude_previously_sampled
         )  # interval_levels, num_intervals_per_level are np.zeros and (1, ) and will be replaced below
-        intervals = np.repeat(np.arange(num_intervals), stop - start + 1)[
-            available_indices
-        ]
-        return available_indices, intervals.reshape(-1, 1), (num_intervals,)
+        available_indices = sample_description[:, 0]
+        intervals = np.repeat(
+            np.arange(num_intervals, dtype=np.uint), stop - start + 1
+        )[available_indices]
+        return np.transpose([available_indices, intervals])
 
 
 class Individual(ElementMixin, Base):
@@ -664,6 +666,20 @@ class AnnotatedIndividual(
         # the below only finishes successfully if categories are valid
         _ = self.encode(np.asarray(observations["category"]))
         return observations
+
+    @override
+    def sample[F: Shaped](
+        self,
+        extractor: BaseExtractor[F],
+        *,
+        indices: np.ndarray | None,
+        store_indices: bool,
+        out: tuple[np.ndarray | None, np.ndarray | None],
+    ) -> tuple[F, np.ndarray]:
+        return (
+            self.sample_X(extractor, indices=indices, out=out[0]),
+            self.sample_y(indices=indices, out=out[1]),
+        )
 
 
 class Dyad(ElementMixin, Base):
@@ -804,6 +820,20 @@ class AnnotatedDyad(AnnotatedElementMixin, Dyad, columns={"category", "start", "
         _ = self.encode(np.asarray(observations["category"]))
         return observations
 
+    @override
+    def sample[F: Shaped](
+        self,
+        extractor: BaseExtractor[F],
+        *,
+        indices: np.ndarray | None,
+        store_indices: bool,
+        out: tuple[np.ndarray | None, np.ndarray | None],
+    ) -> tuple[F, np.ndarray]:
+        return (
+            self.sample_X(extractor, indices=indices, out=out[0]),
+            self.sample_y(indices=indices, out=out[1]),
+        )
+
 
 def _split_indices(
     elements: Sequence[Base],
@@ -879,47 +909,33 @@ class ElementCollection[I: Hashable, E: Base](Base, ABC):
     @override
     def describe_available_samples(
         self, *, reset: bool, exclude_previously_sampled: bool
-    ) -> tuple[np.ndarray, np.ndarray, tuple[int, ...]]:
-        available_indices: list[np.ndarray] = []
-        interval_levels: list[np.ndarray] = []
-        offset_per_level = None
+    ) -> np.ndarray:
+        # TODO: implement out kwarg for zero copy
+        shape, dtype = (self.num_samples, 2), np.uint
+        check_memory_for_array(shape, dtype)
+        sample_description = np.zeros(shape, dtype=dtype) - 1
+
         index_offset = 0
-        for idx, (_, element) in enumerate(self):
-            (
-                _available_indices,
-                _interval_levels,
-                _num_intervals_per_level,
-            ) = element.describe_available_samples(
+        level_offset = 0
+        offset = 0
+        for _, element in self:
+            _sample_description = element.describe_available_samples(
                 reset=reset, exclude_previously_sampled=exclude_previously_sampled
             )
-            _available_indices += index_offset
-            if offset_per_level is None:
-                offset_per_level = np.zeros(_interval_levels.shape[1], dtype=int)
-            _interval_levels += offset_per_level
-            _interval_levels = np.concatenate(
-                [
-                    np.repeat(idx, _interval_levels.shape[0]).reshape(-1, 1),
-                    _interval_levels,
-                ],
-                axis=1,
-            )
-            available_indices.append(_available_indices)
-            interval_levels.append(_interval_levels)
+            num_available = _sample_description.shape[0]
+            _sample_description[:, 0] += np.uint(index_offset)
+            _sample_description[:, 1] += np.uint(level_offset)
+
+            sample_description[offset : offset + num_available] = _sample_description
+
+            offset += num_available
             index_offset += element.num_samples
-            offset_per_level += _num_intervals_per_level
-        if offset_per_level is None:
-            # empty
-            return (
-                np.array([], dtype=int),
-                np.array([], dtype=int).reshape((0, 1)),
-                (0,),
-            )
-        num_intervals_per_level = (len(self), *offset_per_level.tolist())
-        return (
-            np.concatenate(available_indices, axis=0),
-            np.concatenate(interval_levels, axis=0),
-            num_intervals_per_level,
-        )
+            if num_available > 0:
+                level_offset = _sample_description[-1, 1] + 1
+        if level_offset == 0:
+            # empty, edge case that should only happen when all already fully sampled and exclude_previously_sampled=True
+            return np.zeros((0, 2), dtype=np.uint8)
+        return sample_description
 
     @override
     def sample_X[F: Shaped](
@@ -972,13 +988,76 @@ class ElementCollection[I: Hashable, E: Base](Base, ABC):
         *,
         indices: np.ndarray | None,
         store_indices: bool,
-        out: np.ndarray | None,
+        out: tuple[np.ndarray | None, np.ndarray | None],
     ) -> tuple[F, np.ndarray | None]:
         if store_indices:
             if indices is None:
                 indices = np.arange(self.num_samples)
             self.previously_sampled_indices.append(indices)
-        return self.sample_X(extractor, indices=indices, out=out), None
+        return self.sample_X(extractor, indices=indices, out=out[0]), None
+
+
+class AnnotatedCollectionMixin:
+    _y: np.ndarray | None = None
+
+    def sample_y[F: Shaped](
+        self, *, indices: np.ndarray | None, out: np.ndarray | None
+    ) -> np.ndarray:
+        if not isinstance(self, (AnnotatedGroup, AnnotatedDataset)):
+            raise TypeError(
+                f"Expected AnnotatedGroup or AnnotatedDataset, got {type(self)}"
+            )
+        if out is None:
+            out = (
+                np.zeros(
+                    self.num_samples if indices is None else len(indices),
+                    dtype=np.uint8,
+                )
+                - 1
+            )
+        if self._y is not None:
+            if indices is None:
+                out[:] = self._y
+            else:
+                out[:] = self._y[indices]
+            return out
+        if indices is None:
+            # reuse out array (maybe should set readonly flag afterwards)
+            self._y = out
+        else:
+            self._y = np.zeros(self.num_samples, dtype=np.uint8) - 1
+        offset = 0
+        for _, element in self:
+            num_samples = element.num_samples
+            _ = element.sample_y(
+                indices=None, out=self._y[offset : offset + num_samples]
+            )
+            offset += element.num_samples
+        if indices is None:
+            return self._y  # same as out
+        out[:] = self._y[indices]
+        return out
+
+    def sample[F: Shaped](
+        self,
+        extractor: BaseExtractor[F],
+        *,
+        indices: np.ndarray | None,
+        store_indices: bool,
+        out: tuple[np.ndarray | None, np.ndarray | None],
+    ) -> tuple[F, np.ndarray]:
+        if not isinstance(self, (AnnotatedGroup, AnnotatedDataset)):
+            raise TypeError(
+                f"Expected AnnotatedGroup or AnnotatedDataset, got {type(self)}"
+            )
+        if store_indices:
+            if indices is None:
+                indices = np.arange(self.num_samples)
+            self.previously_sampled_indices.append(indices)
+        return (
+            self.sample_X(extractor, indices=indices, out=out[0]),
+            self.sample_y(indices=indices, out=out[1]),
+        )
 
 
 def _value_validator[VT](value_type: type[VT], value: ...) -> VT:
@@ -1141,6 +1220,7 @@ class Group(ElementCollection[Hashable, Individual | Dyad]):
 
 
 class AnnotatedGroup(
+    AnnotatedCollectionMixin,
     WithAnnotations,
     Group,
     columns={"start", "stop", "category", "actor"},
@@ -1253,7 +1333,9 @@ class AnnotatedGroup(
             [len(observations) for observations in all_observations],
             axis=0,
         )
-        observations = pd.concat(all_observations, axis=0, ignore_index=True)
+        observations = pd.concat(
+            all_observations, copy=False, axis=0, ignore_index=True
+        )
         observations[identifier_columns] = identifiers
         return observations
 
@@ -1282,31 +1364,6 @@ class AnnotatedGroup(
                     f"Error annotating {type(element).__name__} {identifier}"
                 ) from e
         return self._concatenate_observations()
-
-    @override
-    def sample_y[F: Shaped](self, *, indices: np.ndarray | None) -> np.ndarray:
-        if self._y is None:
-            self._y: np.ndarray | None = np.concatenate(
-                [element.sample_y(indices=None) for _, element in self]
-            )
-        if indices is not None:
-            return self._y[indices]
-        return self._y
-
-    @override
-    def sample[F: Shaped](
-        self,
-        extractor: BaseExtractor[F],
-        *,
-        indices: np.ndarray | None,
-        store_indices: bool,
-        out: np.ndarray | None,
-    ) -> tuple[F, np.ndarray]:
-        X, _ = super().sample(
-            extractor, indices=indices, store_indices=store_indices, out=out
-        )
-        y = self.sample_y(indices=indices)
-        return X, y
 
 
 class Dataset(ElementCollection[Hashable, Group]):
@@ -1538,6 +1595,7 @@ class Dataset(ElementCollection[Hashable, Group]):
 
 
 class AnnotatedDataset(
+    AnnotatedCollectionMixin,
     WithAnnotations,
     Dataset,
     columns={"start", "stop", "category", "actor", "group"},
@@ -1646,7 +1704,9 @@ class AnnotatedDataset(
             [len(observations) for observations in all_observations],
             axis=0,
         )
-        observations = pd.concat(all_observations, axis=0, ignore_index=True)
+        observations = pd.concat(
+            all_observations, copy=False, axis=0, ignore_index=True
+        )
         observations["group"] = identifiers
         return observations
 
@@ -1674,28 +1734,18 @@ class AnnotatedDataset(
         return self._concatenate_observations()
 
     @override
-    def sample_y[F: Shaped](self, *, indices: np.ndarray | None) -> np.ndarray:
-        if self._y is None:
-            self._y: np.ndarray | None = np.concatenate(
-                [element.sample_y(indices=None) for _, element in self]
-            )
-        if indices is not None:
-            return self._y[indices]
-        return self._y
-
-    @override
     def sample[F: Shaped](
         self,
         extractor: BaseExtractor[F],
         *,
         indices: np.ndarray | None,
         store_indices: bool,
-        out: np.ndarray | None,
+        out: tuple[np.ndarray | None, np.ndarray | None],
     ) -> tuple[F, np.ndarray]:
         X, _ = super().sample(
-            extractor, indices=indices, store_indices=store_indices, out=out
+            extractor, indices=indices, store_indices=store_indices, out=(out[0], None)
         )
-        y = self.sample_y(indices=indices)
+        y = self.sample_y(indices=indices, out=out[1])
         return X, y
 
     @override

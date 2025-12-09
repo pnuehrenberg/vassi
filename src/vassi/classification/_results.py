@@ -138,7 +138,7 @@ class WithGroundTruth(RequiresBaseClassification, ABC):
         y_gt: np.ndarray,
         annotations: pd.DataFrame,
     ):
-        self._y_gt = y_gt
+        self._y_gt = y_gt.astype(np.int8)
         self._annotations = annotations
 
     @property
@@ -456,7 +456,7 @@ class Classification(BaseClassification):
         except ValueError:
             default_decision_idx = None
         if decision_thresholds is None:
-            new.y = np.argmax(new.y_proba, axis=1)
+            new.y = np.argmax(new.y_proba, axis=1).astype(np.int8)
             return new.update_predictions()
         y_proba_thresh = new.y_proba.copy()
         for category, threshold in decision_thresholds.items():

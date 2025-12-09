@@ -41,7 +41,7 @@ def sampling_function[F: Shaped](
         reset=False,
         exclude_previously_sampled=False,
         store_indices=False,
-        out=None,
+        out=(None, None),
         ensure_sampling_at=None,
     )
 
@@ -130,8 +130,11 @@ def aggregator_kwargs(trial: optuna.trial.Trial) -> AggregatorKwargs:
         "sliding_metric_functions", ["sliding_mean", "sliding_median"]
     )(trial)
     if suggested_metric_funcs == "sliding_mean":
-        # TODO: Instead load by name from module (and allow multiple, delimited by comma)
+        # TODO: Instead load by name from module (and allow multiple, delimited by semicolon)
         # but, this gets complicated when a function needs to bind a parameter via partial (e.g., quantile)
+        # maybe something like "sliding_quantile(0.1);sliding_quantiles(0.2,0.5)"
+        # parsed to [partial(sliding_quantile, quantile=0.1), (partial(sliding_quantiles, quantiles=[0.2, 0.5]), 2)]
+        # (need to pass along number of expected metrics if > 1)
         sliding_metric_functions = [sliding_mean]
     else:
         sliding_metric_functions = [sliding_median]
