@@ -10,7 +10,7 @@ from vassi.dataset import AnnotatedDataset
 from vassi.distributed import Environment
 from vassi.features import DataFrameExtractor
 
-from .helpers import parameter_space, postprocessing_function, sampling_function
+from .helpers import CALMS21PipelineParams, postprocessing_function, sampling_function
 
 cfg.key_keypoints = "keypoints"
 cfg.key_timestamp = "timestamps"
@@ -31,10 +31,10 @@ if __name__ == "__main__":
     )
 
     study = run_optuna_hyperparameter_search(
+        CALMS21PipelineParams,
         dataset_train,
         extractor,
         XGBClassifier,
-        parameter_space,
         num_trials=2000,
         k=5,
         sampling_function=sampling_function,

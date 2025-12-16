@@ -1,17 +1,20 @@
-from collections.abc import Callable, Iterable
+from __future__ import annotations
+
+from abc import ABC
+from collections.abc import Iterable
+from dataclasses import dataclass
 from functools import partial
+from typing import override
 
 import numpy as np
-import optuna
 
 from vassi.classification import AnnotatedDatasetClassification
-from vassi.classification.optimization import (
-    CategoricalParameter,
-    FloatParameter,
-    IntParameter,
-    ParameterSpace,
+from vassi.classification.optimization.optuna_utils import ParameterSpace, Params
+from vassi.classification.optimization.utils import (
+    ParamsCategoryOutput,
+    ParamsFeatureAggregator,
+    ParamsPipeline,
 )
-from vassi.classification.optimization.utils import AggregatorKwargs
 from vassi.dataset import AnnotatedDataset
 from vassi.features import BaseExtractor, Shaped
 from vassi.sliding_metrics import (
@@ -27,8 +30,8 @@ def sampling_function[F: Shaped](
     dataset: AnnotatedDataset,
     extractor: BaseExtractor[F],
     *,
-    min_samples_per_stratum: int,
     random_state: int | np.random.Generator | None,
+    params: ParamsPipeline,
 ) -> tuple[F, np.ndarray]:
     return dataset.subsample(
         extractor,
@@ -36,7 +39,7 @@ def sampling_function[F: Shaped](
             category: min(30000, dataset.category_counts[category])
             for category in dataset.categories
         },
-        min_samples_per_stratum=min_samples_per_stratum,
+        min_samples_per_stratum=params.min_samples_per_stratum,
         random_state=random_state,
         reset=False,
         exclude_previously_sampled=False,
@@ -47,127 +50,102 @@ def sampling_function[F: Shaped](
 
 
 def smooth_model_outputs(
-    categories: Iterable[str], *, array: np.ndarray, **kwargs: ...
+    categories: Iterable[str], *, array: np.ndarray, params: CALMS21PipelineParams
 ) -> np.ndarray:
-    probabilities_smoothed = np.zeros_like(array)
+    probabilities_smoothed = array.copy()
     for idx, category in enumerate(sorted(categories)):
-        window_lower = kwargs[f"quantile_range_window_lower-{category}"]
-        window_upper = kwargs[f"quantile_range_window_upper-{category}"]
+        if (
+            not params.params_category_output
+            or category not in params.params_category_output
+        ):
+            continue
+        params_category = params.params_category_output[category]
+        params_quantile_range_filter = params_category.params_quantile_range_filter
+        params_smoothing = params_category.params_smoothing
         probabilities_category = array[:, idx]
-        q_lower = probabilities_category
-        if window_lower > 1:
+        if params_category.use_quantile_range_filter and params_quantile_range_filter:
             q_lower = sliding_quantile(
                 probabilities_category,
-                window_lower,
-                kwargs[f"quantile_range_lower-{category}"],
+                params_quantile_range_filter.window_size_lower,
+                params_quantile_range_filter.lower,
             )
-        q_upper = probabilities_category
-        if window_upper > 1:
             q_upper = sliding_quantile(
                 probabilities_category,
-                window_upper,
-                kwargs[f"quantile_range_upper-{category}"],
+                params_quantile_range_filter.window_size_upper,
+                params_quantile_range_filter.upper,
             )
-        probabilities_category = np.clip(probabilities_category, q_lower, q_upper)
-        smoothing_window = kwargs[f"smoothing_window-{category}"]
-        if smoothing_window > 1:
-            if (smoothing_function_kwarg := kwargs["smoothing_function"]) == "mean":
+            probabilities_category = np.clip(probabilities_category, q_lower, q_upper)
+        if params_category.use_smoothing and params_smoothing:
+            if params_smoothing.sliding_metric == "mean":
                 smoothing_function = sliding_mean
-            elif smoothing_function_kwarg == "median":
+            elif params_smoothing.sliding_metric == "median":
                 smoothing_function = sliding_median
             else:
-                raise ValueError(
-                    f"Invalid smoothing function keyword argument: {smoothing_function_kwarg}"
-                )
-            probabilities_smoothed[:, idx] = smoothing_function(
-                probabilities_category, smoothing_window
+                raise ValueError("expected on of 'mean', 'median'")
+            probabilities_category = smoothing_function(
+                probabilities_category, params_smoothing.window_size
             )
-        else:
-            probabilities_smoothed[:, idx] = probabilities_category
+        probabilities_smoothed[:, idx] = probabilities_category
     return probabilities_smoothed
 
 
 def postprocessing_function(
     result: AnnotatedDatasetClassification,
-    **postprocessing_function_kwargs: ...,
+    *,
+    params: ParamsPipeline,
 ):
-    smoothing_function_kwargs = dict(postprocessing_function_kwargs)
-    decision_thresholds = {
-        threshold.replace("decision_threshold-", "", 1): value
-        for threshold in postprocessing_function_kwargs
-        if threshold.startswith("decision_threshold-")
-        and (value := smoothing_function_kwargs.pop(threshold))
-    }
+    assert isinstance(params, CALMS21PipelineParams)
     return result.smooth(
-        partial(smooth_model_outputs, result.categories, **smoothing_function_kwargs),
-        decision_thresholds=decision_thresholds,
-    )
-
-
-postprocessing_parameters: dict[str, Callable[[optuna.trial.Trial], object]] = {
-    "smoothing_function": CategoricalParameter("smoothing_function", ["mean", "median"])
-}
-for category in CATEGORIES:
-    threshold = f"decision_threshold-{category}"
-    postprocessing_parameters[threshold] = FloatParameter(threshold, 0.0, 1.0)
-    for window in [
-        f"quantile_range_window_lower-{category}",
-        f"quantile_range_window_upper-{category}",
-        f"smoothing_window-{category}",
-    ]:
-        postprocessing_parameters[window] = IntParameter(window, 1, 91, step=2)
-    for quantile_range in [
-        f"quantile_range_lower-{category}",
-        f"quantile_range_upper-{category}",
-    ]:
-        postprocessing_parameters[quantile_range] = FloatParameter(
-            quantile_range, 0.0, 1.0
-        )
-
-
-def aggregator_kwargs(trial: optuna.trial.Trial) -> AggregatorKwargs:
-    suggested_metric_funcs = CategoricalParameter(
-        "sliding_metric_functions", ["sliding_mean", "sliding_median"]
-    )(trial)
-    if suggested_metric_funcs == "sliding_mean":
-        # TODO: Instead load by name from module (and allow multiple, delimited by semicolon)
-        # but, this gets complicated when a function needs to bind a parameter via partial (e.g., quantile)
-        # maybe something like "sliding_quantile(0.1);sliding_quantiles(0.2,0.5)"
-        # parsed to [partial(sliding_quantile, quantile=0.1), (partial(sliding_quantiles, quantiles=[0.2, 0.5]), 2)]
-        # (need to pass along number of expected metrics if > 1)
-        sliding_metric_functions = [sliding_mean]
-    else:
-        sliding_metric_functions = [sliding_median]
-    return AggregatorKwargs(
-        sliding_metric_functions=sliding_metric_functions,
-        windows=[IntParameter("windows", 11, 61, step=2)(trial)],
-        num_slices_per_window=IntParameter("num_slices_per_window", 1, 7, step=2)(
-            trial
+        partial(
+            smooth_model_outputs,
+            result.categories,
+            params=params,
         ),
-        keep_original_features=CategoricalParameter(
-            "keep_original_features", [True, False]
-        )(trial),
+        decision_thresholds=(
+            {
+                category: threshold
+                for category, category_params in params.params_category_output.items()
+                if category_params.use_thresholding
+                and (threshold := category_params.threshold)
+            }
+            if params.params_category_output
+            else {}
+        ),
     )
 
 
-n_jobs = 72 // 4  # physical cpus // n_jobs in optimization.py
+@dataclass
+class ParamsClassifier(Params, ABC):
+    n_jobs: int
+    n_estimators: int
 
-use_sliding_window_features = CategoricalParameter(
-    "use_sliding_window_features", [True, False]
-)
+    @override
+    @classmethod
+    def define(cls, space: ParameterSpace):
+        space.assign("n_jobs", 72 // 4)  # physical cpus // n_jobs in optimization.py
+        space.assign("n_estimators", 1000)
+        # _ = space.suggest_categorical("n_estimators", [100, 200, 500, 1000])
 
-parameter_space = ParameterSpace(
-    sampling_function_kwargs={
-        "min_samples_per_stratum": IntParameter("min_samples_per_stratum", 0, 30),
-    },
-    classifier_kwargs={
-        "n_estimators": IntParameter("n_estimators", 1000, 1000),
-        "n_jobs": IntParameter("n_jobs", n_jobs, n_jobs),
-    },
-    balance_sample_weights=CategoricalParameter(
-        "balance_sample_weights", [True, False]
-    ),
-    postprocessing_function_kwargs=postprocessing_parameters,
-    use_sliding_window_features=use_sliding_window_features,
-    aggregator_kwargs=aggregator_kwargs,
-)
+
+@dataclass
+class CALMS21PipelineParams(ParamsPipeline):
+    # extend ParamsPipeline to provide params for custom postprocessing (see function above)
+    params_category_output: dict[str, ParamsCategoryOutput] | None = None
+
+    @override
+    @classmethod
+    def define(cls, space: ParameterSpace):
+        _ = space.suggest_int("min_samples_per_stratum", 0, 30)
+        _ = space.suggest_bool("balance_sample_weights")
+        if space.suggest_bool("use_sliding_window_features"):
+            space.assign(
+                "params_feature_aggregator", ParamsFeatureAggregator.init_from(space)
+            )
+        space.assign(
+            "params_category_output",
+            {
+                category: ParamsCategoryOutput.init_from(space.subspace(category))
+                for category in CATEGORIES
+            },
+        )
+        space.assign("params_classifier", ParamsClassifier.init_from(space))

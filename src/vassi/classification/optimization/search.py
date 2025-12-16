@@ -1,6 +1,6 @@
 import os
 import tempfile
-from collections.abc import Callable, Mapping
+from collections.abc import Callable
 from functools import partial
 from typing import Concatenate, final
 
@@ -13,61 +13,73 @@ from ...dataset import AnnotatedDataset
 from ...distributed import Environment, get_process_state, limited_process_pool
 from ...features import BaseExtractor, Shaped
 from ...io.yaml import to_yaml
-from ...sliding_metrics import SlidingWindowAggregator
+from ...sliding_metrics import (
+    SlidingWindowAggregator,
+    get_window_slices,
+    sliding_mean,
+    sliding_median,
+)
 from ...utils import to_int_seed
 from .._predict import Classifier, k_fold_predict
 from .._results import AnnotatedDatasetClassification
-from .utils import (
-    AggregatorKwargs,
-    ParameterSpace,
-    get_validated_aggregator_kwargs,
-    without_postprocessing,
-)
+from .utils import ParamsPipeline, without_postprocessing
 
 
 @final
 class KFoldExperiment:
     def __init__[F: Shaped](
         self,
+        params: ParamsPipeline,
         dataset: AnnotatedDataset,
         extractor: BaseExtractor[F],
         classifier: type[Classifier],
         *,
         k: int,
-        classifier_kwargs: Mapping[str, object] | None = None,
-        balance_sample_weights: bool,
         sampling_function: Callable[
             Concatenate[AnnotatedDataset, BaseExtractor[F], ...], tuple[F, np.ndarray]
         ],
-        sampling_function_kwargs: Mapping[str, object] | None = None,
         postprocessing_function: Callable[
             Concatenate[AnnotatedDatasetClassification, ...],
             AnnotatedDatasetClassification,
         ] = without_postprocessing,
-        postprocessing_function_kwargs: Mapping[str, object] | None = None,
         scoring_function: Callable[[AnnotatedDatasetClassification], float],
         random_state: np.random.Generator | int | None = None,
-        use_sliding_window_features: bool = False,
-        aggregator_kwargs: AggregatorKwargs | None = None,
     ):  # implementation
+        self.params = params
         self.dataset = dataset
         self.extractor = extractor
         self.classifier = classifier(
-            **classifier_kwargs if classifier_kwargs is not None else {}
+            **(
+                self.params.params_classifier.to_dict()
+                if self.params.params_classifier
+                else {}
+            )
         )
         self.k = k
-        self.balance_sample_weights = balance_sample_weights
         self.sampling_function = sampling_function
-        self.sampling_function_kwargs = sampling_function_kwargs
         self.postprocessing_function = postprocessing_function
-        self.postprocessing_function_kwargs = postprocessing_function_kwargs
         self.scoring_function = scoring_function
         self.random_state = np.random.default_rng(random_state)
         self.aggregator = None
-        if use_sliding_window_features and (
-            kwargs := get_validated_aggregator_kwargs(aggregator_kwargs)
+        if self.params.use_sliding_window_features and (
+            aggregator_params := self.params.params_feature_aggregator
         ):
-            self.aggregator = SlidingWindowAggregator(**kwargs)
+            if aggregator_params.sliding_metric == "mean":
+                metric_funcs = [sliding_mean]
+            elif aggregator_params.sliding_metric == "median":
+                metric_funcs = [sliding_median]
+            else:
+                raise ValueError("expected one of 'mean', 'median'")
+            windows, window_slices = get_window_slices(
+                aggregator_params.num_slices_per_window,
+                windows=[aggregator_params.window_size],
+            )
+            self.aggregator = SlidingWindowAggregator(
+                metric_funcs,
+                window_size=max(windows),
+                window_slices=window_slices,
+                keep_original=aggregator_params.keep_original_features,
+            )
 
     def run(self) -> float:
         with get_process_state():
@@ -83,22 +95,19 @@ class KFoldExperiment:
                 self.classifier,
                 k=self.k,
                 sampling_function=self.sampling_function,
-                balance_sample_weights=self.balance_sample_weights,
+                balance_sample_weights=self.params.balance_sample_weights,
                 random_state=self.random_state,
-                **self.sampling_function_kwargs
-                if self.sampling_function_kwargs is not None
-                else {},
+                params=self.params,  # passed to sampling function
             )
         k_fold_result = self.postprocessing_function(
             k_fold_result,
-            **self.postprocessing_function_kwargs
-            if self.postprocessing_function_kwargs is not None
-            else {},
+            params=self.params,  # passed to sampling function
         )
         return self.scoring_function(k_fold_result)
 
 
 def _run_k_fold_experiment[F: Shaped](
+    params: type[ParamsPipeline],
     dataset: AnnotatedDataset,
     extractor: BaseExtractor[F],
     classifier: type[Classifier],
@@ -112,10 +121,10 @@ def _run_k_fold_experiment[F: Shaped](
         Concatenate[AnnotatedDatasetClassification, ...], AnnotatedDatasetClassification
     ] = without_postprocessing,
     scoring_function: Callable[[AnnotatedDatasetClassification], float],
-    parameter_space: ParameterSpace,
     random_state: int,
 ) -> float:
     return KFoldExperiment(
+        params.init_from(trial),
         dataset,
         extractor,
         classifier,
@@ -124,15 +133,14 @@ def _run_k_fold_experiment[F: Shaped](
         postprocessing_function=postprocessing_function,
         scoring_function=scoring_function,
         random_state=random_state + trial.number,
-        **parameter_space.suggest(trial),
     ).run()
 
 
 def _run_optuna_hyperparameter_search_linear[F: Shaped](
+    params: type[ParamsPipeline],
     dataset: AnnotatedDataset,
     extractor: BaseExtractor[F],
     classifier: type[Classifier],
-    parameter_space: ParameterSpace,
     *,
     num_trials: int,
     k: int,
@@ -153,6 +161,7 @@ def _run_optuna_hyperparameter_search_linear[F: Shaped](
     study.optimize(
         partial(
             _run_k_fold_experiment,
+            params,
             dataset,
             extractor,
             classifier,
@@ -161,7 +170,6 @@ def _run_optuna_hyperparameter_search_linear[F: Shaped](
             postprocessing_function=postprocessing_function,
             scoring_function=scoring_function,
             random_state=to_int_seed(random_state),
-            parameter_space=parameter_space,
         ),
         n_trials=num_trials,
     )
@@ -173,10 +181,10 @@ def _optuna_worker[F: Shaped](
     storage: str,
     random_state: int,
     num_trials: int,
+    params: type[ParamsPipeline],
     dataset: AnnotatedDataset,
     extractor: BaseExtractor[F],
     classifier: type[Classifier],
-    parameter_space: ParameterSpace,
     k: int,
     sampling_function: Callable[
         Concatenate[AnnotatedDataset, BaseExtractor[F], ...], tuple[F, np.ndarray]
@@ -199,6 +207,7 @@ def _optuna_worker[F: Shaped](
     study.optimize(
         partial(
             _run_k_fold_experiment,
+            params,
             dataset,
             extractor,
             classifier,
@@ -207,7 +216,6 @@ def _optuna_worker[F: Shaped](
             postprocessing_function=postprocessing_function,
             scoring_function=scoring_function,
             random_state=random_state,
-            parameter_space=parameter_space,
         ),
         n_trials=num_trials,
     )
@@ -219,10 +227,10 @@ def _pool_helper[F: Shaped](
         str,  # storage,
         int,  # int_seed,
         int,  # num trials for this worker
+        type[ParamsPipeline],  # parameter space
         AnnotatedDataset,  # dataset,
         BaseExtractor[F],  # extractor,
         type[Classifier],  # classifier,
-        ParameterSpace,  # parameter_space,
         int,  # k,
         Callable[
             Concatenate[AnnotatedDataset, BaseExtractor[F], ...], tuple[F, np.ndarray]
@@ -243,10 +251,10 @@ def _run_optuna_hyperparameter_search_parallel[F: Shaped](
     int_seed_node: int,
     study_name: str,
     storage: str,
+    params: type[ParamsPipeline],
     dataset: AnnotatedDataset,
     extractor: BaseExtractor[F],
     classifier: type[Classifier],
-    parameter_space: ParameterSpace,
     k: int,
     sampling_function: Callable[
         Concatenate[AnnotatedDataset, BaseExtractor[F], ...], tuple[F, np.ndarray]
@@ -270,10 +278,10 @@ def _run_optuna_hyperparameter_search_parallel[F: Shaped](
             storage,
             int_seed_node + worker_idx,
             count,
+            params,
             dataset,
             extractor,
             classifier,
-            parameter_space,
             k,
             sampling_function,
             postprocessing_function,
@@ -291,10 +299,10 @@ def _run_optuna_hyperparameter_search_parallel[F: Shaped](
 
 
 def run_optuna_hyperparameter_search[F: Shaped](
+    params: type[ParamsPipeline],
     dataset: AnnotatedDataset,
     extractor: BaseExtractor[F],
     classifier: type[Classifier],
-    parameter_space: ParameterSpace,
     *,
     num_trials: int,
     k: int,
@@ -312,10 +320,10 @@ def run_optuna_hyperparameter_search[F: Shaped](
 
     if env.size == 1 and n_jobs == 1:
         return _run_optuna_hyperparameter_search_linear(
+            params,
             dataset,
             extractor,
             classifier,
-            parameter_space,
             num_trials=num_trials,
             k=k,
             sampling_function=sampling_function,
@@ -368,10 +376,10 @@ def run_optuna_hyperparameter_search[F: Shaped](
                 int_seed_node=int_seed_current_node,
                 study_name=study_name,
                 storage=storage,
+                params=params,
                 dataset=dataset,
                 extractor=extractor,
                 classifier=classifier,
-                parameter_space=parameter_space,
                 k=k,
                 sampling_function=sampling_function,
                 postprocessing_function=postprocessing_function,
@@ -384,10 +392,10 @@ def run_optuna_hyperparameter_search[F: Shaped](
                 storage=storage,
                 random_state=int_seed_current_node,
                 num_trials=num_trial_current_node,
+                params=params,
                 dataset=dataset,
                 extractor=extractor,
                 classifier=classifier,
-                parameter_space=parameter_space,
                 k=k,
                 sampling_function=sampling_function,
                 postprocessing_function=postprocessing_function,
@@ -413,8 +421,9 @@ def summarize_study(
     trials = pd.DataFrame(
         [
             {
-                **{f"param_{param}": value for param, value in trial.params.items()},
+                "trial": trial.number,
                 "value": trial.value,
+                **trial.params,
             }
             for trial in study.trials
         ]
@@ -422,9 +431,10 @@ def summarize_study(
     trials.to_csv(trials_file, index=False)
     to_yaml(
         {
-            **{f"param_{param}": value for param, value in study.best_params.items()},
             "trial": study.best_trial.number,
+            "value": study.best_trial.value,
+            **study.best_params,
         },
         file_name=summary_file,
     )
-    return {f"param_{param}": value for param, value in study.best_params.items()}
+    return study.best_params
