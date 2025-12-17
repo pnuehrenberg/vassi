@@ -69,7 +69,7 @@ if __name__ == "__main__":
 
     params = CALMS21PipelineParams.init_from(dict(best_parameters))
     n_estimators = (
-        params.params_classifier
+        params.params_classifier.n_estimators
         if isinstance(params.params_classifier, ParamsClassifier)
         else None
     )
