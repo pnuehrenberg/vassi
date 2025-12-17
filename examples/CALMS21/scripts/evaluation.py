@@ -9,17 +9,26 @@ from sklearn.utils.class_weight import (
 from xgboost import XGBClassifier
 
 from vassi.classification import predict
-from vassi.classification.optimization.utils import get_validated_aggregator_kwargs
 from vassi.config import cfg
 from vassi.dataset import AnnotatedDataset
 from vassi.distributed import Environment
 from vassi.features import DataFrameExtractor
 from vassi.io.h5 import write_h5_data
 from vassi.io.yaml import from_yaml
-from vassi.sliding_metrics import SlidingWindowAggregator
+from vassi.sliding_metrics import (
+    SlidingWindowAggregator,
+    get_window_slices,
+    sliding_mean,
+    sliding_median,
+)
 from vassi.type_guards import is_mapping_of
 
-from .helpers import parameter_space, sampling_function, smooth_model_outputs
+from .helpers import (
+    CALMS21PipelineParams,
+    ParamsClassifier,
+    sampling_function,
+    smooth_model_outputs,
+)
 
 cfg.key_keypoints = "keypoints"
 cfg.key_timestamp = "timestamps"
@@ -54,34 +63,54 @@ if __name__ == "__main__":
         background_category="none",
     ).exclude({"intruder"})
 
-    best_parameters = from_yaml("optimization/session_3/optimization-summary.yaml")
+    best_parameters = from_yaml("optimization/session_6/optimization-summary.yaml")
     if not is_mapping_of(best_parameters, str, object):
         raise ValueError("Expected parameters to be a mapping of strings to objects")
 
-    parameters = parameter_space.parse(best_parameters)
-    min_samples_per_stratum = parameters["sampling_function_kwargs"][
-        "min_samples_per_stratum"
-    ]
-    if not isinstance(min_samples_per_stratum, int):
-        raise ValueError("Expected min_samples_per_stratum to be an integer")
-
-    n_estimators = parameters["classifier_kwargs"]["n_estimators"]
-    if not isinstance(n_estimators, int):
-        raise ValueError("Expected n_estimators to be an integer")
-
-    n_estimators = parameters["classifier_kwargs"]["n_estimators"]
-    if not isinstance(n_estimators, int):
-        raise ValueError("Expected n_estimators to be an integer")
+    params = CALMS21PipelineParams.init_from(dict(best_parameters))
+    n_estimators = (
+        params.params_classifier
+        if isinstance(params.params_classifier, ParamsClassifier)
+        else None
+    )
 
     aggregator = None
-    if parameters["use_sliding_window_features"] and (
-        kwargs := get_validated_aggregator_kwargs(parameters["aggregator_kwargs"])
+    if params.use_sliding_window_features and (
+        aggregator_params := params.params_feature_aggregator
     ):
-        aggregator = SlidingWindowAggregator(**kwargs)
+        # see classification.optimization.search, could be moved to helper function (init_aggregator)
+        if aggregator_params.sliding_metric == "mean":
+            metric_funcs = [sliding_mean]
+        elif aggregator_params.sliding_metric == "median":
+            metric_funcs = [sliding_median]
+        else:
+            raise ValueError("expected one of 'mean', 'median'")
+        windows, window_slices = get_window_slices(
+            aggregator_params.num_slices_per_window,
+            windows=[aggregator_params.window_size],
+        )
+        aggregator = SlidingWindowAggregator(
+            metric_funcs,
+            window_size=max(windows),
+            window_slices=window_slices,
+            keep_original=aggregator_params.keep_original_features,
+        )
+
+    # see helpers.py postprocessing_function, this could also moved to a helper function (parse_decision_thresholds)
+    decision_thresholds = (
+        {
+            category: threshold
+            for category, category_params in params.params_category_output.items()
+            if category_params.use_thresholding
+            and (threshold := category_params.threshold)
+        }
+        if params.params_category_output
+        else None
+    )
 
     extractor = DataFrameExtractor.from_yaml(
         "features-mice.yaml",
-        cache_mode=False,  # not safe when using sliding window features with unknown aggregation and MPI
+        cache_mode=False,  # not safe when using sliding window features (may consume a lot of disk space)
         aggregator=aggregator,
     )
 
@@ -97,13 +126,13 @@ if __name__ == "__main__":
         x, y = sampling_function(
             dataset_train,
             extractor,
-            min_samples_per_stratum=min_samples_per_stratum,
+            params=params,
             random_state=run,
         )
         classifier = XGBClassifier(n_estimators=n_estimators, random_state=run)
 
         sample_weights = None
-        if parameters["balance_sample_weights"]:
+        if params.balance_sample_weights:
             sample_weights = compute_sample_weight(class_weight="balanced", y=y)
 
         classifier = classifier.fit(x, y, sample_weight=sample_weights)
@@ -112,22 +141,11 @@ if __name__ == "__main__":
 
         # # instead of running the postprocessing function, we run smoothing and thresholding separately
         # result_postprocessed = postprocessing_function(
-        #     result, **parameters["postprocessing_function_kwargs"]
+        #     result, params=params
         # )
 
-        # see helpers.py postprocessing_function
-        smoothing_function_kwargs = dict(parameters["postprocessing_function_kwargs"])
-        decision_thresholds = {
-            threshold.replace("decision_threshold-", "", 1): value
-            for threshold in parameters["postprocessing_function_kwargs"]
-            if threshold.startswith("decision_threshold-")
-            and (value := smoothing_function_kwargs.pop(threshold))
-            and isinstance(value, (float, int))
-        }
         result_smoothed = result.smooth(
-            partial(
-                smooth_model_outputs, result.categories, **smoothing_function_kwargs
-            ),
+            partial(smooth_model_outputs, result.categories, params=params),
         )
 
         result_thresholded = result_smoothed.discretize(decision_thresholds)

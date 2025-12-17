@@ -1347,12 +1347,18 @@ class AnnotatedGroup(
         identifier_columns = (
             ["actor"] if self._target == "individual" else ["actor", "recipient"]
         )
-        observations = observations.set_index(identifier_columns)
         for identifier, element in self.elements.items():
-            try:
-                observations_element = observations.loc[[identifier]]
-            except KeyError:
-                observations_element = observations.iloc[:0]
+            if not is_tuple_of(identifier, Hashable):
+                identifier = (identifier,)
+            mask = np.empty(len(observations), dtype=bool)
+            np.bitwise_and.reduce(
+                [
+                    np.asarray(observations[col]) == value
+                    for col, value in zip(identifier_columns, identifier, strict=True)
+                ],
+                out=mask,
+            )
+            observations_element = observations[mask]
             try:
                 self[identifier] = element.annotate(
                     observations_element,
@@ -1715,12 +1721,8 @@ class AnnotatedDataset(
         if self.elements is None:
             raise ValueError(f"{type(self)} is not initialized")
         observations = super()._prepare_observations(observations)
-        observations = observations.set_index("group")
         for identifier, element in self.elements.items():
-            try:
-                observations_element = observations.loc[[identifier]]
-            except KeyError:
-                observations_element = observations.iloc[:0]
+            observations_element = observations[observations["group"] == identifier]
             try:
                 self[identifier] = element.annotate(
                     observations_element,
@@ -1766,6 +1768,12 @@ class AnnotatedDataset(
             warn(
                 f"Loading categories ({', '.join(sorted(categories))}) from observations file, specify categories argument if incomplete."
             )
+        else:
+            observations = observations[
+                np.isin(
+                    observations["category"], list(categories | {background_category})
+                )
+            ]
         return cls(
             load_trajectories(trajectory_file),
             target=target,
