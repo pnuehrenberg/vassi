@@ -1,6 +1,7 @@
 from xgboost import XGBClassifier
 
 from vassi.classification.optimization import (
+    macro_f1_all_levels,
     macro_f1_timestamp,
     run_optuna_hyperparameter_search,
     summarize_study,
@@ -11,6 +12,8 @@ from vassi.distributed import Environment
 from vassi.features import DataFrameExtractor
 
 from .helpers import CALMS21PipelineParams, postprocessing_function, sampling_function
+
+OPTIMIZE_ALL_LEVELS = True
 
 cfg.key_keypoints = "keypoints"
 cfg.key_timestamp = "timestamps"
@@ -39,7 +42,9 @@ if __name__ == "__main__":
         k=5,
         sampling_function=sampling_function,
         postprocessing_function=postprocessing_function,
-        scoring_function=macro_f1_timestamp,
+        scoring_function=(
+            macro_f1_all_levels if OPTIMIZE_ALL_LEVELS else macro_f1_timestamp
+        ),
         n_jobs=4,
     )
 
