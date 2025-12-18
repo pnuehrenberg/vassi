@@ -72,8 +72,8 @@ class ParamsQuantileRangeFilter(Params):
     def define(cls, space: ParameterSpace):
         _ = space.suggest_int("window_size_lower", 3, 91, 2)
         _ = space.suggest_int("window_size_upper", 3, 91, 2)
-        _ = space.suggest_float("lower", 0.0, 1.0)
-        _ = space.suggest_float("upper", 0.0, 1.0)
+        lower = space.suggest_float("lower", 0.0, 1.0)
+        _ = space.suggest_float("upper", float(lower), 1.0)
 
 
 @dataclass
