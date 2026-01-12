@@ -66,7 +66,7 @@ class BaseClassification(WithCategories, ABC):
 
     def _update_from(self, other: Self) -> None:
         # this should only be used in __init__
-        self.__dict__.update(other.__dict__)
+        vars(self).update(other.__dict__)
 
     @abstractmethod
     def update_predictions(self) -> Self: ...
@@ -451,19 +451,14 @@ class Classification(BaseClassification):
     ) -> Self:
         new = shallow_copy(self)
         new._discretized = True
-        try:
-            default_decision_idx = sorted(new.categories).index(new.background_category)
-        except ValueError:
-            default_decision_idx = None
+        default_decision_idx = new.category_index(new.background_category)
+
         if decision_thresholds is None:
             new.y = np.argmax(new.y_proba, axis=1).astype(np.int8)
             return new.update_predictions()
         y_proba_thresh = new.y_proba.copy()
         for category, threshold in decision_thresholds.items():
-            try:
-                category_idx = sorted(new.categories).index(category)
-            except ValueError:
-                raise ValueError(f"Can not threshold undefined category '{category}'")
+            category_idx = new.category_index(category)
             y_proba_thresh[:, category_idx] = np.where(
                 new.y_proba[:, category_idx] > threshold,
                 new.y_proba[:, category_idx],

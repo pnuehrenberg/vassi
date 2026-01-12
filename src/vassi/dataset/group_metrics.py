@@ -239,7 +239,7 @@ def actor_activity_timeline(
         )
         if identifier[0] != actor:
             continue
-        y_dyad = dyad.sample_y(indices=None)
+        y_dyad = dyad.sample_y(indices=None, out=None)
         is_active = np.isin(y_dyad, y_target)
         if not np.any(is_active):
             continue

@@ -17,7 +17,7 @@ def to_observations(
     Parameters:
         labels: A 1D array of integer category labels.
         categories: Category names. :code:`sorted(categories).index(label)` yields the corresponding category from an integer label.
-        timestamps : Timestamps that correspond to the integer category labels. If not provided, timestamps are starting from 0.
+        timestamps: Timestamps that correspond to the integer category labels. If not provided, timestamps are starting from 0.
 
     Returns:
         Observations with columns "start", "stop", and "category".
@@ -448,7 +448,7 @@ def remove_overlapping_observations(
             # a. Find the highest-priority observation AMONG THE UNPROCESSED ONES.
             priorities = np.asarray(priority_function(unprocessed_observations))
             best_iloc_pos = np.argmin(priorities)
-            best_candidate_index = unprocessed_observations.index[best_iloc_pos]
+            best_candidate_index = unprocessed_observations.index[int(best_iloc_pos)]
 
             # b. Mark this winner as "prioritized" to keep it.
             observations.at[best_candidate_index, "overlapping"] = "prioritized"

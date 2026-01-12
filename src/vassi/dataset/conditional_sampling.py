@@ -58,10 +58,11 @@ def get_non_recipient_foreground_indices(
     min_samples_per_stratum: int,
     random_state: int | np.random.Generator | None = None,
 ) -> np.ndarray:
-    _, strata, _ = element_collection.describe_available_samples(
+    sample_description = element_collection.describe_available_samples(
         reset=False, exclude_previously_sampled=False
     )
-    additional_indices: list[np.ndarray] = []
+    interval_levels = sample_description[:, 1]
+    selected_indices: list[np.ndarray] = []
     for rank, frequency in frequency_per_rank.items():
         if not isinstance(rank, int):
             rank = set(rank)
@@ -89,8 +90,10 @@ def get_non_recipient_foreground_indices(
             )
         else:
             raise ValueError("Invalid input combination")
-        _, strata_labels = np.unique(strata[indices], axis=0, return_inverse=True)
-        additional_indices.append(
+        _, strata_labels = np.unique(
+            interval_levels[indices], axis=0, return_inverse=True
+        )
+        selected_indices.append(
             indices[
                 biased_stratified_subsample(
                     strata_labels,
@@ -100,7 +103,8 @@ def get_non_recipient_foreground_indices(
                 )
             ]
         )
-    return np.concatenate(additional_indices)
+    indices = np.concatenate(selected_indices, dtype=np.uint64)
+    return indices
 
 
 # 1. broadcast=True -> category is REQUIRED
@@ -177,7 +181,7 @@ def get_indices_where(
     if isinstance(element_collection, Dataset):
         if not is_mapping_of_mappings_of(trajectories, Hashable, Hashable, Trajectory):
             raise ValueError("Expected mapping of mappings for Dataset trajectories")
-        mask = _get_dataset_indices_where(
+        mask = _get_dataset_mask(
             dataset=element_collection,
             trajectories=trajectories,
             category=category,
@@ -188,7 +192,7 @@ def get_indices_where(
     else:
         if not is_mapping_of(trajectories, Hashable, Trajectory):
             raise ValueError("Expected mapping of trajectories for Group")
-        mask = _get_group_indices_where(
+        mask = _get_group_mask(
             group=element_collection,
             trajectories=trajectories,
             category=category,
@@ -196,10 +200,10 @@ def get_indices_where(
             broadcast_actor_y_across_dyads=broadcast_actor_y_across_dyads,
             exclude_recipient=exclude_recipient,
         )
-    return np.argwhere(mask).ravel()
+    return np.argwhere(mask).ravel().astype(np.uint64)
 
 
-def _get_group_indices_where(
+def _get_group_mask(
     group: Group,
     *,
     trajectories: Mapping[Hashable, Trajectory],
@@ -232,9 +236,8 @@ def _get_group_indices_where(
         assert isinstance(group, WithCategories), (
             f"Expected group to be of mixin type {WithCategories}, got {type(group)}"
         )
-        if group.background_category in group.categories:
-            background = sorted(group.categories).index(group.background_category)
-        else:
+        background = group.category_index(group.background_category)
+        if background is None:
             background = -1
     distance_matrix_result = None
     if rank is not None:
@@ -261,7 +264,7 @@ def _get_group_indices_where(
             assert isinstance(element, WithAnnotations), (
                 f"Expected element to be of mixin type {WithAnnotations}, got {type(element)}"
             )
-            y = element.sample_y(indices=None)
+            y = element.sample_y(indices=None, out=None)
             element_mask_view &= np.isin(y, y_target)
         if rank is not None:
             assert distance_matrix_result is not None, (
@@ -283,13 +286,13 @@ def _get_group_indices_where(
                 f"Expected element to be of mixin type {WithAnnotations}, got {type(element)}"
             )
             assert background is not None, "Expected background to be specified"
-            element_mask_view &= element.sample_y(indices=None) == background
+            element_mask_view &= element.sample_y(indices=None, out=None) == background
         offset += num_samples
     assert offset == mask.shape[0], "Group sample count mismatch"
     return mask
 
 
-def _get_dataset_indices_where(
+def _get_dataset_mask(
     dataset: Dataset,
     *,
     trajectories: Mapping[Hashable, Mapping[Hashable, Trajectory]],
@@ -301,7 +304,7 @@ def _get_dataset_indices_where(
     mask = np.empty(dataset.num_samples, dtype=bool)
     offset = 0
     for group_id, group in dataset:
-        group_mask = _get_group_indices_where(
+        group_mask = _get_group_mask(
             group,
             trajectories=trajectories[group_id],
             category=category,

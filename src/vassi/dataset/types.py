@@ -239,6 +239,13 @@ class WithCategories:
         labels_encoded[idx] = label_idx
         return labels_encoded
 
+    def category_index(self, category: str) -> int | None:
+        if category != self.background_category and category not in self.categories:
+            raise ValueError(f"Undefined category {category}")
+        if category == self.background_category and category not in self.categories:
+            return None
+        return sorted(self.categories).index(category)
+
 
 class Base(ABC):
     def __init__(self):
@@ -951,7 +958,9 @@ class ElementCollection[I: Hashable, E: Base](Base, ABC):
             elif np.isdtype(indices.dtype, "bool"):
                 indices = np.argwhere(indices).ravel()
             elif not np.issubdtype(indices.dtype, np.integer):
-                raise ValueError("indices must be an integer array")
+                raise ValueError(
+                    f"indices must be an integer array, got {indices.dtype}"
+                )
             num_samples = len(indices)
         else:
             num_samples = self.num_samples
