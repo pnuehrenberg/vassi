@@ -2,16 +2,17 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from collections.abc import Callable, Hashable, Iterable, Iterator, Mapping, Sequence
-from copy import copy as shallow_copy
+from copy import copy, replace
 from functools import partial
 from pathlib import Path, PurePosixPath
 from typing import Literal, Self, override
 
 import numpy as np
 import pandas as pd
+import polars as pl
 from sklearn.metrics import f1_score  # pyright: ignore[reportUnknownVariableType]
+from tabularintervals import aggregate, densify, resolve
 
-from ..dataset import densify_observations, remove_overlapping_observations
 from ..dataset.types import WithCategories, get_validators
 from ..distributed import get_process_state, limited_process_pool
 from ..io.h5 import (
@@ -26,14 +27,9 @@ from ..type_guards import is_tuple_of, is_valid_classification_data
 from ..utils import SmoothingFunction
 from ..warnings import warn
 from .utils import (
-    filter_observations_by_recipient_bouts,
     to_predictions,
     validate_predictions,
 )
-
-# if vassi is bumped to Python 3.13:
-# copy.replace could be used instead of shallow copy
-# and subsequent assignment of attributes
 
 
 def _discretize[T: Classification](
@@ -57,16 +53,21 @@ def _smooth[T: Classification](
 class BaseClassification(WithCategories, ABC):
     y_proba: np.ndarray
     y: np.ndarray
-    predictions: pd.DataFrame
+    predictions: pl.DataFrame
     _discretized: bool = False
+
+    def __replace__(self, **changes: ...):
+        new = copy(self)
+        vars(new).update(changes)
+        return new
+
+    def _update_from(self, other: Self) -> None:
+        # this should only be used in __init__
+        vars(self).update(vars(other))
 
     @property
     def discretized(self) -> bool:
         return self._discretized
-
-    def _update_from(self, other: Self) -> None:
-        # this should only be used in __init__
-        vars(self).update(other.__dict__)
 
     @abstractmethod
     def update_predictions(self) -> Self: ...
@@ -131,12 +132,12 @@ class WithGroundTruth(RequiresBaseClassification, ABC):
     # so that categories and background_category are available
 
     _y_gt: np.ndarray | None = None
-    _annotations: pd.DataFrame | None = None
+    _annotations: pl.DataFrame | None = None
 
     def with_ground_truth(
         self,
         y_gt: np.ndarray,
-        annotations: pd.DataFrame,
+        annotations: pl.DataFrame,
     ):
         self._y_gt = y_gt.astype(np.int8)
         self._annotations = annotations
@@ -148,7 +149,7 @@ class WithGroundTruth(RequiresBaseClassification, ABC):
         return self._y_gt
 
     @property
-    def annotations(self) -> pd.DataFrame:
+    def annotations(self) -> pl.DataFrame:
         if self._annotations is None:
             raise ValueError(
                 f"Annotations are not set, call with_ground_truth on {type(self)}"
@@ -158,7 +159,7 @@ class WithGroundTruth(RequiresBaseClassification, ABC):
     def f1_score(
         self,
         on: Literal["timestamp", "annotation", "prediction"],
-    ) -> pd.Series:
+    ) -> pl.DataFrame:
         base, _ = self.base
         if not base.discretized:
             raise ValueError(
@@ -168,13 +169,15 @@ class WithGroundTruth(RequiresBaseClassification, ABC):
             y_true = self.y_gt
             y_pred = base.y
         elif on == "annotation":
-            annotations: pd.DataFrame = self.annotations
-            y_true = base.encode(np.asarray(annotations["category"]))
-            y_pred = base.encode(np.asarray(annotations["predicted_category"]))
+            annotations: pl.DataFrame = self.annotations
+            y_true = base.encode(np.asarray(annotations.get_column("category")))
+            y_pred = base.encode(
+                np.asarray(annotations.get_column("predicted_category"))
+            )
         elif on == "prediction":
-            predictions: pd.DataFrame = base.predictions
-            y_true = base.encode(np.asarray(predictions["true_category"]))
-            y_pred = base.encode(np.asarray(predictions["category"]))
+            predictions: pl.DataFrame = base.predictions
+            y_true = base.encode(np.asarray(predictions.get_column("true_category")))
+            y_pred = base.encode(np.asarray(predictions.get_column("category")))
         else:
             raise ValueError(
                 f"'on' should be one of 'timestamp', 'annotation', 'prediction' and not '{on}'"
@@ -188,11 +191,15 @@ class WithGroundTruth(RequiresBaseClassification, ABC):
             average=None,  # pyright: ignore[reportArgumentType]
             zero_division=1.0,  # pyright: ignore[reportArgumentType]
         )
-        return pd.Series(scores, index=sorted(base.categories), name=on)
+        return (
+            pl.DataFrame({"score": scores, "category": sorted(base.categories)})
+            .with_columns(pl.lit(on).alias("on"))
+            .select("category", "on", "score")
+        )
 
-    def score(self) -> pd.DataFrame:
+    def score(self) -> pl.DataFrame:
         levels = ("timestamp", "annotation", "prediction")
-        return pd.DataFrame([self.f1_score(level) for level in levels])
+        return pl.concat(self.f1_score(level) for level in levels)
 
     @abstractmethod
     def validate(self) -> Self: ...
@@ -229,7 +236,7 @@ class ClassificationCollection[
         if self.discretized:
             self.y_proba: np.ndarray = self._concatenate_numpy_attribute("y_proba")
             self.y: np.ndarray = self._concatenate_numpy_attribute("y")
-            self.predictions: pd.DataFrame = self._concatenate_pandas_attribute(
+            self.predictions: pl.DataFrame = self._concatenate_polars_attribute(
                 "predictions"
             )
 
@@ -261,26 +268,29 @@ class ClassificationCollection[
             values.append(value)
         return np.concatenate(values, axis=0)
 
-    def _concatenate_pandas_attribute(self, attribute: str) -> pd.DataFrame:
-        all_values: list[pd.DataFrame] = []
-        for _, classification in self:
+    def _concatenate_polars_attribute(self, attribute: str) -> pl.DataFrame:
+        all_values: list[pl.DataFrame] = []
+        for (_, classification), identifier in zip(self, self.identifiers()):
             if isinstance(classification, ClassificationCollection):
-                value = classification._concatenate_pandas_attribute(attribute)
+                value = classification._concatenate_polars_attribute(attribute)
             else:
                 value = getattr(classification, attribute)
-                if not isinstance(value, pd.DataFrame):
+                if not isinstance(value, pl.DataFrame):
                     raise ValueError(
-                        f"Attribute '{attribute}' is not a pandas DataFrame"
+                        f"Attribute '{attribute}' is not a polars DataFrame"
                     )
-            all_values.append(value)
-        identifiers = np.repeat(
-            np.asarray(self.identifiers()).reshape(len(all_values), -1),
-            [len(value) for value in all_values],
-            axis=0,
-        )
-        values = pd.concat(all_values, axis=0, ignore_index=True)
-        values[list(self._level)] = identifiers
-        return values
+            all_values.append(
+                value.with_columns(
+                    pl.lit(i).alias(level)
+                    for level, i in zip(
+                        self._level,
+                        identifier
+                        if is_tuple_of(identifier, Hashable)
+                        else [identifier],
+                    )
+                )
+            )
+        return pl.concat(all_values, how="vertical_relaxed")
 
     @property
     def _num_flat_classifications(self) -> int:
@@ -353,13 +363,12 @@ class ClassificationCollection[
         return self.update_from_flat_classifications(classifications)
 
     @abstractmethod
-    def remove_overlapping_predictions(
+    def resolve_overlapping_predictions(
         self,
-        priority_function: Callable[[pd.DataFrame], Iterable[float]],
+        priority: pl.Expr,
         *,
         filter_bouts_by_recipients: bool,
-        max_bout_gap: float | None = None,
-        max_bout_overlap: float | None = None,
+        max_bout_gap: int | None = None,
     ) -> Self: ...
 
     @classmethod
@@ -402,14 +411,13 @@ class ClassificationCollection[
         identifier_validator, classification_validator = get_validators(
             classifications_dict, minimal_value_type=cls._minimal_classification_type
         )
-        new = cls(
+        return identifier, cls(
             classifications_dict,
             categories=set(first.categories),
             background_category=first.background_category,
             identifier_validator=identifier_validator,
             classification_validator=classification_validator,
         )
-        return identifier, new
 
 
 class Classification(BaseClassification):
@@ -435,44 +443,43 @@ class Classification(BaseClassification):
     def update_predictions(self) -> Self:
         if not self.discretized:
             raise ValueError("Classification results are not discretized.")
-        new = shallow_copy(self)
-        new.predictions = to_predictions(
-            new.y,
-            new.y_proba,
-            new.timestamps,
-            set(new.categories),
+        return replace(
+            self,
+            predictions=to_predictions(
+                self.y,
+                self.y_proba,
+                self.timestamps,
+                set(self.categories),
+            ),
         )
-        return new
 
     @override
     def discretize(
         self,
         decision_thresholds: Mapping[str, float] | None = None,
     ) -> Self:
-        new = shallow_copy(self)
-        new._discretized = True
-        default_decision_idx = new.category_index(new.background_category)
-
+        default_decision_idx = self.category_index(self.background_category)
         if decision_thresholds is None:
-            new.y = np.argmax(new.y_proba, axis=1).astype(np.int8)
-            return new.update_predictions()
-        y_proba_thresh = new.y_proba.copy()
-        for category, threshold in decision_thresholds.items():
-            category_idx = new.category_index(category)
-            y_proba_thresh[:, category_idx] = np.where(
-                new.y_proba[:, category_idx] > threshold,
-                new.y_proba[:, category_idx],
-                0,
+            y = np.argmax(self.y_proba, axis=1).astype(np.int8)
+        else:
+            y_proba_thresh = self.y_proba.copy()
+            for category, threshold in decision_thresholds.items():
+                category_idx = self.category_index(category)
+                y_proba_thresh[:, category_idx] = np.where(
+                    self.y_proba[:, category_idx] > threshold,
+                    self.y_proba[:, category_idx],
+                    0,
+                )
+            y_proba_thresh[y_proba_thresh.sum(axis=1) == 0, default_decision_idx] = (
+                1 if default_decision_idx is not None else 0
             )
-        y_proba_thresh[y_proba_thresh.sum(axis=1) == 0, default_decision_idx] = (
-            1 if default_decision_idx is not None else 0
-        )
-        y = np.argmax(y_proba_thresh, axis=1)  # this is only true for non-all-zero rows
-        y[
-            (y_proba_thresh == 0).all(axis=1)
-        ] = -1  # use -1 if background category is not included in categories
-        new.y = y
-        return new.update_predictions()
+            y = np.argmax(
+                y_proba_thresh, axis=1
+            )  # this is only true for non-all-zero rows
+            y[
+                (y_proba_thresh == 0).all(axis=1)
+            ] = -1  # use -1 if background category is not included in categories
+        return replace(self, y=y, _discretized=True).update_predictions()
 
     @override
     def smooth(
@@ -481,9 +488,9 @@ class Classification(BaseClassification):
         *,
         decision_thresholds: Mapping[str, float] | None = None,
     ) -> Self:
-        new = shallow_copy(self)
-        new.y_proba = smoothing_func(array=new.y_proba)
-        return new.discretize(decision_thresholds)
+        return replace(self, y_proba=smoothing_func(array=self.y_proba)).discretize(
+            decision_thresholds
+        )
 
     @override
     def to_h5(
@@ -500,7 +507,7 @@ class Classification(BaseClassification):
             },
             data_path=str(PurePosixPath(data_path) / "classification"),
         )
-        self.predictions.to_hdf(
+        self.predictions.to_pandas().to_hdf(
             data_file, key=str(PurePosixPath(data_path) / "predictions")
         )
         write_h5_attrs(data_file, data_path=data_path, **attrs)
@@ -534,24 +541,25 @@ class Classification(BaseClassification):
         if not is_valid_classification_data(data):
             raise ValueError("Invalid classification data")
 
-        predictions = pd.read_hdf(
-            data_file, key=str(PurePosixPath(data_path) / "predictions")
+        predictions = pl.from_pandas(
+            pd.read_hdf(data_file, key=str(PurePosixPath(data_path) / "predictions"))
         )
-        if not isinstance(predictions, pd.DataFrame):
+        if not isinstance(predictions, pl.DataFrame):
             raise ValueError(
                 f"Expected predictions to be a DataFrame, got {type(predictions)}"
             )
         y = data.pop("y")
         if not isinstance(y, np.ndarray):
             raise ValueError(f"Expected y to be a numpy array, got {type(y)}")
-        new = cls(
-            **data,
-            discretize_on_init=False,
+        return identifier, replace(
+            cls(
+                **data,
+                discretize_on_init=False,
+            ),
+            _discretized=True,
+            y=y,
+            predictions=predictions,
         )
-        new._discretized = True
-        new.y = y
-        new.predictions = predictions
-        return identifier, new
 
 
 class AnnotatedClassification(WithGroundTruth, Classification):
@@ -562,22 +570,29 @@ class AnnotatedClassification(WithGroundTruth, Classification):
         timestamps: np.ndarray,
         categories: set[str],
         background_category: str,
-        annotations: pd.DataFrame,
+        annotations: pl.DataFrame,
         y_gt: np.ndarray | None,
         discretize_on_init: bool,
     ):
         self.with_categories(categories, background_category=background_category)
 
         if y_gt is None:
-            annotations = densify_observations(
+            annotations = densify(
                 annotations,
-                time_range=tuple(timestamps[[0, -1]]),
-                background_category=self.background_category,
+                within=tuple(timestamps[[0, -1]]),
+                category=self.background_category,
             )
-            start = np.asarray(annotations["start"])
-            stop = np.asarray(annotations["stop"])
-            category = self.encode(np.asarray(annotations["category"]))
-            y_gt = np.repeat(category, stop - start + 1)
+            duration = (
+                annotations.select(
+                    (pl.col("stop") - pl.col("start") + 1)
+                    .cast(pl.Int64)
+                    .alias("duration")
+                )
+                .get_column("duration")
+                .to_numpy()
+            )
+            category = self.encode(np.asarray(annotations.get_column("category")))
+            y_gt = np.repeat(category, duration)
 
         self.with_ground_truth(y_gt, annotations)
 
@@ -591,20 +606,21 @@ class AnnotatedClassification(WithGroundTruth, Classification):
 
     @override
     def validate(self) -> Self:
-        new = shallow_copy(self)
-        new.predictions = validate_predictions(
-            new.predictions,
-            new.annotations,
-            on="predictions",
-            background_category=new.background_category,
+        return replace(
+            self,
+            predictions=validate_predictions(
+                self.predictions,
+                self.annotations,
+                on="predictions",
+                background_category=self.background_category,
+            ),
+            _annotations=validate_predictions(
+                self.predictions,
+                self.annotations,
+                on="annotations",
+                background_category=self.background_category,
+            ),
         )
-        new._annotations = validate_predictions(
-            new.predictions,
-            new.annotations,
-            on="annotations",
-            background_category=new.background_category,
-        )
-        return new
 
     @override
     def update_predictions(self) -> Self:
@@ -621,7 +637,7 @@ class AnnotatedClassification(WithGroundTruth, Classification):
             data_path=str(PurePosixPath(data_path) / "classification" / "y_gt"),
             key="y_gt",
         )
-        self.annotations.to_hdf(
+        self.annotations.to_pandas().to_hdf(
             data_file, key=str(PurePosixPath(data_path) / "annotations")
         )
 
@@ -685,44 +701,44 @@ class GroupClassification(ClassificationCollection[Classification]):
         )
 
     @override
-    def remove_overlapping_predictions(
+    def resolve_overlapping_predictions(
         self,
-        priority_function: Callable[[pd.DataFrame], Iterable[float]],
+        priority: pl.Expr,
         *,
         filter_bouts_by_recipients: bool,
-        max_bout_gap: float | None = None,
-        max_bout_overlap: float | None = None,
+        max_bout_gap: int | None = None,
     ) -> Self:
         if self._target != "dyad":
             warn(
                 "Only nested, dyadic classifications can contain overlapping predictions, returning unchanged predictions"
             )
-            return shallow_copy(self)
-        predictions = self.predictions
-        predictions = predictions[predictions["category"] != "none"]
+            return copy(self)
+        predictions = self.predictions.filter(
+            ~pl.col("category").eq(self.background_category)
+        )
+        if filter_bouts_by_recipients:
+            if max_bout_gap is None:
+                raise ValueError(
+                    "max_bout_gap must be specified when prefiltering recipient bouts"
+                )
+            bouts, predictions = aggregate(
+                predictions, max_gap=max_bout_gap, group_by=["actor"]
+            )
+            bouts = resolve(
+                bouts, priority=pl.col("stop") - pl.col("start"), group_by=["actor"]
+            )
+            predictions = predictions.filter(
+                pl.col("_bout_id").is_in(bouts["_bout_id"])
+            ).drop("_bout_id")
+
+        predictions = resolve(
+            predictions,
+            priority=priority,
+            group_by=["actor"],
+        )
+
         classifications: dict[Hashable, Classification] = {}
         for actor in self.actors:
-            predictions_actor = predictions.loc[
-                predictions["actor"] == actor
-            ].reset_index(drop=True)
-            if filter_bouts_by_recipients:
-                if max_bout_gap is None or max_bout_overlap is None:
-                    raise ValueError(
-                        "max_bout_gap and max_bout_overlap must be specified when prefiltering recipient bouts"
-                    )
-                predictions_actor = filter_observations_by_recipient_bouts(
-                    predictions_actor,
-                    priority_function=priority_function,
-                    max_bout_gap=max_bout_gap,
-                    max_bout_overlap=max_bout_overlap,
-                    background_category=self.background_category,
-                )
-            predictions_actor = remove_overlapping_observations(
-                predictions_actor,
-                priority_function=priority_function,
-                max_overlap=0,
-                index_columns=(),
-            )
             for dyad, classification in self:
                 if is_tuple_of(dyad, Hashable):
                     _actor, recipient = dyad
@@ -730,36 +746,37 @@ class GroupClassification(ClassificationCollection[Classification]):
                     raise ValueError(f"Invalid dyad identifier: {dyad}")
                 if actor != _actor:
                     continue
-                predictions_dyad = predictions_actor[
-                    predictions_actor["recipient"] == recipient
-                ].reset_index(drop=True)
-                predictions_dyad = densify_observations(
-                    predictions_dyad,
-                    time_range=tuple(classification.timestamps[[0, -1]]),
-                    background_category=self.background_category,
+                predictions_dyad = predictions.filter(
+                    pl.col("actor").eq(actor) & pl.col("recipient").eq(recipient)
                 )
-                try:
-                    predictions_dyad.loc[:, "mean_probability"] = predictions_dyad[
-                        "mean_probability"
-                    ].fillna(value=0)
-                except KeyError:
-                    predictions_dyad["mean_probability"] = 0
-                try:
-                    predictions_dyad.loc[:, "max_probability"] = predictions_dyad[
-                        "max_probability"
-                    ].fillna(value=0)
-                except KeyError:
-                    predictions_dyad["max_probability"] = 0
-                drop = [
-                    column
-                    for column in ["actor", "recipient"]
-                    if column in predictions_dyad.columns
-                ]
-                if len(drop) > 0:
-                    predictions_dyad = predictions_dyad.drop(columns=drop)
-                new = shallow_copy(classification)
-                new.predictions = predictions_dyad
-                classifications[dyad] = new
+                predictions_dyad = densify(
+                    predictions_dyad,
+                    within=tuple(classification.timestamps[[0, -1]]),
+                    category=self.background_category,
+                )
+                duration = (
+                    predictions_dyad.select(
+                        (pl.col("stop") - pl.col("start") + 1)
+                        .cast(pl.Int64)
+                        .alias("duration")
+                    )
+                    .get_column("duration")
+                    .to_numpy()
+                )
+                category = self.encode(
+                    np.asarray(predictions_dyad.get_column("category"))
+                )
+                y = np.repeat(category, duration)
+                predictions_dyad = to_predictions(
+                    y,
+                    classification.y_proba,
+                    classification.timestamps,
+                    set(classification.categories),
+                )
+
+                classifications[dyad] = replace(
+                    classification, y=y, predictions=predictions_dyad
+                )
         return type(self)(
             classifications,
             categories=set(self.categories),
@@ -839,7 +856,7 @@ class AnnotatedGroupClassification(WithGroundTruth, GroupClassification):
         )
         self.with_ground_truth(
             y_gt=self._concatenate_numpy_attribute("y_gt"),
-            annotations=self._concatenate_pandas_attribute("annotations"),
+            annotations=self._concatenate_polars_attribute("annotations"),
         )
 
     @override
@@ -850,12 +867,12 @@ class AnnotatedGroupClassification(WithGroundTruth, GroupClassification):
             AnnotatedClassification.confirm_instance(classification)
             for classification in classifications
         ]
-        new = super().update_from_flat_classifications(classifications)
-        new.with_ground_truth(
-            y_gt=new._concatenate_numpy_attribute("y_gt"),
-            annotations=new._concatenate_pandas_attribute("annotations"),
+        updated = super().update_from_flat_classifications(classifications)
+        updated.with_ground_truth(
+            y_gt=updated._concatenate_numpy_attribute("y_gt"),
+            annotations=updated._concatenate_polars_attribute("annotations"),
         )
-        return new
+        return updated
 
     @override
     def validate(self) -> Self:
@@ -871,21 +888,19 @@ class AnnotatedGroupClassification(WithGroundTruth, GroupClassification):
         )
 
     @override
-    def remove_overlapping_predictions(
+    def resolve_overlapping_predictions(
         self,
-        priority_function: Callable[[pd.DataFrame], Iterable[float]],
+        priority: pl.Expr,
         *,
         filter_bouts_by_recipients: bool,
-        max_bout_gap: float | None = None,
-        max_bout_overlap: float | None = None,
+        max_bout_gap: int | None = None,
     ) -> Self:
         return (
             super()
-            .remove_overlapping_predictions(
-                priority_function=priority_function,
+            .resolve_overlapping_predictions(
+                priority=priority,
                 filter_bouts_by_recipients=filter_bouts_by_recipients,
                 max_bout_gap=max_bout_gap,
-                max_bout_overlap=max_bout_overlap,
             )
             .validate()
         )
@@ -939,23 +954,20 @@ class DatasetClassification(ClassificationCollection[GroupClassification]):
         )
 
     @override
-    def remove_overlapping_predictions(
+    def resolve_overlapping_predictions(
         self,
-        priority_function: Callable[[pd.DataFrame], Iterable[float]],
+        priority: pl.Expr,
         *,
         filter_bouts_by_recipients: bool,
-        max_bout_gap: float | None = None,
-        max_bout_overlap: float | None = None,
+        max_bout_gap: int | None = None,
     ) -> Self:
         return type(self)(
             {
-                identifier: classification.remove_overlapping_predictions(
-                    priority_function,
+                identifier: classification.resolve_overlapping_predictions(
+                    priority,
                     filter_bouts_by_recipients=filter_bouts_by_recipients,
                     max_bout_gap=max_bout_gap,
-                    max_bout_overlap=max_bout_overlap,
                 )
-                # could be parallelized
                 for identifier, classification in self
             },
             categories=set(self.categories),
@@ -1044,7 +1056,7 @@ class AnnotatedDatasetClassification(WithGroundTruth, DatasetClassification):
         )
         self.with_ground_truth(
             y_gt=self._concatenate_numpy_attribute("y_gt"),
-            annotations=self._concatenate_pandas_attribute("annotations"),
+            annotations=self._concatenate_polars_attribute("annotations"),
         )
 
     @override
@@ -1055,12 +1067,12 @@ class AnnotatedDatasetClassification(WithGroundTruth, DatasetClassification):
             AnnotatedClassification.confirm_instance(classification)
             for classification in classifications
         ]
-        new = super().update_from_flat_classifications(classifications)
-        new.with_ground_truth(
-            y_gt=new._concatenate_numpy_attribute("y_gt"),
-            annotations=new._concatenate_pandas_attribute("annotations"),
+        updated = super().update_from_flat_classifications(classifications)
+        updated.with_ground_truth(
+            y_gt=updated._concatenate_numpy_attribute("y_gt"),
+            annotations=updated._concatenate_polars_attribute("annotations"),
         )
-        return new
+        return updated
 
     @override
     def validate(self) -> Self:
@@ -1076,21 +1088,19 @@ class AnnotatedDatasetClassification(WithGroundTruth, DatasetClassification):
         )
 
     @override
-    def remove_overlapping_predictions(
+    def resolve_overlapping_predictions(
         self,
-        priority_function: Callable[[pd.DataFrame], Iterable[float]],
+        priority: pl.Expr,
         *,
         filter_bouts_by_recipients: bool,
-        max_bout_gap: float | None = None,
-        max_bout_overlap: float | None = None,
+        max_bout_gap: int | None = None,
     ) -> Self:
         return (
             super()
-            .remove_overlapping_predictions(
-                priority_function=priority_function,
+            .resolve_overlapping_predictions(
+                priority=priority,
                 filter_bouts_by_recipients=filter_bouts_by_recipients,
                 max_bout_gap=max_bout_gap,
-                max_bout_overlap=max_bout_overlap,
             )
             .validate()
         )

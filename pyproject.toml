@@ -33,6 +33,7 @@ dependencies = [
     "mpi4py>=4.1.1",
     "grpcio>=1.76.0",
     "pydantic>=2.12.5",
+    "polars>=1.37.1",
 ]
 requires-python = ">=3.13"
 
@@ -47,6 +48,7 @@ docs = [
 ]
 
 [tool.basedpyright]
+include = ["../tabularintervals"]
 venvPath = "."
 venv = ".venv"
 # This will disable the 'reportAny' check project-wide

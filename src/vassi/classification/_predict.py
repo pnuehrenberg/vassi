@@ -4,6 +4,7 @@ from collections.abc import Callable
 from typing import Concatenate, Protocol, Self, overload
 
 import numpy as np
+import polars as pl
 from sklearn.utils.class_weight import (
     compute_sample_weight,  # pyright: ignore[reportUnknownVariableType]
 )
@@ -84,9 +85,7 @@ def _predict_annotated_base_sampleable[F: Shaped](
         and sampleable.background_category not in sampleable.categories
     ):
         # will be densified with new background category
-        annotations = annotations[
-            annotations["category"] != sampleable.background_category
-        ].reset_index(drop=True)
+        annotations = annotations.filter(~pl.col("category").eq(background_category))
     return AnnotatedClassification(
         classifier.predict_proba(X),
         timestamps=sampleable.trajectory.timestamps,

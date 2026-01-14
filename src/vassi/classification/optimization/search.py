@@ -2,12 +2,13 @@ import os
 import tempfile
 from collections.abc import Callable
 from functools import partial
+from pathlib import Path
 from typing import Concatenate, final
 
 import numpy as np
 import optuna
 import optuna.storages.journal
-import pandas as pd
+import polars as pl
 
 from ...dataset import AnnotatedDataset
 from ...distributed import Environment, get_process_state, limited_process_pool
@@ -415,10 +416,10 @@ def run_optuna_hyperparameter_search[F: Shaped](
 def summarize_study(
     study: optuna.study.Study,
     *,
-    summary_file: str = "optimization-summary.yaml",
-    trials_file: str = "optimization-trials.csv",
+    summary_file: str | Path = "optimization-summary.yaml",
+    trials_file: str | Path = "optimization-trials.csv",
 ) -> dict[str, object]:
-    trials = pd.DataFrame(
+    trials = pl.DataFrame(
         [
             {
                 "trial": trial.number,
@@ -428,7 +429,7 @@ def summarize_study(
             for trial in study.trials
         ]
     )
-    trials.to_csv(trials_file, index=False)
+    trials.write_csv(trials_file)
     to_yaml(
         {
             "trial": study.best_trial.number,

@@ -8,7 +8,7 @@ from typing import Literal, Self, override
 
 import h5py
 import numpy as np
-import pandas as pd
+import polars as pl
 
 from .._utils import get_inner
 from ..data_structures import Trajectory
@@ -19,7 +19,11 @@ from ..utils import hash_mapping
 from ..warnings import warn
 from .features import load_by_name as load_feature_by_name
 from .modifiers import as_absolute, as_sign_change_latency, reversed_dyad
-from .naming import as_dataframe, generate_feature_names, prune_feature_names
+from .naming import (
+    generate_feature_names,
+    prepare_for_dataframe,
+    prune_feature_names,
+)
 from .temporal_features import load_by_name as load_temporal_feature_by_name
 from .utils import Shaped
 
@@ -94,7 +98,9 @@ def _parse_discard(**kwargs: ...) -> str | Iterable[str] | None:
 class BaseExtractor[F: Shaped](ABC):
     _feature_funcs: dict[
         Literal["individual", "dyad"],
-        list[tuple[Callable[..., F], Mapping[str, object], Mapping[str, object]]],
+        list[
+            tuple[Callable[..., np.ndarray], Mapping[str, object], Mapping[str, object]]
+        ],
     ]
     _feature_names: dict[Literal["individual", "dyad"], list[str]]
     _supported_modify_params: set[str]
@@ -266,7 +272,7 @@ class BaseExtractor[F: Shaped](ABC):
         target: Literal["individual", "dyad"],
     ) -> None:
         feature_funcs: list[
-            tuple[Callable[..., F], Mapping[str, object], Mapping[str, object]]
+            tuple[Callable[..., np.ndarray], Mapping[str, object], Mapping[str, object]]
         ] = []
         feature_names: list[str] = []
         for func, kwargs in feature_config:
@@ -320,7 +326,7 @@ class BaseExtractor[F: Shaped](ABC):
         self,
         func: Callable[..., np.ndarray],
         **kwargs: ...,
-    ) -> Callable[..., F]: ...
+    ) -> Callable[..., np.ndarray]: ...
 
     @abstractmethod
     def finalize(self, x: np.ndarray) -> F: ...
@@ -390,7 +396,6 @@ class BaseExtractor[F: Shaped](ABC):
                         )
                     else:
                         features = func(trajectory, **kwargs)
-                    features = np.asarray(features)
                     num_current_features = features.shape[1]
                     if cached is not None:
                         # can write full directly to cached
@@ -418,7 +423,6 @@ class BaseExtractor[F: Shaped](ABC):
                         )
                     else:
                         features = func(trajectory, **kwargs)
-                    features = np.asarray(features)
                     num_current_features = features.shape[1]
                     intermediate[
                         :, feature_idx : feature_idx + num_current_features
@@ -494,7 +498,7 @@ class Extractor(BaseExtractor[np.ndarray]):
         return x
 
 
-class DataFrameExtractor(BaseExtractor[pd.DataFrame]):
+class DataFrameExtractor(BaseExtractor[pl.DataFrame]):
     _supported_modify_params: set[str] = {
         "reversed_dyad",
         "as_absolute",
@@ -520,7 +524,7 @@ class DataFrameExtractor(BaseExtractor[pd.DataFrame]):
         self,
         func: Callable[..., np.ndarray],
         **kwargs: ...,
-    ) -> Callable[..., pd.DataFrame]:
+    ) -> Callable[..., np.ndarray]:
         (
             param_reversed_dyad,
             param_as_absolute,
@@ -538,12 +542,12 @@ class DataFrameExtractor(BaseExtractor[pd.DataFrame]):
             func = as_absolute(func)
         if param_as_sign_change_latency:
             func = as_sign_change_latency(func)
-        return as_dataframe(func, keep=keep, discard=discard)
+        return prepare_for_dataframe(func, keep=keep, discard=discard)
 
     @override
-    def finalize(self, x: np.ndarray) -> pd.DataFrame:
+    def finalize(self, x: np.ndarray) -> pl.DataFrame:
         if x.ndim != 2 or x.shape[1] != self.num_features:
             raise ValueError(
                 f"Expected 2D array with {self.num_features} columns, got {x.shape}"
             )
-        return pd.DataFrame(x, columns=self.feature_names)
+        return pl.DataFrame(x, schema=self.feature_names)

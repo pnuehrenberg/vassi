@@ -2,7 +2,7 @@ from collections.abc import Iterable, Mapping
 from typing import Literal, TypedDict, TypeGuard
 
 import numpy as np
-import pandas as pd
+import polars as pl
 
 
 def is_iterable_of[T](obj: ..., t: type[T]) -> TypeGuard[Iterable[T]]:
@@ -63,7 +63,7 @@ class ClassificationData(TypedDict):
     y_proba: np.ndarray
     y: np.ndarray
     y_gt: np.ndarray | None
-    annotations: pd.DataFrame | None
+    annotations: pl.DataFrame | None
 
 
 def is_valid_classification_data(obj: ...) -> TypeGuard[ClassificationData]:
@@ -95,7 +95,7 @@ def is_valid_classification_data(obj: ...) -> TypeGuard[ClassificationData]:
     if y_gt is not None and not isinstance(y_gt, np.ndarray):
         return False
     annotations = obj.get("annotations", None)  # pyright: ignore[reportUnknownMemberType]
-    if annotations is not None and not isinstance(annotations, pd.DataFrame):
+    if annotations is not None and not isinstance(annotations, pl.DataFrame):
         return False
     return True
 

@@ -1,17 +1,14 @@
 from __future__ import annotations
 
 from collections.abc import Iterable
-from typing import Callable, Literal
+from typing import Literal
 
 import numpy as np
-import pandas as pd
+import polars as pl
+from tabularintervals import densify
 
 from ..dataset.observations import (
-    aggregate_observations_as_bouts,
-    assert_singular_index_combination,
-    densify_observations,
     interval_overlap,
-    remove_overlapping_observations,
     to_observations,
 )
 
@@ -21,7 +18,7 @@ def to_predictions(
     y_proba: np.ndarray,
     timestamps: np.ndarray,
     categories: set[str],
-) -> pd.DataFrame:
+) -> pl.DataFrame:
     """
     Convert the given predictions to a DataFrame.
 
@@ -35,29 +32,34 @@ def to_predictions(
         :func:`to_observations`for more information how categories and labels are mapped.
     """
     predictions = to_observations(labels, categories, timestamps=timestamps)
+    if predictions.is_empty():
+        return predictions.with_columns(
+            mean_probability=pl.lit(None).cast(pl.Float64),
+            max_probability=pl.lit(None).cast(pl.Float64),
+        )
     y_proba_predicted = y_proba[np.arange(len(labels)), labels]
     start_indices = np.searchsorted(
-        timestamps, np.asarray(predictions["start"]), side="left"
+        timestamps, np.asarray(predictions.get_column("start")), side="left"
     )
     end_indices = np.r_[start_indices[1:], len(labels)]
     durations = end_indices - start_indices
-    predictions["mean_probability"] = (
-        np.add.reduceat(y_proba_predicted, start_indices) / durations
-    )
-    predictions["max_probability"] = np.maximum.reduceat(
-        y_proba_predicted, start_indices
+    predictions = predictions.with_columns(
+        mean_probability=(
+            np.add.reduceat(y_proba_predicted, start_indices) / durations
+        ),
+        max_probability=(np.maximum.reduceat(y_proba_predicted, start_indices)),
     )
     return predictions
 
 
 def validate_predictions(
-    predictions: pd.DataFrame,
-    annotations: pd.DataFrame,
+    predictions: pl.DataFrame,
+    annotations: pl.DataFrame,
     *,
     on: Literal["predictions", "annotations"] = "predictions",
     index_columns: Iterable[str] = ("group", "actor", "recipient"),
     background_category: str,
-) -> pd.DataFrame:
+) -> pl.DataFrame:
     available_index_columns: list[str] = []
     for column_name in index_columns:
         if column_name not in predictions:
@@ -66,25 +68,49 @@ def validate_predictions(
             raise ValueError("columns do not match")
         available_index_columns.append(column_name)
     if len(available_index_columns) > 0:
-        predictions = assert_singular_index_combination(
-            predictions, tuple(available_index_columns)
+        if predictions.select(*available_index_columns).unique().height > 1:
+            raise ValueError(
+                f"predictions should have single combination of available identifier columns {available_index_columns}"
+            )
+        if annotations.select(*available_index_columns).unique().height > 1:
+            raise ValueError(
+                f"annotations should have single combination of available identifier columns {available_index_columns}"
+            )
+    if predictions.is_empty() and annotations.is_empty():
+        raise ValueError("no data to compare")
+    elif predictions.is_empty():
+        start, stop = (
+            annotations.get_column("start").min(),
+            annotations.get_column("stop").max(),
         )
-        annotations = assert_singular_index_combination(
-            annotations, tuple(available_index_columns)
+    elif annotations.is_empty():
+        start, stop = (
+            predictions.get_column("start").min(),
+            predictions.get_column("stop").max(),
         )
-    if predictions.empty and annotations.empty:
-        raise ValueError("No data to compare")
-    elif predictions.empty:
-        start, stop = annotations["start"].min(), annotations["stop"].max()
     else:
-        start, stop = predictions["start"].min(), predictions["stop"].max()
-    start = min(predictions["start"].min(), annotations["start"].min())
-    stop = max(predictions["stop"].max(), annotations["stop"].max())
-    predictions = densify_observations(
-        predictions, time_range=(start, stop), background_category=background_category
+        starts = [
+            predictions.get_column("start").min(),
+            annotations.get_column("start").min(),
+        ]
+        stops = [
+            predictions.get_column("stop").max(),
+            annotations.get_column("stop").max(),
+        ]
+        start = min([start for start in starts if start is not None])
+        stop = min([stop for stop in stops if stop is not None])
+    if (
+        start is None
+        or stop is None
+        or not isinstance(start, int)
+        or not isinstance(stop, int)
+    ):
+        raise ValueError(f"invalid input dataframes with [{start, stop}]")
+    predictions = densify(
+        predictions, within=(start, stop), category=background_category
     )
-    annotations = densify_observations(
-        annotations, time_range=(start, stop), background_category=background_category
+    annotations = densify(
+        annotations, within=(start, stop), category=background_category
     )
     if on == "predictions":
         target_df, source_df = predictions, annotations
@@ -92,9 +118,9 @@ def validate_predictions(
     else:
         target_df, source_df = annotations, predictions
         new_col_name = "predicted_category"
-    target_intervals = np.asarray(target_df[["start", "stop"]])
-    source_intervals = np.asarray(source_df[["start", "stop"]])
-    source_categories_array = np.asarray(source_df["category"])
+    target_intervals = np.asarray(target_df.select("start", "stop"))
+    source_intervals = np.asarray(source_df.select("start", "stop"))
+    source_categories_array = np.asarray(source_df.get_column("category"))
     overlap_matrix = interval_overlap(target_intervals, source_intervals)
     unique_categories, integer_labels = np.unique(
         source_categories_array, return_inverse=True
@@ -104,44 +130,7 @@ def validate_predictions(
     cumulative_overlap_matrix = overlap_matrix @ one_hot_matrix
     best_category_indices = np.argmax(cumulative_overlap_matrix, axis=1)
     matched_categories = unique_categories[best_category_indices]
-    validated_df = target_df.copy()
-    validated_df[new_col_name] = matched_categories
-    return validated_df
-
-
-def filter_observations_by_recipient_bouts(
-    observations: pd.DataFrame,
-    *,
-    priority_function: Callable[[pd.DataFrame], Iterable[float]],
-    max_bout_gap: float,
-    max_bout_overlap: float,
-    background_category: str,
-) -> pd.DataFrame:
-    bout_offset = 0
-    bouts_by_recipient: list[pd.DataFrame] = []
-    observations_by_recipient: list[pd.DataFrame] = []
-    for recipient in observations["recipient"].unique():
-        bouts_recipient, observations_recipient = aggregate_observations_as_bouts(
-            observations.loc[observations["recipient"] == recipient, :],
-            max_bout_gap=max_bout_gap,
-            index_columns=("actor",),
-            background_category=background_category,
-        )
-        bouts_recipient["bout"] += bout_offset
-        observations_recipient["bout"] += bout_offset
-        bout_offset += len(bouts_recipient)
-        bouts_by_recipient.append(bouts_recipient)
-        observations_by_recipient.append(observations_recipient)
-    if len(bouts_by_recipient) <= 1:
-        return observations
-    non_overlapping_bouts = remove_overlapping_observations(
-        pd.concat(bouts_by_recipient, ignore_index=True),
-        index_columns=(),
-        priority_function=priority_function,
-        max_overlap=max_bout_overlap,
+    validated_df = target_df.with_columns(
+        pl.Series(matched_categories).alias(new_col_name)
     )
-    observations = pd.concat(observations_by_recipient, ignore_index=True)
-    observations = observations.loc[
-        np.isin(observations["bout"], non_overlapping_bouts["bout"]), :
-    ]
-    return observations.drop(columns=["bout"]).sort_values("start", ignore_index=True)
+    return validated_df

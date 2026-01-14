@@ -3,7 +3,7 @@ from collections.abc import Callable
 from functools import partial
 from typing import Literal, override
 
-import numpy as np
+import polars as pl
 from pydantic.dataclasses import dataclass
 
 from .._results import AnnotatedDatasetClassification
@@ -27,8 +27,11 @@ def _scorer(
     else:
         scores = result.f1_score(on=on)
     if foreground_only:
-        scores = scores[list(result.foreground_categories)]
-    return float(np.mean(scores))
+        scores = scores.filter(pl.col("category").is_in(result.foreground_categories))
+    score = scores.get_column("score").mean()
+    if not isinstance(score, float):
+        raise ValueError(f"Expected float score, got {score}")
+    return score
 
 
 def _make_scorer(

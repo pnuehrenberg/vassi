@@ -4,7 +4,7 @@ from functools import partial
 from typing import Self, final, overload, override
 
 import numpy as np
-import pandas as pd
+import polars as pl
 import sklearn.utils.validation as sklearn_validation
 from sklearn.base import BaseEstimator, TransformerMixin
 
@@ -190,7 +190,7 @@ class SlidingWindowAggregator(BaseEstimator, TransformerMixin):
             return False
         return hash(self) == hash(other)
 
-    def fit(self, X: np.ndarray | pd.DataFrame, y: None = None) -> Self:
+    def fit(self, X: np.ndarray | pl.DataFrame, y: None = None) -> Self:
         """
         This method is required by the sklearn API and does not perform any actual fitting.
 
@@ -210,7 +210,7 @@ class SlidingWindowAggregator(BaseEstimator, TransformerMixin):
 
     def transform(
         self,
-        X: np.ndarray | pd.DataFrame,
+        X: np.ndarray | pl.DataFrame,
         *,
         indices: np.ndarray | None = None,
         out: np.ndarray | None = None,

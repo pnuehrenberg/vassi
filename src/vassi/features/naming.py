@@ -2,10 +2,10 @@ import functools
 from collections.abc import Callable, Iterable
 from inspect import signature
 from itertools import product
-from typing import overload
+from typing import Literal, overload
 
 import numpy as np
-import pandas as pd
+import polars as pl
 
 from .._utils import get_inner
 from ..logging import set_logging_level  # pyright: ignore[reportUnknownVariableType]
@@ -14,14 +14,48 @@ from .modifiers import get_prefix
 from .utils import Shaped
 
 
+@overload
 def _as_dataframe[**P](
     func: Callable[P, np.ndarray],
     keep: Iterable[str] | str | None,
     discard: Iterable[str] | str | None,
+    return_numpy: Literal[False] = False,
     *args: P.args,
     **kwargs: P.kwargs,
-) -> pd.DataFrame:
-    if kwargs.get("flat", True) is False:
+) -> pl.DataFrame: ...
+
+
+@overload
+def _as_dataframe[**P](
+    func: Callable[P, np.ndarray],
+    keep: Iterable[str] | str | None,
+    discard: Iterable[str] | str | None,
+    return_numpy: Literal[True],
+    *args: P.args,
+    **kwargs: P.kwargs,
+) -> np.ndarray: ...
+
+
+@overload
+def _as_dataframe[**P](
+    func: Callable[P, np.ndarray],
+    keep: Iterable[str] | str | None,
+    discard: Iterable[str] | str | None,
+    return_numpy: bool,
+    *args: P.args,
+    **kwargs: P.kwargs,
+) -> pl.DataFrame | np.ndarray: ...
+
+
+def _as_dataframe[**P](
+    func: Callable[P, np.ndarray],
+    keep: Iterable[str] | str | None,
+    discard: Iterable[str] | str | None,
+    return_numpy: bool = False,
+    *args: P.args,
+    **kwargs: P.kwargs,
+) -> np.ndarray | pl.DataFrame:
+    if dict(kwargs).get("flat", True) is False:
         set_logging_level().warning(
             "Ignoring argument flat=False. Dataframe features are always flat."
         )
@@ -29,10 +63,23 @@ def _as_dataframe[**P](
     names = generate_feature_names(func, *args, **kwargs)
     pruned_names = prune_feature_names(names, keep=keep, discard=discard)
     kwargs["flat"] = True
-    return pd.DataFrame(
-        func(*args, **kwargs)[:, np.isin(names, pruned_names)],
-        columns=pd.Index(pruned_names),
+    result = func(*args, **kwargs)[:, np.isin(names, pruned_names)]
+    if return_numpy:
+        return result
+    return pl.DataFrame(
+        result,
+        schema=pruned_names,
     )
+
+
+def prepare_for_dataframe[**P](
+    func: Callable[P, np.ndarray],
+    keep: Iterable[str] | str | None = None,
+    discard: Iterable[str] | str | None = None,
+) -> Callable[P, np.ndarray]:
+    result_func = functools.partial(_as_dataframe, func, keep, discard, True)
+    decorated = functools.wraps(func)(result_func)
+    return decorated
 
 
 class _AsDataFrameDecorator[**P]:
@@ -43,12 +90,15 @@ class _AsDataFrameDecorator[**P]:
         self,
         keep: Iterable[str] | str | None = None,
         discard: Iterable[str] | str | None = None,
+        return_numpy: bool = False,
     ):
         self.keep = keep
         self.discard = discard
 
-    def __call__(self, func: Callable[P, np.ndarray]) -> Callable[P, pd.DataFrame]:
-        result_func = functools.partial(_as_dataframe, func, self.keep, self.discard)
+    def __call__(self, func: Callable[P, np.ndarray]) -> Callable[P, pl.DataFrame]:
+        result_func = functools.partial(
+            _as_dataframe, func, self.keep, self.discard, False
+        )
         decorated = functools.wraps(func)(result_func)
         return decorated
 
@@ -59,7 +109,7 @@ def as_dataframe[**P](
     *,
     keep: Iterable[str] | str | None = None,
     discard: Iterable[str] | str | None = None,
-) -> Callable[P, pd.DataFrame]: ...
+) -> Callable[P, pl.DataFrame]: ...
 
 
 @overload
@@ -76,7 +126,7 @@ def as_dataframe[**P](
     *,
     keep: Iterable[str] | str | None = None,
     discard: Iterable[str] | str | None = None,
-) -> Callable[P, pd.DataFrame] | _AsDataFrameDecorator[P]:
+) -> Callable[P, pl.DataFrame] | _AsDataFrameDecorator[P]:
     """
     Decorator to convert a feature function to a dataframe feature function.
 

@@ -11,12 +11,14 @@ import matplotlib.patches as patches
 import matplotlib.pyplot as plt
 import matplotlib.typing as mpt
 import numpy as np
-import pandas as pd
+import polars as pl
 from matplotlib.axes import Axes
 from matplotlib.colors import Colormap, Normalize
 from sklearn.metrics import (
     confusion_matrix,  # pyright: ignore[reportUnknownVariableType]
 )
+
+from ..warnings import warn
 
 
 class AxesArray(Protocol):
@@ -215,10 +217,10 @@ def plot_confusion_matrix(
 
 
 def plot_classification_timeline(
-    predictions: pd.DataFrame,
+    predictions: pl.DataFrame,
     categories: Sequence[str],
     *,
-    annotations: pd.DataFrame | None = None,
+    annotations: pl.DataFrame | None = None,
     timestamps: np.ndarray | None = None,
     y_proba: np.ndarray | None = None,
     y_proba_smoothed: np.ndarray | None = None,
@@ -255,23 +257,20 @@ def plot_classification_timeline(
 
     def _plot_timeline(
         ax: Axes,
-        observations: pd.DataFrame,
+        observations: pl.DataFrame,
         categories: list[str],
         y_range: tuple[float, float],
         color: mpt.ColorType,
     ):
-        try:
-            intervals = (
-                observations.set_index("category")
-                .loc[[categories[idx]], ["start", "stop"]]
-                .to_numpy()
-            )
-        except KeyError:
+        intervals = observations.filter(
+            pl.col("category").eq(sorted(categories)[idx])
+        ).select("start", (pl.col("stop") - pl.col("start") + 1).alias("duration"))
+        if intervals.is_empty():
             return
         _ = ax.broken_barh(  # pyright: ignore[reportUnknownMemberType]
             [
-                (float(start), float(stop) - float(start) + 1)
-                for start, stop in intervals
+                (float(start), float(duration))
+                for start, duration in intervals.iter_rows()
             ],
             yrange=y_range,
             lw=0,
@@ -279,12 +278,17 @@ def plot_classification_timeline(
         )
 
     if interval is None or limit_interval:
-        interval = (-np.inf, np.inf)
+        start = predictions.get_column("start").min()
+        stop = predictions.get_column("stop").max()
         interval = (
-            max(interval[0], predictions["start"].min()),
-            min(interval[1], predictions["stop"].max()),
+            max(-np.inf, float(start) if isinstance(start, (int, float)) else -np.inf),
+            min(np.inf, float(stop) if isinstance(stop, (int, float)) else np.inf),
         )
-    categories = list(categories)
+    if sorted(categories) != list(categories) and category_labels is not None:
+        warn(
+            "categories are not sorted, make sure that category_labels match categories after sorting"
+        )
+    categories = sorted(categories)
     category_labels = categories if category_labels is None else list(category_labels)
     show_on_return = False
     if axes is None:

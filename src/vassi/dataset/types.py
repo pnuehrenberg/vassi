@@ -13,12 +13,13 @@ from typing import (
 )
 
 import numpy as np
-import pandas as pd
+import polars as pl
 from sklearn.model_selection import (
     KFold,
     StratifiedKFold,
     train_test_split,  # pyright: ignore[reportUnknownVariableType]
 )
+from tabularintervals import densify
 
 from .._utils import check_memory_for_array
 from ..data_structures import Trajectory
@@ -27,7 +28,6 @@ from ..io.h5 import load_trajectories
 from ..type_guards import is_tuple_of
 from ..utils import to_int_seed
 from ..warnings import warn
-from .observations import densify_observations
 from .stratification import biased_stratified_subsample
 from .utils import (
     check_trajectory,
@@ -287,7 +287,7 @@ class Base(ABC):
     @abstractmethod
     def annotate(
         self,
-        observations: pd.DataFrame,
+        observations: pl.DataFrame,
         *,
         categories: set[str],
         background_category: str,
@@ -345,7 +345,7 @@ class ExtendsBase:
 class WithAnnotations(ExtendsBase, WithCategories, ABC):
     _columns: frozenset[str] | None = None
     _conditional_columns: dict[str, dict[int | str, set[str]]] | None = None
-    _observations: pd.DataFrame | None = None
+    _observations: pl.DataFrame | None = None
     _y: np.ndarray | None = None
 
     def __init_subclass__(
@@ -358,7 +358,7 @@ class WithAnnotations(ExtendsBase, WithCategories, ABC):
 
     def with_annotations(
         self,
-        observations: pd.DataFrame,
+        observations: pl.DataFrame,
         *,
         categories: set[str],
         background_category: str,
@@ -393,11 +393,11 @@ class WithAnnotations(ExtendsBase, WithCategories, ABC):
         return self._conditional_columns
 
     @abstractmethod
-    def _prepare_observations(self, observations: pd.DataFrame) -> pd.DataFrame:
+    def _prepare_observations(self, observations: pl.DataFrame) -> pl.DataFrame:
         missing_columns = self.columns - set(observations.columns)
         if len(missing_columns) > 0:
             raise ValueError(f"Observations are missing columns: {missing_columns}")
-        return observations[sorted(self.columns)]
+        return observations.select(*sorted(self.columns))
 
     @abstractmethod
     def sample_y(
@@ -418,7 +418,7 @@ class WithAnnotations(ExtendsBase, WithCategories, ABC):
     ) -> tuple[F, np.ndarray]: ...
 
     @property
-    def observations(self) -> pd.DataFrame:
+    def observations(self) -> pl.DataFrame:
         if self._observations is None:
             raise ValueError(
                 f"Observations are not set, call with_annotations on {type(self)}"
@@ -428,20 +428,20 @@ class WithAnnotations(ExtendsBase, WithCategories, ABC):
     @property
     def category_counts(self) -> dict[str, int]:
         """Counts of each category in the sampleable."""
-        counts: dict[str, int] = {}
-        for category in sorted(self.categories):
-            mask = self.observations["category"] == category
-            if not mask.any():
-                counts[category] = 0
-                continue
-            counts[category] = int(
-                np.sum(
-                    1
-                    + np.asarray(self.observations.loc[mask, "stop"])
-                    - np.asarray(self.observations.loc[mask, "start"])
-                )
+        counts = {
+            str(category): int(count)
+            for category, count in (
+                self.observations.with_columns()
+                .group_by("category")
+                .agg((pl.col("stop") - pl.col("start") + 1).sum().alias("count"))
+                .select("category", "count")
+                .iter_rows()
             )
-        return counts
+        }
+        for category in self.categories:
+            if category not in counts:
+                counts[category] = 0
+        return dict(sorted(counts.items()))
 
     def subsample[F: Shaped](
         self,
@@ -531,10 +531,17 @@ class AnnotatedElementMixin(
     ) -> np.ndarray:
         if self._y is None:
             observations = self.observations
-            start = np.asarray(observations["start"])
-            stop = np.asarray(observations["stop"])
-            category = self.encode(np.asarray(observations["category"]))
-            self._y: np.ndarray | None = np.repeat(category, stop - start + 1)
+            duration = (
+                observations.select(
+                    (pl.col("stop") - pl.col("start") + 1)
+                    .cast(pl.Int64)
+                    .alias("duration")
+                )
+                .get_column("duration")
+                .to_numpy()
+            )
+            category = self.encode(np.asarray(observations.get_column("category")))
+            self._y: np.ndarray | None = np.repeat(category, duration)
         y = self._y
         if indices is not None:
             y = y[indices]
@@ -549,16 +556,21 @@ class AnnotatedElementMixin(
     ) -> np.ndarray:
         observations = self.observations
         num_intervals = len(observations)
-        start = np.asarray(observations["start"])
-        stop = np.asarray(observations["stop"])
+        duration = (
+            observations.select(
+                (pl.col("stop") - pl.col("start") + 1).cast(pl.Int64).alias("duration")
+            )
+            .get_column("duration")
+            .to_numpy()
+        )
         self, base_type = self.base
         sample_description = base_type.describe_available_samples(
             self, reset=reset, exclude_previously_sampled=exclude_previously_sampled
         )  # interval_levels, num_intervals_per_level are np.zeros and (1, ) and will be replaced below
         available_indices = sample_description[:, 0]
-        intervals = np.repeat(
-            np.arange(num_intervals, dtype=np.uint), stop - start + 1
-        )[available_indices]
+        intervals = np.repeat(np.arange(num_intervals, dtype=np.uint), duration)[
+            available_indices
+        ]
         return np.transpose([available_indices, intervals])
 
 
@@ -602,7 +614,7 @@ class Individual(ElementMixin, Base):
     @override
     def annotate(
         self,
-        observations: pd.DataFrame,
+        observations: pl.DataFrame,
         *,
         categories: set[str],
         background_category: str,
@@ -623,7 +635,7 @@ class AnnotatedIndividual(
         self,
         trajectory: Trajectory,
         *,
-        observations: pd.DataFrame,
+        observations: pl.DataFrame,
         categories: set[str],
         background_category: str,
     ) -> None: ...
@@ -634,7 +646,7 @@ class AnnotatedIndividual(
         trajectory: None = None,
         *,
         individual: Individual,
-        observations: pd.DataFrame,
+        observations: pl.DataFrame,
         categories: set[str],
         background_category: str,
     ) -> None: ...
@@ -644,7 +656,7 @@ class AnnotatedIndividual(
         trajectory: Trajectory | None = None,
         *,
         individual: Individual | None = None,
-        observations: pd.DataFrame,
+        observations: pl.DataFrame,
         categories: set[str],
         background_category: str,
     ):
@@ -662,16 +674,16 @@ class AnnotatedIndividual(
         )
 
     @override
-    def _prepare_observations(self, observations: pd.DataFrame) -> pd.DataFrame:
+    def _prepare_observations(self, observations: pl.DataFrame) -> pl.DataFrame:
         # this cannot be moved to AnnotatedElementMixin, because it depends on the trajectory
         observations = super()._prepare_observations(observations)
-        observations = densify_observations(
+        observations = densify(
             observations,
-            time_range=tuple(self.trajectory.timestamps[[0, -1]]),
-            background_category=self.background_category,
+            within=tuple(self.trajectory.timestamps[[0, -1]]),
+            category=self.background_category,
         )
         # the below only finishes successfully if categories are valid
-        _ = self.encode(np.asarray(observations["category"]))
+        _ = self.encode(np.asarray(observations.get_column("category")))
         return observations
 
     @override
@@ -751,7 +763,7 @@ class Dyad(ElementMixin, Base):
     @override
     def annotate(
         self,
-        observations: pd.DataFrame,
+        observations: pl.DataFrame,
         *,
         categories: set[str],
         background_category: str,
@@ -771,7 +783,7 @@ class AnnotatedDyad(AnnotatedElementMixin, Dyad, columns={"category", "start", "
         trajectory: Trajectory,
         trajectory_other: Trajectory,
         *,
-        observations: pd.DataFrame,
+        observations: pl.DataFrame,
         categories: set[str],
         background_category: str,
     ) -> None: ...
@@ -783,7 +795,7 @@ class AnnotatedDyad(AnnotatedElementMixin, Dyad, columns={"category", "start", "
         trajectory_other: None = None,
         *,
         dyad: Dyad,
-        observations: pd.DataFrame,
+        observations: pl.DataFrame,
         categories: set[str],
         background_category: str,
     ) -> None: ...
@@ -794,7 +806,7 @@ class AnnotatedDyad(AnnotatedElementMixin, Dyad, columns={"category", "start", "
         trajectory_other: Trajectory | None = None,
         *,
         dyad: Dyad | None = None,
-        observations: pd.DataFrame,
+        observations: pl.DataFrame,
         categories: set[str],
         background_category: str,
     ):
@@ -814,17 +826,17 @@ class AnnotatedDyad(AnnotatedElementMixin, Dyad, columns={"category", "start", "
         )
 
     @override
-    def _prepare_observations(self, observations: pd.DataFrame) -> pd.DataFrame:
+    def _prepare_observations(self, observations: pl.DataFrame) -> pl.DataFrame:
         # same as for AnnotatedIndividual
         observations = super()._prepare_observations(observations)
-        observations = densify_observations(
+        observations = densify(
             observations,
-            time_range=tuple(self.trajectory.timestamps[[0, -1]]),
-            background_category=self.background_category,
+            within=tuple(self.trajectory.timestamps[[0, -1]]),
+            category=self.background_category,
         )
 
         # the below only finishes successfully if categories are valid
-        _ = self.encode(np.asarray(observations["category"]))
+        _ = self.encode(np.asarray(observations.get_column("category")))
         return observations
 
     @override
@@ -1209,7 +1221,7 @@ class Group(ElementCollection[Hashable, Individual | Dyad]):
     @override
     def annotate(
         self,
-        observations: pd.DataFrame,
+        observations: pl.DataFrame,
         *,
         categories: set[str],
         background_category: str,
@@ -1241,7 +1253,7 @@ class AnnotatedGroup(
         trajectories: Mapping[Hashable, Trajectory],
         *,
         target: Literal["individual", "dyad"],
-        observations: pd.DataFrame,
+        observations: pl.DataFrame,
         categories: set[str],
         background_category: str,
     ) -> None: ...
@@ -1252,7 +1264,7 @@ class AnnotatedGroup(
         trajectories: None = None,
         *,
         group: Group,
-        observations: pd.DataFrame,
+        observations: pl.DataFrame,
         categories: set[str],
         background_category: str,
     ) -> None: ...
@@ -1273,7 +1285,7 @@ class AnnotatedGroup(
         group: Group | None = None,
         elements: Mapping[Hashable, AnnotatedIndividual | AnnotatedDyad] | None = None,
         target: Literal["individual", "dyad"] | None = None,
-        observations: pd.DataFrame | None = None,
+        observations: pl.DataFrame | None = None,
         categories: set[str] | None = None,
         background_category: str | None = None,
     ):
@@ -1295,12 +1307,12 @@ class AnnotatedGroup(
             super().__init__(elements=elements, target=target)
             self._target: Literal["individual", "dyad"] = target
             self.with_annotations(
-                pd.DataFrame(),
+                pl.DataFrame(),
                 categories=set(categories_per_element.pop()),
                 background_category=background_category_per_element.pop(),
                 prepare_annotations=False,
             )
-            self._observations: pd.DataFrame | None = self._concatenate_observations()
+            self._observations: pl.DataFrame | None = self._concatenate_observations()
             return
         else:
             raise ValueError("Either trajectories and target or group must be provided")
@@ -1332,24 +1344,28 @@ class AnnotatedGroup(
         for identifier, _ in super().__iter__():
             yield identifier, self[identifier]
 
-    def _concatenate_observations(self) -> pd.DataFrame:
+    def _concatenate_observations(self) -> pl.DataFrame:
         identifier_columns = (
             ["actor"] if self._target == "individual" else ["actor", "recipient"]
         )
-        all_observations = [element.observations for _, element in self]
-        identifiers = np.repeat(
-            np.asarray(self.identifiers()),
-            [len(observations) for observations in all_observations],
-            axis=0,
+        return pl.concat(
+            (
+                element.observations.with_columns(
+                    pl.lit(i).alias(c)
+                    for c, i in zip(
+                        identifier_columns,
+                        [identifier]
+                        if not is_tuple_of(identifier, Hashable)
+                        else identifier,
+                    )
+                )
+                for (_, element), identifier in zip(self, self.identifiers())
+            ),
+            how="vertical_relaxed",
         )
-        observations = pd.concat(
-            all_observations, copy=False, axis=0, ignore_index=True
-        )
-        observations[identifier_columns] = identifiers
-        return observations
 
     @override
-    def _prepare_observations(self, observations: pd.DataFrame) -> pd.DataFrame:
+    def _prepare_observations(self, observations: pl.DataFrame) -> pl.DataFrame:
         if self.elements is None:
             raise ValueError(f"{type(self)} is not initialized")
         observations = super()._prepare_observations(observations)
@@ -1359,15 +1375,9 @@ class AnnotatedGroup(
         for identifier, element in self.elements.items():
             if not is_tuple_of(identifier, Hashable):
                 identifier = (identifier,)
-            mask = np.empty(len(observations), dtype=bool)
-            np.bitwise_and.reduce(
-                [
-                    np.asarray(observations[col]) == value
-                    for col, value in zip(identifier_columns, identifier, strict=True)
-                ],
-                out=mask,
+            observations_element = observations.filter(
+                pl.col(c).eq(i) for c, i in zip(identifier_columns, identifier)
             )
-            observations_element = observations[mask]
             try:
                 self[identifier] = element.annotate(
                     observations_element,
@@ -1460,7 +1470,7 @@ class Dataset(ElementCollection[Hashable, Group]):
     @override
     def annotate(
         self,
-        observations: pd.DataFrame,
+        observations: pl.DataFrame,
         *,
         categories: set[str],
         background_category: str,
@@ -1622,7 +1632,7 @@ class AnnotatedDataset(
         trajectories: Mapping[Hashable, Mapping[Hashable, Trajectory]],
         *,
         target: Literal["individual", "dyad"],
-        observations: pd.DataFrame,
+        observations: pl.DataFrame,
         categories: set[str],
         background_category: str,
     ) -> None: ...
@@ -1633,7 +1643,7 @@ class AnnotatedDataset(
         trajectories: None = None,
         *,
         dataset: Dataset,
-        observations: pd.DataFrame,
+        observations: pl.DataFrame,
         categories: set[str],
         background_category: str,
     ) -> None: ...
@@ -1653,7 +1663,7 @@ class AnnotatedDataset(
         dataset: Dataset | None = None,
         groups: Mapping[Hashable, AnnotatedGroup] | None = None,
         target: Literal["individual", "dyad"] | None = None,
-        observations: pd.DataFrame | None = None,
+        observations: pl.DataFrame | None = None,
         categories: set[str] | None = None,
         background_category: str | None = None,
     ):
@@ -1673,12 +1683,12 @@ class AnnotatedDataset(
                 raise ValueError("All groups must have the same background category")
             self._target = super().get_target()
             self.with_annotations(
-                pd.DataFrame(),
+                pl.DataFrame(),
                 categories=set(categories_per_group.pop()),
                 background_category=background_category_per_group.pop(),
                 prepare_annotations=False,
             )
-            self._observations: pd.DataFrame | None = self._concatenate_observations()
+            self._observations: pl.DataFrame | None = self._concatenate_observations()
             return
         else:
             raise ValueError(
@@ -1712,26 +1722,22 @@ class AnnotatedDataset(
         for identifier, _ in super().__iter__():
             yield identifier, self[identifier]
 
-    def _concatenate_observations(self) -> pd.DataFrame:
-        all_observations = [element.observations for _, element in self]
-        identifiers = np.repeat(
-            np.asarray(self.identifiers()),
-            [len(observations) for observations in all_observations],
-            axis=0,
+    def _concatenate_observations(self) -> pl.DataFrame:
+        return pl.concat(
+            (
+                element.observations.with_columns(pl.lit(identifier).alias("group"))
+                for (_, element), identifier in zip(self, self.identifiers())
+            ),
+            how="vertical_relaxed",
         )
-        observations = pd.concat(
-            all_observations, copy=False, axis=0, ignore_index=True
-        )
-        observations["group"] = identifiers
-        return observations
 
     @override
-    def _prepare_observations(self, observations: pd.DataFrame) -> pd.DataFrame:
+    def _prepare_observations(self, observations: pl.DataFrame) -> pl.DataFrame:
         if self.elements is None:
             raise ValueError(f"{type(self)} is not initialized")
         observations = super()._prepare_observations(observations)
         for identifier, element in self.elements.items():
-            observations_element = observations[observations["group"] == identifier]
+            observations_element = observations.filter(pl.col("group").eq(identifier))
             try:
                 self[identifier] = element.annotate(
                     observations_element,
@@ -1771,18 +1777,20 @@ class AnnotatedDataset(
         background_category: str,
         **_: ...,
     ) -> Self:
-        observations = pd.read_csv(observation_file)  # pyright: ignore[reportUnknownMemberType]
+        observations = pl.read_csv(
+            observation_file, schema_overrides={"start": pl.UInt64, "end": pl.UInt64}
+        )
         if categories is None:
-            categories = set(observations["category"]) | {background_category}
+            categories = set(observations.get_column("category").unique()) | {
+                background_category
+            }
             warn(
                 f"Loading categories ({', '.join(sorted(categories))}) from observations file, specify categories argument if incomplete."
             )
         else:
-            observations = observations[
-                np.isin(
-                    observations["category"], list(categories | {background_category})
-                )
-            ]
+            observations = observations.filter(
+                pl.col("category").is_in(list(categories | {background_category}))
+            )
         return cls(
             load_trajectories(trajectory_file),
             target=target,

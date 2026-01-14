@@ -1,8 +1,7 @@
 from functools import partial
-from itertools import product
 
 import numpy as np
-import pandas as pd
+import polars as pl
 from sklearn.utils.class_weight import (
     compute_sample_weight,  # pyright: ignore[reportUnknownVariableType]
 )
@@ -33,18 +32,6 @@ from .helpers import (
 cfg.key_keypoints = "keypoints"
 cfg.key_timestamp = "timestamps"
 cfg.trajectory_keys = ("keypoints", "timestamps")
-
-
-def _flat(df: pd.DataFrame, suffix: str) -> pd.DataFrame:
-    return pd.DataFrame(
-        np.array(df).flatten().reshape(1, -1),
-        columns=pd.Index(
-            map(
-                lambda pair: "-".join(map(str, pair)) + f"-{suffix}",
-                product(df.index, df.columns),
-            )
-        ),
-    )
 
 
 if __name__ == "__main__":
@@ -114,9 +101,7 @@ if __name__ == "__main__":
         aggregator=aggregator,
     )
 
-    summary: dict[
-        int, tuple[dict[str, pd.DataFrame], dict[str, dict[str, np.ndarray]]]
-    ] = {}
+    summary: dict[int, tuple[pl.DataFrame, dict[str, dict[str, np.ndarray]]]] = {}
 
     result_for_visualization = None
 
@@ -154,13 +139,19 @@ if __name__ == "__main__":
             result_for_visualization = result_thresholded
 
         summary[run] = (
-            {
-                "raw": _flat(result.score(), "raw").assign(run=run),
-                "smoothed": _flat(result_smoothed.score(), "smoothed").assign(run=run),
-                "thresholded": _flat(result_thresholded.score(), "thresholded").assign(
-                    run=run
-                ),
-            },
+            pl.concat(
+                [
+                    result.score().with_columns(
+                        pl.lit("raw").alias("step"), pl.lit(run).alias("run")
+                    ),
+                    result_smoothed.score().with_columns(
+                        pl.lit("smoothed").alias("step"), pl.lit(run).alias("run")
+                    ),
+                    result_thresholded.score().with_columns(
+                        pl.lit("thresholded").alias("step"), pl.lit(run).alias("run")
+                    ),
+                ]
+            ),
             {
                 "true": {
                     "timestamp": result_thresholded.y_gt,
@@ -195,31 +186,14 @@ if __name__ == "__main__":
                 raise ValueError(f"Duplicate run: {key}")
             summary[key] = value
 
-    scores_raw = pd.concat(
-        [scores["raw"] for scores, _ in summary.values()], ignore_index=True
-    )
-
-    scores_smoothed = pd.concat(
-        [scores["smoothed"] for scores, _ in summary.values()], ignore_index=True
-    )
-
-    scores_thresholded = pd.concat(
-        [scores["thresholded"] for scores, _ in summary.values()], ignore_index=True
-    )
-
-    scores = pd.concat(
-        [
-            scores_raw.drop(columns=["run"]),
-            scores_smoothed.drop(columns=["run"]),
-            scores_thresholded,
-        ],
-        axis=1,
+    scores = pl.concat(_summary[0] for _summary in summary.values()).sort(
+        "run", "step", "category", "on"
     )
 
     for run, (_, y_data) in summary.items():
         for name, y in y_data.items():
             write_h5_data("results.h5", data=y, data_path=f"y/{run}/{name}", key=name)
-    scores.to_hdf("results.h5", key="scores", index=False)
+    scores.to_pandas().to_hdf("results.h5", key="scores", index=False)
 
     if result_for_visualization is None:
         raise ValueError("expected result, evaulation requires runs > 0")
@@ -227,4 +201,4 @@ if __name__ == "__main__":
         "results.h5", data_path="result_thresholded", key="result_thresholded"
     )
 
-    print(scores.drop(columns=["run"]).mean(axis=0))
+    print(scores.group_by("step", "category", "on").agg(pl.col("score").mean()))

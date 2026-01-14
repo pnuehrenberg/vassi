@@ -3,7 +3,7 @@ from contextlib import contextmanager
 from typing import Self, overload, override
 
 import numpy as np
-from numpy.dtypes import StringDType  # type: ignore
+from numpy.dtypes import StringDType
 
 from ..config import Config
 from ..config import cfg as CFG
